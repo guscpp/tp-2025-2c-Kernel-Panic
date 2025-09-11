@@ -10,7 +10,7 @@
 #include <readline/readline.h>
 //#include <sys/socket.h>
 //#include <netdb.h>
-#include <protocolo.h>
+#include "protocolo.h"
 
 
 //Para el Buffer
@@ -36,5 +36,13 @@ void add_to_packet(t_paquete *packet, void *stream, int size);
 void enviar_paquete(t_paquete *packet, int client_socket);
 
 void eliminarPaquete(t_paquete *packet);
+
+
+//Paquete del lado del SERVIDOR 
+
+t_list* recibir_paquete(int);
+
+void recibir_mensaje(int);
+
 
 #endif

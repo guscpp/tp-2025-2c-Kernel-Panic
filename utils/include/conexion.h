@@ -8,6 +8,7 @@
 // Funciones de servidor
 int iniciar_servidor(const char* ip, int puerto);
 int esperar_cliente(int socket_servidor);
+int recibir_operacion(int socket_cliente);
 
 // TODO
 // Función genérica para liberar una conexión

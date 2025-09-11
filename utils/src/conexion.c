@@ -1,4 +1,4 @@
-#include <conexion.h>
+#include "conexion.h"
 #include <commons/log.h>     // Para t_log
 #include <commons/config.h>  // Para t_config
 #include <netdb.h>       // Para getaddrinfo, struct addrinfo
@@ -7,6 +7,8 @@
 #include <unistd.h>      // Para close
 
 //no es preferible no enlazar conexion y logger dentro de una misma unidad logica?
+
+//Conexion del lado del cliente
 int crear_conexion(t_log *logger, char *ip, char *port)
 {
     int client_socket;
@@ -16,7 +18,7 @@ int crear_conexion(t_log *logger, char *ip, char *port)
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;
+    //hints.ai_flags = AI_PASSIVE;
 
     getaddrinfo(ip, port, &hints, &server_info);
 
@@ -42,3 +44,62 @@ int crear_conexion(t_log *logger, char *ip, char *port)
 
     return client_socket;
 }
+
+//Conexion del lado del server
+
+int iniciar_servidor(const char* ip, int puerto)
+{
+
+	struct addrinfo hints, *servinfo;
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_PASSIVE;
+
+	getaddrinfo(NULL, puerto, &hints, &servinfo);
+    
+	
+
+	// Creamos el socket de escucha del servidor
+
+	int socket_servidor = socket(servinfo->ai_family,
+                        servinfo->ai_socktype,
+                        servinfo->ai_protocol);
+						
+	// Asociamos el socket a un puerto
+
+	//setsockopt(socket_servidor, SOL_SOCKET, SO_REUSEPORT, &(int){1}, sizeof(int));
+
+	bind(socket_servidor, servinfo -> ai_addr, servinfo->ai_addrlen);
+
+	// Escuchamos las conexiones entrantes
+
+	listen(socket_servidor, SOMAXCONN);
+
+	freeaddrinfo(servinfo);
+	//log_trace(logger, "Listo para escuchar a mi cliente");
+
+	return socket_servidor;
+}
+
+int esperar_cliente(int socket_servidor)
+{
+	// Aceptamos un nuevo cliente
+	int socket_cliente = accept(socket_servidor, NULL, NULL);
+	
+	return socket_cliente;
+}
+
+int recibir_operacion(int socket_cliente)
+{
+	int cod_op;
+	if(recv(socket_cliente, &cod_op, sizeof(int), MSG_WAITALL) > 0)
+		return cod_op;
+	else
+	{
+		close(socket_cliente);
+		return -1;
+	}
+}
+

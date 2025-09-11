@@ -1,4 +1,4 @@
-#include "cliente.h"
+#include "worker.h"
 
 int main(int argc, char* argv[]) {
 
@@ -46,15 +46,15 @@ int main(int argc, char* argv[]) {
     
 
     //Conexion con Storage
-    /*
+    
     storage_socket = crear_conexion(logger, ip_storage, puerto_storage); 
     buffer = crear_buffer();
-    packetHandshke = crear_paquete(HANDSHAKE_CPU, buffer);
+    packetHandshke = crear_paquete(WORKER_HANDSHAKE, buffer);
 
     add_to_packet(packetHandshke, buffer->stream, buffer->size);
     enviar_paquete(packetHandshke, storage_socket);
     eliminarPaquete(packetHandshke);
-    */
+    
 
     return 0;
 }
