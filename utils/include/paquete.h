@@ -1,35 +1,17 @@
-#ifndef UTILS_LOGGER_H_
-#define UTILS_LOGGER_H_
+#ifndef PAQUETE_H_
+#define PAQUETE_H_
 
 #include <stdlib.h>
-#include <stdio.h>
+//#include <stdio.h>
 
 #include <commons/log.h>
 #include <commons/string.h>
 #include <commons/config.h>
 #include <readline/readline.h>
-#include <sys/socket.h>
-#include <netdb.h>
+//#include <sys/socket.h>
+//#include <netdb.h>
+#include <protocolo.h>
 
-
-
-//Para los logs
-t_log *iniciar_logger(char *logger_name, char *process_name, bool visible, t_log_level log_level);
-
-t_config *iniciar_config(t_log *logger, char *path);
-
-void terminar_programa(t_log *logger, t_config *config);
-
-//Para clients
-int crear_coneccion(t_log *logger, char *ip, char *port);
-
-
-
-//Las "etiquetas"
-typedef enum
-{
-	HANDSHAKE_CPU //Desde la cpu
-}op_code;
 
 //Para el Buffer
 typedef struct
