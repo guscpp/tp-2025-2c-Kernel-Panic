@@ -37,18 +37,16 @@ void agregar_a_paquete(t_paquete *packet, void *stream, int size)
 }
 
 //Serializar paquete
-//deberia utilizar un logger global, estoy trabajando en eso
-//de momento queda en NULL (o sea no queda en ningun log)
-void* serializar_paquete(t_paquete* paquete, int bytes)
+void* serializar_paquete(t_paquete* paquete, int bytes, t_log* logger)
 {
 	if (!paquete || !paquete->buffer) {
-        log_error(NULL, "Intento de serializar paquete nulo");
+        log_error(logger, "Intento de serializar paquete nulo");
         return NULL;
     }
 
 	void * magic = malloc(bytes);
 	if (!magic) {
-        log_error(NULL, "Malloc falló en serializar_paquete");
+        log_error(logger, "Malloc falló en serializar_paquete");
         return NULL;
     }
 
@@ -65,10 +63,10 @@ void* serializar_paquete(t_paquete* paquete, int bytes)
 }
 
 //Enviar paquete
-void enviar_paquete(t_paquete* paquete, int socket_cliente)
+void enviar_paquete(t_paquete* paquete, int socket_cliente, t_log* logger)
 {
 	int bytes = paquete->buffer->size + 2*sizeof(int);
-	void* a_enviar = serializar_paquete(paquete, bytes);
+	void* a_enviar = serializar_paquete(paquete, bytes, logger);
 
 	send(socket_cliente, a_enviar, bytes, 0);
 

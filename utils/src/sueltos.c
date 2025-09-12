@@ -2,14 +2,14 @@
 #include <commons/log.h>
 #include <stdio.h>          // Para printf
 
-t_log *iniciar_logger(char *logger_name, char *process_name, bool visible, t_log_level log_level)
+t_log *iniciar_logger(char *logger, char *process_name, bool visible, t_log_level log_level)
 {
-    t_log *new_logger;
-    new_logger = log_create(logger_name, process_name, visible, log_level);
+    t_log *new_logger = log_create(logger, process_name, visible, log_level);
     if (new_logger == NULL)
     {
-        printf("Error, no se pudo crear el logger\n");
-        exit(1);
+        fprintf(stderr, "ERROR CRÍTICO: No se pudo crear logger '%s' para proceso '%s'\n", 
+            logger, process_name);
+        exit(EXIT_FAILURE);
     }
     return new_logger;
 }
