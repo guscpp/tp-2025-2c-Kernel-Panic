@@ -8,8 +8,10 @@ int main(int argc, char* argv[]) {
     t_log_level log_level;
     t_log* logger;
 	t_config* config;
-    int err;
-    hacerConect datosConexion;
+    int err;        // por si algo falla
+    hacerConect* datosConexion; // tipo de dato que cree para pasar a la funcion de atender 
+                              // conexion porque los hilos funcionan como quieren
+    
 
     logger = iniciar_logger("master.log","MASTER",true, LOG_LEVEL_INFO);
     config = iniciar_config(logger,"master.config");
@@ -18,6 +20,8 @@ int main(int argc, char* argv[]) {
     
     int master_fd = iniciar_servidor(puerto);
     log_info(logger, "Servidor listo para recibir una conexion");
+   
+   
     while (1) {
         pthread_t thread;
         int *fd_conexion_master = malloc(sizeof(int));
@@ -27,47 +31,17 @@ int main(int argc, char* argv[]) {
 
         err= pthread_create(&thread,
                         NULL,
-                        atender_conexion,
-                        datosConexion);
+                        atender_conexion, // va a llamar a atender conexion pasando parametros
+                        datosConexion); // de este struct
         if (err != 0){
             log_info(logger, "Hubo un problema al crear el hilo");
         }
         pthread_detach(thread);
     }
-    
-   
-
-
-
-
 
     terminar_programa(logger,config);
     return 0;
+
 }
-
-
-void* atender_conexion(hacerConect informacion){
-    int handshake ;
-    recv(informacion->socket_conexion, &handshake,sizeof(int),MSG_WAITALL);
-    switch(handshake){
-        case QC_HANDSHAKE:
-        log_info(informacion->logger, "Se ha conectado un Query");
-        atender_Query(informacion);
-        break;
-        
-        case WORKER_HANDSHAKE:
-        log_info(informacion->logger, "Se ha conectado un worker");
-        atender_Worker(informacion);
-        break;
-        
-        DEFAULT:
-        log_warning(logger,"Operacion desconocida");
-		break;
-
-    }
-}
-
-
-
 
 

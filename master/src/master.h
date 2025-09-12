@@ -8,4 +8,11 @@ typedef struct{
     int socket_conexion;
 } hacerConect;
 
+void* atender_conexion(hacerConect*);
+
+// int cantidadWorkers = 0;
+// int id_Query = 0;
+
+
+
 #endif /* CLIENTE_H_ */
