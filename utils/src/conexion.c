@@ -5,6 +5,7 @@
 #include <string.h>			// Para memset
 #include <stdlib.h>			// Para exit
 #include <unistd.h>			// Para close
+#include <errno.h>
 
 // Conexion del lado del cliente
 int crear_conexion(t_log *logger, char *ip, char *port)
@@ -17,15 +18,21 @@ int crear_conexion(t_log *logger, char *ip, char *port)
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
 
-	getaddrinfo(ip, port, &hints, &server_info);
+	int result = getaddrinfo(ip, port, &hints, &server_info);
+	if (result != 0)
+	{
+		log_error(logger, "getaddrinfo falló: %s", gai_strerror(result));
+        return -1;
+	}
 
 	// Create client socket
 	client_socket = socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol);
 
 	if (client_socket == -1)
 	{
-		log_error(logger, "Error al crear el socket");
-		exit(1);
+        log_error(logger, "Error al crear socket: %s", strerror(errno));
+        freeaddrinfo(server_info);
+        exit(1);
 	}
 
 	// Connect socket
@@ -33,12 +40,13 @@ int crear_conexion(t_log *logger, char *ip, char *port)
 
 	if (conection == -1)
 	{
-		log_error(logger, "Error al conectar el socket");
-		exit(1);
+        log_error(logger, "Error al conectar es socket: %s", strerror(errno));
+        close(client_socket);
+        freeaddrinfo(server_info);
+        exit(1);
 	}
 
 	freeaddrinfo(server_info);
-
 	return client_socket;
 }
 

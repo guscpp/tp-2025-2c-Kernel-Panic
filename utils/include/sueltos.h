@@ -3,6 +3,7 @@
 
 #include <commons/log.h>     // Para t_log
 #include <commons/config.h>  // Para t_config
+#include <stdlib.h>          // Para exit
 
 void terminar_programa(t_log *logger, t_config *config);
 t_config *iniciar_config(t_log *logger, char *path); 

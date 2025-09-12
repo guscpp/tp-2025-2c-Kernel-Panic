@@ -31,11 +31,11 @@ typedef struct
 
 t_paquete *crear_paquete(op_code code, t_buffer *buffer);
 
-void add_to_packet(t_paquete *packet, void *stream, int size);
+void agregar_a_paquete(t_paquete *packet, void *stream, int size);
 
 void enviar_paquete(t_paquete *packet, int client_socket);
 
-void eliminarPaquete(t_paquete *packet);
+void eliminar_paquete(t_paquete *packet);
 
 
 //Paquete del lado del SERVIDOR 

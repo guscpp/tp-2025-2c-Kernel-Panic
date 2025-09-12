@@ -26,7 +26,7 @@ t_paquete *crear_paquete(op_code code, t_buffer *buffer)
 }
 
 //Aniadir al paquete
-void add_to_packet(t_paquete *packet, void *stream, int size)
+void agregar_a_paquete(t_paquete *packet, void *stream, int size)
 {
     packet->buffer->stream = realloc(packet->buffer->stream, packet->buffer->size + size + sizeof(int));
 
@@ -37,9 +37,21 @@ void add_to_packet(t_paquete *packet, void *stream, int size)
 }
 
 //Serializar paquete
+//deberia utilizar un logger global, estoy trabajando en eso
+//de momento queda en NULL (o sea no queda en ningun log)
 void* serializar_paquete(t_paquete* paquete, int bytes)
 {
+	if (!paquete || !paquete->buffer) {
+        log_error(NULL, "Intento de serializar paquete nulo");
+        return NULL;
+    }
+
 	void * magic = malloc(bytes);
+	if (!magic) {
+        log_error(NULL, "Malloc falló en serializar_paquete");
+        return NULL;
+    }
+
 	int desplazamiento = 0;
 
 	memcpy(magic + desplazamiento, &(paquete->codigo_operacion), sizeof(int));
@@ -64,11 +76,14 @@ void enviar_paquete(t_paquete* paquete, int socket_cliente)
 }
 
 //eliminarPaquete
-void eliminarPaquete(t_paquete *packet)
+void eliminar_paquete(t_paquete *packet)
 {
-    free(packet->buffer->stream);
-    free(packet->buffer);
-    free(packet);
+	if(packet != NULL)
+	{
+    	free(packet->buffer->stream);
+    	free(packet->buffer);
+    	free(packet);
+	}
 }
 
 //Paquete del lado del SERVIDOR
