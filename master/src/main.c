@@ -17,10 +17,11 @@ int main(int argc, char* argv[]) {
 
     int master_fd = iniciar_servidor(puerto);
     log_info(logger, "Servidor listo para recibir al cliente");
+
     
     int query_fd= esperar_cliente(master_fd);
 
-    
+    log_info(logger, "Recibi un cliente");
 
 
 
