@@ -51,7 +51,7 @@ int crear_conexion(t_log *logger, char *ip, char *port)
 }
 
 // Conexion del lado del server
-int iniciar_servidor(const char *ip, const char* puerto)
+int iniciar_servidor(const char* puerto)
 {
 	struct addrinfo hints, *servinfo;
 
