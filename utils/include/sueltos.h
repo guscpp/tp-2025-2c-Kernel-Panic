@@ -4,7 +4,7 @@
 #include <commons/log.h>     // Para t_log
 #include <commons/config.h>  // Para t_config
 #include <stdlib.h>          // Para exit
-
+#include <pthread.h>    // para los hilos
 
 /**
  * @brief Crea e inicializa un logger con configuración específica
