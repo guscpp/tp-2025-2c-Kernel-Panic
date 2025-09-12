@@ -44,5 +44,7 @@ t_list* recibir_paquete(int);
 
 void recibir_mensaje(int);
 
+void* recibir_buffer(int* size, int socket_cliente) ;
+
 
 #endif

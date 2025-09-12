@@ -1,55 +1,50 @@
 #include "conexion.h"
-#include <commons/log.h>     // Para t_log
-#include <commons/config.h>  // Para t_config
-#include <netdb.h>       // Para getaddrinfo, struct addrinfo
-#include <string.h>      // Para memset
-#include <stdlib.h>      // Para exit
-#include <unistd.h>      // Para close
+#include <commons/log.h>	// Para t_log
+#include <commons/config.h> // Para t_config
+#include <netdb.h>			// Para getaddrinfo, struct addrinfo
+#include <string.h>			// Para memset
+#include <stdlib.h>			// Para exit
+#include <unistd.h>			// Para close
 
-//no es preferible no enlazar conexion y logger dentro de una misma unidad logica?
-
-//Conexion del lado del cliente
+// Conexion del lado del cliente
 int crear_conexion(t_log *logger, char *ip, char *port)
 {
-    int client_socket;
-    struct addrinfo hints;
-    struct addrinfo *server_info;
+	int client_socket;
+	struct addrinfo hints;
+	struct addrinfo *server_info;
 
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-    //hints.ai_flags = AI_PASSIVE;
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
 
-    getaddrinfo(ip, port, &hints, &server_info);
+	getaddrinfo(ip, port, &hints, &server_info);
 
-    // Create client socket
-    client_socket = socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol);
+	// Create client socket
+	client_socket = socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol);
 
-    if (client_socket == -1)
-    {
-        log_error(logger, "Error al crear el socket");
-        exit(1);
-    }
+	if (client_socket == -1)
+	{
+		log_error(logger, "Error al crear el socket");
+		exit(1);
+	}
 
-    // Connect socket
-    int conection = connect(client_socket, server_info->ai_addr, server_info->ai_addrlen);
+	// Connect socket
+	int conection = connect(client_socket, server_info->ai_addr, server_info->ai_addrlen);
 
-    if (conection == -1)
-    {
-        log_error(logger, "Error al conectar el socket");
-        exit(1);
-    }
+	if (conection == -1)
+	{
+		log_error(logger, "Error al conectar el socket");
+		exit(1);
+	}
 
-    freeaddrinfo(server_info);
+	freeaddrinfo(server_info);
 
-    return client_socket;
+	return client_socket;
 }
 
-//Conexion del lado del server
-
-int iniciar_servidor(const char* ip, int puerto)
+// Conexion del lado del server
+int iniciar_servidor(const char *ip, const char* puerto)
 {
-
 	struct addrinfo hints, *servinfo;
 
 	memset(&hints, 0, sizeof(hints));
@@ -58,27 +53,20 @@ int iniciar_servidor(const char* ip, int puerto)
 	hints.ai_flags = AI_PASSIVE;
 
 	getaddrinfo(NULL, puerto, &hints, &servinfo);
-    
-	
-
-	// Creamos el socket de escucha del servidor
 
 	int socket_servidor = socket(servinfo->ai_family,
-                        servinfo->ai_socktype,
-                        servinfo->ai_protocol);
-						
-	// Asociamos el socket a un puerto
+								 servinfo->ai_socktype,
+								 servinfo->ai_protocol);
 
-	//setsockopt(socket_servidor, SOL_SOCKET, SO_REUSEPORT, &(int){1}, sizeof(int));
+	// permite que varios sockets se puedan bindear a un puerto al mismo tiempo,
+	// siempre y cuando pertenezcan al mismo usuario
+	// setsockopt(socket_servidor, SOL_SOCKET, SO_REUSEPORT, &(int){1}, sizeof(int));
 
-	bind(socket_servidor, servinfo -> ai_addr, servinfo->ai_addrlen);
-
-	// Escuchamos las conexiones entrantes
-
+	bind(socket_servidor, servinfo->ai_addr, servinfo->ai_addrlen);
 	listen(socket_servidor, SOMAXCONN);
 
 	freeaddrinfo(servinfo);
-	//log_trace(logger, "Listo para escuchar a mi cliente");
+	// log_trace(logger, "Listo para escuchar a mi cliente");
 
 	return socket_servidor;
 }
@@ -87,14 +75,14 @@ int esperar_cliente(int socket_servidor)
 {
 	// Aceptamos un nuevo cliente
 	int socket_cliente = accept(socket_servidor, NULL, NULL);
-	
+
 	return socket_cliente;
 }
 
 int recibir_operacion(int socket_cliente)
 {
 	int cod_op;
-	if(recv(socket_cliente, &cod_op, sizeof(int), MSG_WAITALL) > 0)
+	if (recv(socket_cliente, &cod_op, sizeof(int), MSG_WAITALL) > 0)
 		return cod_op;
 	else
 	{
@@ -102,4 +90,3 @@ int recibir_operacion(int socket_cliente)
 		return -1;
 	}
 }
-
