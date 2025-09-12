@@ -22,7 +22,7 @@
  * @post El socket está configurado y escuchando conexiones entrantes
  * @ingroup Conexion
  * */
-int iniciar_servidor(const char* ip, const char* puerto);
+int iniciar_servidor(const char* puerto);
 
 /**
  * @brief Acepta una nueva conexión cliente en un socket servidor
