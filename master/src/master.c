@@ -6,12 +6,12 @@ void* atender_conexion(t_hacerConnect* informacion){
     switch(handshake){
         case QC_HANDSHAKE:
         log_info(informacion->logger, "Se ha conectado un Query");
-       // atender_Query(informacion);
+        //atender_Query(informacion);
         break;
         
         case WORKER_HANDSHAKE:
         log_info(informacion->logger, "Se ha conectado un worker");
-       // atender_Worker(informacion);
+        //atender_Worker(informacion);
         break;
         
         default:

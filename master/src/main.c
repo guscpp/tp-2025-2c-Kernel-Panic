@@ -14,7 +14,7 @@ int main(int argc, char* argv[]) {
     t_log* logger;
 	t_config* config;
     int err;        // por si algo falla
-    t_hacerConnect* datosConexion = malloc(sizeof(t_hacerConnect)); 
+     
                               // tipo de dato que cree para pasar a la funcion de atender 
                               // conexion porque los hilos funcionan como quieren
     
@@ -22,18 +22,19 @@ int main(int argc, char* argv[]) {
     config = iniciar_config(logger,argv[1]);
     puerto = config_get_string_value(config, "PUERTO_ESCUCHA");
 
-    datosConexion->logger = logger; 
+     
     
     int master_fd = iniciar_servidor(puerto);
     log_info(logger, "Servidor listo para recibir una conexion");
    
    
     while (1) {
+        t_hacerConnect* datosConexion = malloc(sizeof(t_hacerConnect));
+        datosConexion->logger = logger;
         pthread_t thread;
-        int *fd_conexion_master = malloc(sizeof(int));
-        *fd_conexion_master = esperar_cliente(master_fd);
+        int fd_conexion_master = esperar_cliente(master_fd);
         log_info(logger, "Esperando que se conecte un cliente");
-        datosConexion->socket_conexion = *fd_conexion_master;
+        datosConexion->socket_conexion = fd_conexion_master;
 
         err= pthread_create(&thread,
                         NULL,

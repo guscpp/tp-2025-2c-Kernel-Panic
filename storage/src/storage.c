@@ -22,6 +22,17 @@ t_storage* iniciar_storage(){
     return storage;
 }
 
+void verificar_storage(t_storage* s)
+{
+    log_info(s->logger, "Puerto leido: %s", s->puerto_escucha);
+    log_info(s->logger, "Fresh leido: %d", s->fresh_start);
+    log_info(s->logger, "Punto de montaje leido: %s", s->punto_montaje);
+    log_info(s->logger, "Retardo operacion leido: %d", s->retardo_operacion);
+    log_info(s->logger, "Retardo acceso bloque leido: %d", s->retardo_acceso_bloque);
+    log_info(s->logger, "log level leido: %s", s->log_level);
+}
+
+
 void liberar_storage (t_storage* storage){
     if(storage != NULL){
         log_destroy(storage->logger);
