@@ -1,6 +1,6 @@
 #include "master.h"
 
-void* atender_conexion(hacerConect* informacion){
+void* atender_conexion(t_hacerConnect* informacion){
     int handshake ;
     recv(informacion->socket_conexion, &handshake,sizeof(int),MSG_WAITALL);
     switch(handshake){
@@ -19,6 +19,10 @@ void* atender_conexion(hacerConect* informacion){
 		break;
 
     }
+
+    close(informacion->socket_conexion);
+    free(informacion);
+    return NULL;
 }
 
 //void atender_Query(hacerConect* informacion){

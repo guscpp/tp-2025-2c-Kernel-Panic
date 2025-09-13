@@ -59,7 +59,7 @@ int conectar_al_master(t_query_control* qc)
 void enviar_query_al_master(t_query_control* qc)
 {
     t_buffer* buffer = crear_buffer();
-    t_paquete* paquete = crear_paquete(QUERY_REQUEST, buffer);
+    t_paquete* paquete = crear_paquete(QC_HANDSHAKE, buffer);
     
     // Agregar información de la query al paquete
     agregar_a_paquete(paquete, qc->archivo_query, strlen(qc->archivo_query) + 1);

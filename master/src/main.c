@@ -7,12 +7,6 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
     
-    if (argc != 2)
-    {
-        printf("Uso: ./bin/worker [archivo_config]\n");
-        return EXIT_FAILURE;
-    }
-    
     int conexion;
 	char* ip;
 	char* puerto;
@@ -20,13 +14,14 @@ int main(int argc, char* argv[]) {
     t_log* logger;
 	t_config* config;
     int err;        // por si algo falla
-    hacerConect* datosConexion; // tipo de dato que cree para pasar a la funcion de atender 
+    t_hacerConnect* datosConexion = malloc(sizeof(t_hacerConnect)); 
+                              // tipo de dato que cree para pasar a la funcion de atender 
                               // conexion porque los hilos funcionan como quieren
     
-
     logger = iniciar_logger("master.log","MASTER",true, LOG_LEVEL_INFO);
-    config = iniciar_config(logger,"master.config");
+    config = iniciar_config(logger,argv[1]);
     puerto = config_get_string_value(config, "PUERTO_ESCUCHA");
+
     datosConexion->logger = logger; 
     
     int master_fd = iniciar_servidor(puerto);

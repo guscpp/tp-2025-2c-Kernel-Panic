@@ -6,9 +6,9 @@
 typedef struct{
     t_log* logger;
     int socket_conexion;
-} hacerConect;
+} t_hacerConnect;
 
-void* atender_conexion(hacerConect*);
+void* atender_conexion(t_hacerConnect*);
 
 // int cantidadWorkers = 0;
 // int id_Query = 0;
