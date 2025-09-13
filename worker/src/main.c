@@ -1,74 +1,48 @@
 #include "worker.h"
 
 int main(int argc, char* argv[]) {
+    if (argc != 2)
+    {
+        printf("Uso: ./bin/worker [archivo_config]\n");
+        return EXIT_FAILURE;
+    }
 
-    t_log* logger;
-    t_log* loggerOficial;
-    char* ip_master;
-    char* puerto_master;
-    char* ip_storage;
-    char* puerto_storage;
-    int tam_memoria;
-    int retardo_memoria;
-    char* algoritmo_reemplazo;
-    char* path_scripts;
+    t_worker* w = inicializar_worker();
 
     int storage_socket;
     t_buffer* buffer;
-    t_paquete* packetHandshke;
+    t_paquete* packetHandshake;
 
     //Para la conexion con storage
     t_buffer* buffer2;
-    t_paquete* packetHandshke2;
+    t_paquete* packetHandshake2;
     //char* log_level_info;
 
-
-    logger = iniciar_logger("worker.log", "[WORKER_PRUEBA]", true, LOG_LEVEL_INFO); //al final pasarlo a false
-    loggerOficial = iniciar_logger("worker.log", "[WORKER]", true, LOG_LEVEL_INFO);
-    log_info(logger, "Verificar funcionamineto logger");
-
-    t_config* config = iniciar_config(logger, "worker.config");
-
-    ip_master = config_get_string_value(config, "IP_MASTER");
-    puerto_master = config_get_string_value(config, "PUERTO_MASTER");
-    ip_storage = config_get_string_value(config, "IP_STORAGE");
-    puerto_storage = config_get_string_value(config, "PUERTO_STORAGE");
-    tam_memoria = config_get_int_value(config, "TAM_MEMORIA");
-    retardo_memoria = config_get_int_value(config, "RETARDO_MEMORIA");
-    algoritmo_reemplazo = config_get_string_value(config, "ALGORITMO_REEMPLAZO");
-    path_scripts = config_get_string_value(config, "PATH_SCRIPTS");
+    log_info(w->logger, "Verificar funcionamiento logger");
 
     //Solo logs de prueba: 
-    log_info(logger, "Ip_Master: %s", ip_master);
-    log_info(logger, "Puerto Master: %s", puerto_master);
-    log_info(logger, "Ip_Storage: %s", ip_storage);
-    log_info(logger, "Puerto_Storage: %s", puerto_storage);
-    log_info(logger, "Tam_memoria: %d", tam_memoria);
-    log_info(logger, "Retardo_Memoria: %d", retardo_memoria);
-    log_info(logger, "Algoritmos_reemplazo: %s", algoritmo_reemplazo);
-    log_info(logger, "PathScript: %s", path_scripts);
-    
-
+    verificar_worker(w);
+ 
     //Conexion con master
     
-    int master_socket = crear_conexion(logger, ip_master, puerto_master); //socket y connect
+    int master_socket = crear_conexion(w->logger, w->ip_master, w->puerto_master); //socket y connect
     buffer = crear_buffer();
-    packetHandshke = crear_paquete(WORKER_HANDSHAKE, buffer);
+    packetHandshake = crear_paquete(WORKER_HANDSHAKE, buffer);
 
-    agregar_a_paquete(packetHandshke, buffer-> stream, buffer->size);
-    enviar_paquete(packetHandshke, master_socket, logger);
-    eliminar_paquete(packetHandshke);
+    agregar_a_paquete(packetHandshake, buffer-> stream, buffer->size);
+    enviar_paquete(packetHandshake, master_socket, w->logger);
+    eliminar_paquete(packetHandshake);
 
     
     //Conexion con Storage
     
-    storage_socket = crear_conexion(logger, ip_storage, puerto_storage); //socket y connect
+    storage_socket = crear_conexion(w->logger, w->ip_storage, w->puerto_storage); //socket y connect
     buffer2 = crear_buffer();
-    packetHandshke2 = crear_paquete(WORKER_HANDSHAKE, buffer2);
+    packetHandshake2 = crear_paquete(WORKER_HANDSHAKE, buffer2);
 
-    agregar_a_paquete(packetHandshke2, buffer2-> stream, buffer2->size);
-    enviar_paquete(packetHandshke2, storage_socket, logger);
-    eliminar_paquete(packetHandshke2);
+    agregar_a_paquete(packetHandshake2, buffer2-> stream, buffer2->size);
+    enviar_paquete(packetHandshake2, storage_socket, w->logger);
+    eliminar_paquete(packetHandshake2);
     
 
     return 0;

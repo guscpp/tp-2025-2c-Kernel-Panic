@@ -19,7 +19,7 @@ t_config *iniciar_config(t_log *logger, char *path)
     t_config *new_config = config_create(path);
     if (new_config == NULL)
     {
-        log_error(logger, "Error al crear el archivo de configuracion: %s", path);
+        log_error(logger, "Error al crear el puntero al archivo de configuracion: %s", path);
         exit(EXIT_FAILURE);
     }
     log_info(logger, "Archivo de configuración cargado correctamente: %s", path);

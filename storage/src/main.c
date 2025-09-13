@@ -9,8 +9,6 @@ int main(int argc, char* argv[]) {
 
     t_storage* storage = iniciar_storage();
 
-    printf("****");
-
     verificar_storage(storage);
 
     int storage_fd = iniciar_servidor(storage->puerto_escucha);  //socket, bind, listen
