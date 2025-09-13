@@ -6,6 +6,7 @@
 #include <commons/log.h>
 #include <commons/string.h>
 #include <commons/config.h>
+#include <commons/collections/list.h>
 #include <readline/readline.h>
 #include "protocolo.h"
 

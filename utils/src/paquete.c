@@ -2,6 +2,7 @@
 #include "protocolo.h"
 #include <string.h>   // Para memcpy
 #include <sys/socket.h> // Para send
+#include <commons/collections/list.h>
 
 //Buffer
 t_buffer *crear_buffer()

@@ -69,16 +69,6 @@ void liberar_query_control(t_query_control* qc);
 int conectar_al_master(t_query_control* qc);
 
 /**
- * @brief Envía la query al servidor master para su procesamiento
- * 
- * @param qc Puntero a la estructura de control de queries
- * 
- * @note Lee el archivo de query especificado y lo envía a través del socket
- * @warning El archivo de query debe existir y ser legible
- */
-void enviar_query_al_master(t_query_control* qc);
-
-/**
  * @brief Procesa las respuestas recibidas desde el master
  * 
  * @param qc Puntero a la estructura de control de queries
@@ -89,5 +79,8 @@ void enviar_query_al_master(t_query_control* qc);
 
 void enviar_handshake (t_query_control* qc);
 void enviar_path_y_prioridad(t_query_control *qc);
+
+void procesar_respuestas_master(t_query_control* qc);
+
 
 #endif /* QUERY_CONTROL_H_ */
