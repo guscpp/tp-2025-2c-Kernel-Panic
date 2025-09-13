@@ -86,6 +86,8 @@ void enviar_query_al_master(t_query_control* qc);
  * @note Escucha continuamente las respuestas del master hasta que la conexión se cierre
  * u ocurra un error.
  */
-void procesar_respuestas_master(t_query_control* qc);
+
+void enviar_handshake (t_query_control* qc);
+void enviar_path_y_prioridad(t_query_control *qc);
 
 #endif /* QUERY_CONTROL_H_ */

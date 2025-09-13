@@ -113,6 +113,17 @@ bool inicializar_file_system(t_storage* storage){
     return true;
 }
 
+void enviar_tamanio_paquete_aworker(int worker_fd, t_storage* logger){
+    t_buffer* buffer = crear_buffer();
+    t_paquete* paquete = crear_paquete(STORAGE_SEND_BLOCK_SIZE, buffer);
+    int tamanio_paquete = conseguir_tamanio_paquete();
+    agregar_a_paquete(paquete, &tamanio_paquete, sizeof(int));
+    enviar_paquete(paquete, worker_fd, logger);
+}
+
+int conseguir_tamanio_paquete(){
+    return 1000;
+}
 
 
 

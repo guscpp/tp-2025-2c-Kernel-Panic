@@ -14,7 +14,8 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
     
-    enviar_query_al_master(qc);
+    enviar_handshake(qc);
+    enviar_path_y_prioridad(qc);
 
     procesar_respuestas_master(qc);
 

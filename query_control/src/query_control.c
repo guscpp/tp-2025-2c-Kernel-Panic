@@ -56,24 +56,34 @@ int conectar_al_master(t_query_control* qc)
 }
 
 
-void enviar_query_al_master(t_query_control* qc)
+void enviar_handshake (t_query_control* qc)
 {
     t_buffer* buffer = crear_buffer();
     t_paquete* paquete = crear_paquete(QC_HANDSHAKE, buffer);
-    
-    // Agregar información de la query al paquete
-    agregar_a_paquete(paquete, qc->archivo_query, strlen(qc->archivo_query) + 1);
-    agregar_a_paquete(paquete, &(qc->prioridad), sizeof(int));
-    
-    // Enviar paquete al Master
+
+    char *mensaje = "QUERY_CONTROL";
+    agregar_a_paquete(paquete, mensaje, strlen(mensaje) + 1);
+
     enviar_paquete(paquete, qc->master_socket, qc->logger);
     eliminar_paquete(paquete);
-    
-    // Log de envío de query (obligatorio)
-    log_info(qc->logger, "## Solicitud de ejecución de Query: %s, prioridad: %d", 
-             qc->archivo_query, qc->prioridad);
+
+    log_info(qc->logger, "## HANDSHAKE MASTER");
 }
 
+void enviar_path_y_prioridad(t_query_control *qc)
+{
+    t_buffer  *buffer = crear_buffer();
+    t_paquete *paquete = crear_paquete(QUERY_REQUEST, buffer);
+
+    agregar_a_paquete(paquete, qc->archivo_query, strlen(qc->archivo_query) + 1);
+    agregar_a_paquete(paquete, &(qc->prioridad), sizeof(int));
+
+    enviar_paquete(paquete, qc->master_socket, qc->logger);
+    eliminar_paquete(paquete);
+
+    log_info(qc->logger, "## Envío de query al Master -> Archivo: %s | Prioridad: %d",
+        qc->archivo_query, qc->prioridad);
+}
 
 void procesar_respuestas_master(t_query_control* qc)
 {
