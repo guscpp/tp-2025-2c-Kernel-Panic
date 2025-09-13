@@ -1,6 +1,11 @@
 #include "master.h"
 
 int main(int argc, char* argv[]) {
+    if (argc != 2)
+    {
+        printf("Uso: ./bin/master [archivo_config]\n");
+        return EXIT_FAILURE;
+    }
     
     if (argc != 2)
     {
