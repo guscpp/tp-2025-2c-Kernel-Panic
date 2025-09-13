@@ -10,8 +10,8 @@
 typedef struct {
     t_log* logger;
     t_config* config;
-    char* puerto;
-    int fresh;
+    char* puerto_escucha;
+    int fresh_start;
     char* punto_montaje;
     int retardo_operacion;
     int retardo_acceso_bloque;
@@ -19,6 +19,7 @@ typedef struct {
 } t_storage;
 
 t_storage* iniciar_storage();
+void verificar_storage(t_storage* s);
 void liberar_storage (t_storage* storage);
 // int inicializar_file_system(t_storage* storage);
 // int formatear_fs(t_storage* storage);
