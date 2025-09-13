@@ -91,10 +91,16 @@ t_list* recibir_paquete(int socket_cliente)
 {
 	int size;
 	int desplazamiento = 0;
+	int cod_op;
 	void * buffer;
 	t_list* valores = list_create();
 	int tamanio;
-
+	
+	recv(socket_cliente, &cod_op, sizeof(int), MSG_WAITALL);
+	int* cod_op_ptr = malloc(sizeof(int));
+    *cod_op_ptr = cod_op;
+    list_add(valores, cod_op_ptr);
+	
 	buffer = recibir_buffer(&size, socket_cliente);
 	while(desplazamiento < size)
 	{
