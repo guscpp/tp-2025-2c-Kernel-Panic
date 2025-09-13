@@ -6,6 +6,9 @@
 #include "../../utils/include/protocolo.h"
 #include "../../utils/include/paquete.h"
 #include "../../utils/include/conexion.h"
+#include <commons/string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 typedef struct {
     t_log* logger;
