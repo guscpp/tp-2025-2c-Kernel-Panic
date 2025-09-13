@@ -2,6 +2,12 @@
 
 int main(int argc, char* argv[]) {
     
+    if (argc != 2)
+    {
+        printf("Uso: ./bin/worker [archivo_config]\n");
+        return EXIT_FAILURE;
+    }
+    
     int conexion;
 	char* ip;
 	char* puerto;
@@ -26,7 +32,7 @@ int main(int argc, char* argv[]) {
         pthread_t thread;
         int *fd_conexion_master = malloc(sizeof(int));
         *fd_conexion_master = esperar_cliente(master_fd);
-
+        log_info(logger, "Esperando que se conecte un cliente");
         datosConexion->socket_conexion = *fd_conexion_master;
 
         err= pthread_create(&thread,
