@@ -14,8 +14,10 @@ int main(int argc, char* argv[]) {
     int storage_fd = iniciar_servidor(storage->puerto_escucha);  //socket, bind, listen
     log_info(storage->logger, "Servidor listo");
     int worker_fd = esperar_cliente(storage_fd);//acept
-    log_info(storage->logger, "Llego un cliente");   
     
+    log_info(storage->logger, "Llego un cliente");   
+
+    log_info(storage->logger, "antes de enviar tamanio");
     enviar_tamanio_paquete_aworker(worker_fd, storage->logger);
     liberar_storage(storage);
     

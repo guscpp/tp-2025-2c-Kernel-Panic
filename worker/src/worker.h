@@ -22,8 +22,11 @@ typedef struct
 } t_worker;
 
 t_worker* inicializar_worker();
+
 void      verificar_worker(t_worker* worker);
 void      liberar_worker(t_worker* w);
 void      recibir_path_de_query(int master_socket, t_log* logger);
 
-#endif /* CLIENTE_H_ */
+void rtas_storage(int storage_socket, t_worker* w);
+
+#endif /* CLIENTE_H_*/

@@ -37,6 +37,7 @@ void verificar_worker(t_worker* w)
     log_info(w->logger, "PathScript: %s", w->path_scripts);
 }
 
+
 void procesar_asignacion_query(int master_socket, t_log* logger)
 {
     while (1)
@@ -114,4 +115,24 @@ void recibir_path_de_query(int master_socket, t_log* logger)
             free(path_query);
         }
     }
+
+void rtas_storage(int storage_socket, t_worker* w){
+    while(1){
+        int cod_op = recibir_operacion(storage_socket);
+
+        switch (cod_op)
+        {
+        case STORAGE_GET_BLOCK_SIZE:
+            int size;
+            void* rta = recibir_buffer(&size, storage_socket);
+            log_info(w->logger, "Rta tamanio de bloque: %d", (int)size);
+            free(rta);
+            break;
+        
+        default:
+        log_info(w->logger, "Error en el cod_op %d", cod_op);
+            break;
+        }
+    }
+
 }
