@@ -16,9 +16,14 @@ typedef struct
     char*     algoritmo_reemplazo;
     char*     path_scripts;
     char*     log_level;
+    pthread_t thread_master;
+    pthread_t thread_storage;
+
 } t_worker;
 
 t_worker* inicializar_worker();
-void verificar_worker(t_worker* w);
+void      verificar_worker(t_worker* worker);
+void      liberar_worker(t_worker* w);
+void      recibir_path_de_query(int master_socket, t_log* logger);
 
 #endif /* CLIENTE_H_ */

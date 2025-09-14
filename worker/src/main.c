@@ -7,10 +7,10 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    t_worker* w = inicializar_worker();
+    // ver cuando mandar el ID
+    int idworker = atoi(argv[2]);
 
-    // FALTA algo como esto
-    //int IDWORKER = argv[2];
+    t_worker* w = inicializar_worker();
 
     int storage_socket;
     t_buffer* buffer;
@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
     verificar_worker(w);
  
     //Conexion con master
-    int master_socket = crear_conexion(w->logger, w->ip_master, w->puerto_master); //socket y connect
+    int master_socket = crear_conexion(w->logger, w->ip_master, w->puerto_master); 
     buffer = crear_buffer();
     packetHandshake = crear_paquete(WORKER_HANDSHAKE, buffer);
 
@@ -35,7 +35,15 @@ int main(int argc, char* argv[]) {
     enviar_paquete(packetHandshake, master_socket, w->logger);
     eliminar_paquete(packetHandshake);
 
-    
+    //prueba para checkpoint 1
+    //Master: enviarle ID de este worker, recibir path a query
+    buffer = crear_buffer();
+    t_paquete* paquete = crear_paquete(WORKER_ID, buffer);
+    agregar_a_paquete(paquete, &idworker, sizeof(int));
+    enviar_paquete(paquete, master_socket, w->logger);
+    eliminar_paquete(paquete);
+    recibir_path_de_query(master_socket, w->logger);
+
     //Conexion con Storage
     storage_socket = crear_conexion(w->logger, w->ip_storage, w->puerto_storage); //socket y connect
     buffer2 = crear_buffer();
@@ -45,6 +53,7 @@ int main(int argc, char* argv[]) {
     enviar_paquete(packetHandshake2, storage_socket, w->logger);
     eliminar_paquete(packetHandshake2);
     
+
 
     return 0;
 }
