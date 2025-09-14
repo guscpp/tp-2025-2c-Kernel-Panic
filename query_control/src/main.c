@@ -17,7 +17,7 @@ int main(int argc, char* argv[]) {
     enviar_handshake(qc);
     enviar_path_y_prioridad(qc);
 
-    procesar_respuestas_master(qc);
+    //procesar_respuestas_master(qc);
 
     close(qc->master_socket);
     terminar_programa(qc->logger, qc->config);
