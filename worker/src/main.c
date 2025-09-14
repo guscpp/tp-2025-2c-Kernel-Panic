@@ -10,13 +10,9 @@ int main(int argc, char* argv[]) {
     // ver cuando mandar el ID
     int idworker = atoi(argv[2]);
 
-<<<<<<< HEAD
+
     t_worker* w = inicializar_worker();
-=======
-    // FALTA algo como esto
-    //int IDWORKER = argv[2];
-    int IDWORKER =2;
->>>>>>> 6789591 (rama temporal)
+    
 
     int storage_socket;
     t_buffer* buffer;
@@ -66,7 +62,7 @@ int main(int argc, char* argv[]) {
         //Mandar ID al master
     buffer3 = crear_buffer();
     packetID = crear_paquete(WORKER_ID, buffer3);
-    agregar_a_paquete(packetID, IDWORKER, sizeof(int));
+    agregar_a_paquete(packetID, &idworker, sizeof(int));
     enviar_paquete(packetID, master_socket, w->logger);
     eliminar_paquete(packetID);
     

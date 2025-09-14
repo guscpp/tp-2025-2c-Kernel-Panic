@@ -119,6 +119,7 @@ void enviar_tamanio_paquete_aworker(int worker_fd, t_storage* logger){
     int tamanio_paquete = conseguir_tamanio_paquete();
     agregar_a_paquete(paquete, &tamanio_paquete, sizeof(int));
     enviar_paquete(paquete, worker_fd, logger);
+    log_info(logger, "Llegue a enviar");
 }
 
 int conseguir_tamanio_paquete(){

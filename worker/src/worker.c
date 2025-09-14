@@ -115,22 +115,25 @@ void recibir_path_de_query(int master_socket, t_log* logger)
             free(path_query);
         }
     }
+}
 
 void rtas_storage(int storage_socket, t_worker* w){
     while(1){
-        int cod_op = recibir_operacion(storage_socket);
+        t_list* valores = recibir_paquete(storage_socket);
+        int* cod_op = list_get(valores, 0);
+        log_info(w->logger, "llegue a recibir %d", *cod_op);
 
-        switch (cod_op)
+        switch (*cod_op)
         {
-        case STORAGE_GET_BLOCK_SIZE:
-            int size;
-            void* rta = recibir_buffer(&size, storage_socket);
-            log_info(w->logger, "Rta tamanio de bloque: %d", (int)size);
-            free(rta);
+        case STORAGE_SEND_BLOCK_SIZE:
+            
+            int* size = list_get(valores, 1);
+            log_info(w->logger, "Rta tamanio de bloque: %d", *size);
+            //cuidado de free
             break;
         
         default:
-        log_info(w->logger, "Error en el cod_op %d", cod_op);
+        log_info(w->logger, "Error en el cod_op %d", *cod_op);
             break;
         }
     }

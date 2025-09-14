@@ -45,7 +45,7 @@ void atender_Worker(t_hacerConnect* informacion){
     t_list* paqueteWorker = recibir_paquete(informacion->socket_conexion);
     int* codOperacion =  list_get(paqueteWorker, 0);
     switch (*codOperacion){
-        case WORKER_HANDSHAKE:{
+        case WORKER_ID:{
             cantidadWorkers ++;
             int* idWorker = list_get(paqueteWorker, 1);
             log_info(informacion->logger, "Se ha conectado un worker  ID: %d  CANTIDAD TOTAL DE WORKERS: %d", *idWorker , cantidadWorkers);
