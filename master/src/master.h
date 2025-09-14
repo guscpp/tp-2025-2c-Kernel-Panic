@@ -9,7 +9,8 @@ typedef struct{
 } t_hacerConnect;
 
 void* atender_conexion(t_hacerConnect*);
-
+void atender_Query(t_hacerConnect* );
+void atender_Worker(t_hacerConnect* );
 // int cantidadWorkers = 0;
 // int id_Query = 0;
 

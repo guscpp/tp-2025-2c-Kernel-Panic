@@ -11,7 +11,7 @@ void* atender_conexion(t_hacerConnect* informacion){
         
         case WORKER_HANDSHAKE:
         log_info(informacion->logger, "Se ha conectado un worker");
-       // atender_Worker(informacion);
+        atender_Worker(informacion);
         break;
         
         default:
@@ -40,7 +40,7 @@ void atender_Query(t_hacerConnect*  informacion){
    list_destroy_and_destroy_elements(paqueteQuery, free);
 }
 
-/*
+
 void atender_Worker(t_hacerConnect* informacion){
     t_list* paqueteWorker = recibir_paquete(informacion->socket_conexion);
     int* codOperacion =  list_get(paqueteWorker, 0);
@@ -51,9 +51,9 @@ void atender_Worker(t_hacerConnect* informacion){
             log_info(informacion->logger, "Se ha conectado un worker  ID: %d  CANTIDAD TOTAL DE WORKERS: %d", *idWorker , cantidadWorkers);
             t_buffer* infoPath = crear_buffer();
             t_paquete* paquete  = crear_paquete(WORKER_ASSIGN_QUERY, infoPath);
-            agregar_a_paquete(paquete,query_id,sizeof(int));
+            agregar_a_paquete(paquete,&query_id,sizeof(int));
             agregar_a_paquete(paquete,path_query,strlen(path_query) + 1);
-            agregar_a_paquete(paquete,prioridad,sizeof(int));
+            agregar_a_paquete(paquete,&prioridad,sizeof(int));
             enviar_paquete( paquete,  informacion->socket_conexion ,  informacion->logger);
             log_info(informacion->logger, "se ha enviado al workerrrrr");
             eliminar_paquete(paquete);
@@ -62,7 +62,7 @@ void atender_Worker(t_hacerConnect* informacion){
         }
     }
 }
-*/
+
 
 
 
