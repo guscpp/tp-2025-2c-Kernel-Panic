@@ -24,7 +24,9 @@ typedef enum
     WORKER_DESALOJO,        // Pedir desalojo de query
     
     // WORKER → MASTER
-    WORKER_ID,
+
+    WORKER_ID,              // Enviar ID
+
     WORKER_READ_RESULT,     // Resultado de lectura
     WORKER_QUERY_END,       // Query terminada en worker
     
