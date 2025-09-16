@@ -1,4 +1,4 @@
-#include "worker.h"
+#include "../include/worker.h"
 #include <unistd.h>
 
 t_worker* inicializar_worker(int id_worker)
@@ -118,7 +118,6 @@ void recibir_path_de_query(int master_socket, t_log* logger)
 }
 
 void rtas_storage(int storage_socket, t_worker* w){
-//    while(1){
         t_list* valores = recibir_paquete(storage_socket);
         int* cod_op = list_get(valores, 0);
         log_info(w->logger, "llegue a recibir %d", *cod_op);
@@ -136,6 +135,4 @@ void rtas_storage(int storage_socket, t_worker* w){
         log_info(w->logger, "Error en el cod_op %d", *cod_op);
             break;
         }
-//    }
-
 }

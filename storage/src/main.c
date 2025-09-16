@@ -18,7 +18,7 @@ int main(int argc, char* argv[]) {
     log_info(storage->logger, "Llego un cliente");   
 
     log_info(storage->logger, "antes de enviar tamanio");
-    enviar_tamanio_paquete_aworker(worker_fd, storage->logger);
+    enviar_tamanio_paquete_aworker(worker_fd, storage);
     liberar_storage(storage);
     
     return 0;

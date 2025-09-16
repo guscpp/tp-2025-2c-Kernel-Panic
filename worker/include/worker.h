@@ -2,6 +2,8 @@
 #define WORKER_H_
 
 #include "../../utils/include/utils.h"
+#include "memoria.h"
+#include "query_interpreter.h"
 
 typedef struct
 {

@@ -1,4 +1,7 @@
 #include "master.h"
+#include <unistd.h>
+#include <stdlib.h>
+
 int cantidadWorkers = 0;
 void* atender_conexion(t_hacerConnect* informacion){
     t_list* paqueteHandshake = recibir_paquete(informacion->socket_conexion);

@@ -7,10 +7,11 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
     
-    int conexion;
-	char* ip;
+    //comento las variables que no se usan para callar warnings
+    //int conexion;
+	//char* ip;
 	char* puerto;
-    t_log_level log_level;
+    //t_log_level log_level;
     t_log* logger;
 	t_config* config;
     int err;        // por si algo falla

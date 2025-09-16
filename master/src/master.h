@@ -2,6 +2,7 @@
 #define MASTER_H_
 
 #include "../../utils/include/utils.h"
+#include <unistd.h>
 
 typedef struct{
     t_log* logger;
