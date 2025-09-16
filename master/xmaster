@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Script para compilar e iniciar master
+echo "Compilando master..."
+make debug
+
+if [ $? -eq 0 ]; then
+    echo "Iniciando master..."
+    ./bin/master ./master.config
+else
+    echo "Error en la compilación del master"
+    exit 1
+fi

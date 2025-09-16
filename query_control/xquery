@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Script para compilar e iniciar múltiples instancias de query
+if [ $# -ne 1 ]; then
+    echo "Uso: ./query <cantidad_instancias>"
+    exit 1
+fi
+
+CANTIDAD=$1
+
+echo "Compilando query_control..."
+make 
+
+if [ $? -ne 0 ]; then
+    echo "Error en la compilación del query_control"
+    exit 1
+fi
+
+echo "Iniciando $CANTIDAD instancias de query..."
+echo ""
+
+PIDS=""
+for ((i=0; i<$CANTIDAD; i++)); do
+    echo "Iniciando query $i con prioridad $i"
+    ./bin/query_control ./query_control.config "./queries/query_ejemplo$i" $i &
+    PID=$!
+    PIDS="$PIDS $PID"
+    echo "  PID: $PID"
+    sleep 1
+done
+
+echo "Para terminar los procesos (si no crashearon primero) se ejecuta:"
+echo "  kill $PIDS"
+echo ""
+echo "Para verificar que están ejecutándose:"
+echo "  ps -p $PIDS -o pid,cmd"

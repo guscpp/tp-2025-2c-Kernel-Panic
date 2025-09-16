@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Script para compilar e iniciar múltiples instancias de worker
+if [ $# -ne 1 ]; then
+    echo "Uso: ./worker <cantidad_instancias>"
+    exit 1
+fi
+
+CANTIDAD=$1
+
+echo "Compilando worker..."
+make 
+
+if [ $? -ne 0 ]; then
+    echo "Error en la compilación del worker"
+    exit 1
+fi
+
+echo "Iniciando $CANTIDAD instancias de worker..."
+echo ""
+
+PIDS=""
+for ((i=0; i<$CANTIDAD; i++)); do
+    echo "Iniciando worker $i con ID $i"
+    ./bin/worker ./worker.config $i &
+    PID=$!
+    PIDS="$PIDS $PID"
+    echo "  PID: $PID"
+    sleep 1
+done
+
+echo "Para terminar los procesos (si no crashearon primero) se ejecuta:"
+echo "  kill $PIDS"
+echo ""
+echo "Para verificar que están ejecutándose:"
+echo "  ps -p $PIDS -o pid,cmd"

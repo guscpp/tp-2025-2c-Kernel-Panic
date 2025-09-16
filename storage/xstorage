@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Script para compilar e iniciar storage
+echo "Compilando storage..."
+make 
+
+if [ $? -eq 0 ]; then
+    echo "Iniciando storage..."
+    ./bin/storage ./storage.config
+else
+    echo "Error en la compilación del storage"
+    exit 1
+fi
