@@ -7,6 +7,7 @@ if [ $# -ne 1 ]; then
 fi
 
 CANTIDAD=$1
+PID_FILE="worker_pids.txt"
 
 echo "Compilando worker..."
 make 
@@ -16,8 +17,8 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "Iniciando $CANTIDAD instancias de worker..."
-echo ""
+# Limpiar archivo de PIDs
+> "$PID_FILE"
 
 PIDS=""
 for ((i=0; i<$CANTIDAD; i++)); do
@@ -25,6 +26,7 @@ for ((i=0; i<$CANTIDAD; i++)); do
     ./bin/worker ./worker.config $i &
     PID=$!
     PIDS="$PIDS $PID"
+    echo "$PID" >> "$PID_FILE"  # Guardar PID en archivo
     echo "  PID: $PID"
     sleep 1
 done
@@ -34,3 +36,5 @@ echo "  kill $PIDS"
 echo ""
 echo "Para verificar que están ejecutándose:"
 echo "  ps -p $PIDS -o pid,cmd"
+echo ""
+echo "PIDs guardados en: $PID_FILE"

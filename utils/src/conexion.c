@@ -30,7 +30,7 @@ int crear_conexion(t_log *logger, char *ip, char *port)
 
 	if (client_socket == -1)
 	{
-        log_error(logger, "Error al crear socket: %s", strerror(errno));
+        log_error(logger, "Error al crear socket: %s (utils/crear_conexion)", strerror(errno));
         freeaddrinfo(server_info);
         exit(1);
 	}
@@ -40,7 +40,7 @@ int crear_conexion(t_log *logger, char *ip, char *port)
 
 	if (conection == -1)
 	{
-        log_error(logger, "Error al conectar es socket: %s", strerror(errno));
+        log_error(logger, "Error al conectar: %s (utils/crear_conexion)", strerror(errno));
         close(client_socket);
         freeaddrinfo(server_info);
         exit(1);

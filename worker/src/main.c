@@ -7,66 +7,37 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    // ver cuando mandar el ID
-    int idworker = atoi(argv[2]);
-
-
-    t_worker* w = inicializar_worker();
-    
-
-    int storage_socket;
-    t_buffer* buffer;
-    t_paquete* packetHandshake;
-
-    //Para la conexion con storage
-    t_buffer* buffer2;
-    t_paquete* packetHandshake2;
-    //char* log_level_info;
-
-    //Para mandar el ID al master
-    t_buffer* buffer3;
-    t_paquete* packetID;
+    int id_worker = atoi(argv[2]);
+    t_worker* w = inicializar_worker(id_worker);
 
     log_info(w->logger, "Verificar funcionamiento logger");
 
     //Solo logs de prueba: 
     verificar_worker(w);
  
-    //Conexion con master
-    int master_socket = crear_conexion(w->logger, w->ip_master, w->puerto_master); 
-    buffer = crear_buffer();
-    packetHandshake = crear_paquete(WORKER_HANDSHAKE, buffer);
-    enviar_paquete(packetHandshake, master_socket, w->logger);
+    //Master: crear la conexion
+    w->master_socket = crear_conexion(w->logger, w->ip_master, w->puerto_master); 
+    t_buffer* buffer1 = crear_buffer();
+    t_paquete* packetHandshake = crear_paquete(WORKER_HANDSHAKE, buffer1);
+    enviar_paquete(packetHandshake, w->master_socket, w->logger);
     eliminar_paquete(packetHandshake);
 
-
-    //prueba para checkpoint 1
     //Master: enviarle ID de este worker, recibir path a query
-    buffer = crear_buffer();
-    t_paquete* paquete = crear_paquete(WORKER_ID, buffer);
-    agregar_a_paquete(paquete, &idworker, sizeof(int));
-    enviar_paquete(paquete, master_socket, w->logger);
-    eliminar_paquete(paquete);
-    recibir_path_de_query(master_socket, w->logger);
+    buffer1 = crear_buffer();
+    t_paquete* packetID = crear_paquete(WORKER_ID, buffer1);
+    agregar_a_paquete(packetID, &w->id_worker, sizeof(int));
+    enviar_paquete(packetID, w->master_socket, w->logger);
+    eliminar_paquete(packetID);
+    recibir_path_de_query(w->master_socket, w->logger);
 
-    //Conexion con Storage
-    storage_socket = crear_conexion(w->logger, w->ip_storage, w->puerto_storage); //socket y connect
-    buffer2 = crear_buffer();
-    packetHandshake2 = crear_paquete(WORKER_HANDSHAKE, buffer2);
-    enviar_paquete(packetHandshake2, storage_socket, w->logger);
+    //Storage: crear la conexion
+    w->storage_socket = crear_conexion(w->logger, w->ip_storage, w->puerto_storage); //socket y connect
+    t_buffer* buffer2 = crear_buffer();
+    t_paquete* packetHandshake2 = crear_paquete(WORKER_HANDSHAKE, buffer2);
+    enviar_paquete(packetHandshake2, w->storage_socket, w->logger);
     eliminar_paquete(packetHandshake2);
 
-
-    rtas_storage(storage_socket, w);
-
-        //Mandar ID al master
-    buffer3 = crear_buffer();
-    packetID = crear_paquete(WORKER_ID, buffer3);
-    agregar_a_paquete(packetID, &idworker, sizeof(int));
-    enviar_paquete(packetID, master_socket, w->logger);
-    eliminar_paquete(packetID);
-    
-
-
+    rtas_storage(w->storage_socket, w);
+   
     return 0;
 }

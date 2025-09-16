@@ -1,7 +1,7 @@
 #include "worker.h"
 #include <unistd.h>
 
-t_worker* inicializar_worker()
+t_worker* inicializar_worker(int id_worker)
 {
     t_worker *w = malloc(sizeof(t_worker));
 
@@ -18,9 +18,9 @@ t_worker* inicializar_worker()
     w->algoritmo_reemplazo = config_get_string_value(w->config, "ALGORITMO_REEMPLAZO");
     w->path_scripts = config_get_string_value(w->config, "PATH_QUERIES");
     w->log_level = config_get_string_value(w->config, "LOG_LEVEL");
-
-    // w->master_socket = NULL;
-    // w->storage_socket = NULL;
+    w->id_worker = id_worker;
+    w->master_socket = -1;
+    w->storage_socket = -1;
 
     return w;
 }
@@ -118,7 +118,7 @@ void recibir_path_de_query(int master_socket, t_log* logger)
 }
 
 void rtas_storage(int storage_socket, t_worker* w){
-    while(1){
+//    while(1){
         t_list* valores = recibir_paquete(storage_socket);
         int* cod_op = list_get(valores, 0);
         log_info(w->logger, "llegue a recibir %d", *cod_op);
@@ -136,6 +136,6 @@ void rtas_storage(int storage_socket, t_worker* w){
         log_info(w->logger, "Error en el cod_op %d", *cod_op);
             break;
         }
-    }
+//    }
 
 }

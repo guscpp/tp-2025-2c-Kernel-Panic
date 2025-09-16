@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# Script para gestionar workers
+PID_FILE="worker_pids.txt"
+
+# Verificar si existe el archivo de PIDs
+if [ ! -f "$PID_FILE" ]; then
+    echo "No se encontró el archivo $PID_FILE"
+    echo "Ejecuta primero el script worker para iniciar instancias"
+    exit 1
+fi
+
+# Leer PIDs del archivo
+PIDS=$(cat "$PID_FILE" | tr '\n' ' ')
+
+echo "=== PROCESOS WORKER ENCONTRADOS ==="
+echo ""
+
+# Listar cada proceso con detalles
+COUNT=0
+for pid in $PIDS; do
+    if ps -p "$pid" > /dev/null 2>&1; then
+        # Obtener información detallada del proceso
+        PROCESS_INFO=$(ps -p "$pid" -o pid,user,start_time,cmd --no-headers)
+        if [ -n "$PROCESS_INFO" ]; then
+            echo "$PROCESS_INFO"
+            COUNT=$((COUNT + 1))
+        fi
+    fi
+done
+
+echo ""
+echo "Total de procesos activos: $COUNT"
+echo ""
+
+if [ $COUNT -eq 0 ]; then
+    echo "No hay procesos worker activos"
+    exit 0
+fi
+
+# Preguntar si hacer kill
+read -p "¿Hacer kill a todos los workers? (y/n): " respuesta
+
+if [ "$respuesta" = "y" ] || [ "$respuesta" = "Y" ]; then
+    echo "Matando procesos..."
+    
+    for pid in $PIDS; do
+        if ps -p "$pid" > /dev/null 2>&1; then
+            kill "$pid" 2>/dev/null
+            echo "Proceso $pid terminado"
+        fi
+    done
+    
+    # Limpiar archivo de PIDs
+    > "$PID_FILE"
+    echo ""
+    echo "Todos los procesos han sido terminados"
+    echo "Archivo $PID_FILE limpiado"
+else
+    echo "Operación cancelada"
+fi

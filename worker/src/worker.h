@@ -16,12 +16,15 @@ typedef struct
     char*     algoritmo_reemplazo;
     char*     path_scripts;
     char*     log_level;
+    int       id_worker;
+    int       storage_socket;
+    int       master_socket;
     pthread_t thread_master;
     pthread_t thread_storage;
 
 } t_worker;
 
-t_worker* inicializar_worker();
+t_worker* inicializar_worker(int id_worker);
 
 void      verificar_worker(t_worker* worker);
 void      liberar_worker(t_worker* w);
