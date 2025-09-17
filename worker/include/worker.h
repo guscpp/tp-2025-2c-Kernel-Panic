@@ -7,22 +7,20 @@
 
 typedef struct
 {
-    t_log*    logger;
-    t_config* config;
-    char*     ip_master;
-    char*     puerto_master;
-    char*     ip_storage;
-    char*     puerto_storage;
-    int       tamanio_memoria;
-    int       retardo_memoria;
-    char*     algoritmo_reemplazo;
-    char*     path_scripts;
-    char*     log_level;
-    int       id_worker;
-    int       storage_socket;
-    int       master_socket;
-    pthread_t thread_master;
-    pthread_t thread_storage;
+    t_log*              logger;
+    t_config*           config;
+    char*               ip_master;
+    char*               puerto_master;
+    char*               ip_storage;
+    char*               puerto_storage;
+    char*               path_scripts;
+    char*               log_level;
+    int                 id_worker;
+    int                 storage_socket;
+    int                 master_socket;
+    pthread_t           thread_master;
+    pthread_t           thread_storage;
+    t_memoria_interna*  mem;
 
 } t_worker;
 

@@ -1,4 +1,4 @@
-#include "worker.h"
+#include "../include/worker.h"
 
 int main(int argc, char* argv[]) {
     if (argc != 3)
@@ -9,6 +9,7 @@ int main(int argc, char* argv[]) {
 
     int id_worker = atoi(argv[2]);
     t_worker* w = inicializar_worker(id_worker);
+    t_memoria_interna* m = crear_memoria(w->logger);
 
     log_info(w->logger, "Verificar funcionamiento logger");
 
