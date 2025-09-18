@@ -32,15 +32,24 @@ char* path_query = "path :)";
 int prioridad = 2;
 
 void atender_Query(t_hacerConnect*  informacion){
+    while(1){
+
    t_list* paqueteQuery = recibir_paquete(informacion->socket_conexion);
-   int* codOperacion = list_get(paqueteQuery, 0);
+   
+   if (paqueteQuery == NULL){
+        log_warning(informacion->logger,"SE HA DESCONECTADO");
+        
+   }
+    int* codOperacion = list_get(paqueteQuery, 0);
    if (*codOperacion != QUERY_REQUEST){
         log_warning(informacion->logger,"Operacion desconocida");
    }
+   
    char* path = list_get(paqueteQuery, 1);
    int* prioridad = list_get(paqueteQuery, 2);
    log_info(informacion->logger, "Se conecta un Query Control para ejecutar la Query %s con prioridad %d - Id asignado: %d ", path, *prioridad, query_id);
    list_destroy_and_destroy_elements(paqueteQuery, free);
+}
 }
 
 

@@ -96,7 +96,10 @@ t_list* recibir_paquete(int socket_cliente)
 	t_list* valores = list_create();
 	int tamanio;
 	
-	recv(socket_cliente, &cod_op, sizeof(int), MSG_WAITALL);
+	int detec = recv(socket_cliente, &cod_op, sizeof(int), MSG_WAITALL);
+	if (detec == 0) {
+        // El cliente cerró la conexión
+        return NULL;}
 	int* cod_op_ptr = malloc(sizeof(int));
     *cod_op_ptr = cod_op;
     list_add(valores, cod_op_ptr);
