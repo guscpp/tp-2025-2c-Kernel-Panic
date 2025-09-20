@@ -7,9 +7,12 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
+
     int id_worker = atoi(argv[2]);
     t_worker* w = inicializar_worker(id_worker);
     t_memoria_interna* m = crear_memoria(w->logger);
+
+    pthread_t ciclo_instrucciones;
 
     log_info(w->logger, "Verificar funcionamiento logger");
 
@@ -29,7 +32,20 @@ int main(int argc, char* argv[]) {
     agregar_a_paquete(packetID, &w->id_worker, sizeof(int));
     enviar_paquete(packetID, w->master_socket, w->logger);
     eliminar_paquete(packetID);
-    recibir_path_de_query(w->master_socket, w->logger);
+
+
+    //recibir_path_de_query(w->master_socket, w->logger); Este es el de la funcion anterior de recibir_path_de_query
+    t_ejecucion* datos_ejecucion = malloc(sizeof(t_ejecucion));
+    datos_ejecucion->w = w;
+    datos_ejecucion->master_socket = w->master_socket;
+    int err= pthread_create(&ciclo_instrucciones, 
+                            NULL, 
+                            ejecutar_query, 
+                            datos_ejecucion);
+    if(err != 0){
+        log_info(w->logger, "No se creo el hilo del ciclo de instrucciones");
+    }
+    pthread_detach(ciclo_instrucciones);
 
     //Storage: crear la conexion
     w->storage_socket = crear_conexion(w->logger, w->ip_storage, w->puerto_storage); //socket y connect

@@ -6,6 +6,10 @@
 // Dejo esto de modelo
 t_query_interpreter* query_interpreter_crear() {
     t_query_interpreter* interpreter = malloc(sizeof(t_query_interpreter));
-    // ...
+    interpreter->pc = 0;
     return interpreter;
+}
+
+void query_interpreter_ciclo(FILE* archivo_query, t_worker* w){
+    
 }

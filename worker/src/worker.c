@@ -80,6 +80,9 @@ void liberar_worker(t_worker* w)
 
 // Esta funcion puede adaptarse despues del checkpoint 1 para
 // procesar queries, no solo recibir y mandar paths al log
+//Podria devolver el path o directamente el archivo
+
+/*
 void recibir_path_de_query(int master_socket, t_log* logger)
 {
     int codigo_operacion = recibir_operacion(master_socket);
@@ -112,13 +115,75 @@ void recibir_path_de_query(int master_socket, t_log* logger)
         }
     }
 }
+*/
+
+FILE* recibir_path_de_query(int master_socket, t_worker* w)
+{
+    FILE* archivo;
+    int codigo_operacion = recibir_operacion(master_socket);
+
+    if (codigo_operacion == -1)
+    {
+        log_error(w->logger, "Error en la conexión con el Master");
+        return;
+    }
+
+    if (codigo_operacion == WORKER_ASSIGN_QUERY)
+    {
+        t_list* valores = recibir_paquete(master_socket);
+        
+        if (valores && list_size(valores) >= 3)
+        {
+            // Los valores vienen en el orden:
+            // query_id, path_query, prioridad
+            int query_id = *(int*)list_get(valores, 0);
+            char* path_query = (char*)list_get(valores, 1);
+            int prioridad = *(int*)list_get(valores, 2);
+            
+            log_info(w->logger, "Query recibida: ID=%d, Path=%s, Prioridad=%d", 
+                    query_id, path_query, prioridad);
+            
+            archivo = retornar_archivo(path_query, w->path_scripts, w->logger);
+            // Liberar la lista (pero no los elementos)
+            list_destroy(valores);
+            
+            free(path_query);
+        }
+    }
+    return archivo;
+}
+
+
+FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){
+
+    char* path_final = string_new();
+    string_append(&path_final, path_general);
+    string_append(&path_final, nombre_archivo);
+
+    FILE* archivo_query = fopen(path_final, "r");
+
+    if (archivo_query == NULL) {
+        log_error(logger, "No se pudo abrir el archivo de query: %s", path_final);
+        free(path_final);
+        return;
+    }
+    free(path_final);
+    return archivo_query;
+}   
+
+void ejecutar_query(t_ejecucion* datos_ejecucion){
+
+    FILE* archivo_query;
+    archivo_query = recibir_path_de_query(datos_ejecucion->master_socket, datos_ejecucion->w);
+    query_interpreter_ciclo(archivo_query, datos_ejecucion->w); 
+}
 
 void rtas_storage(int storage_socket, t_worker* w){
         t_list* valores = recibir_paquete(storage_socket);
-        int* cod_op = list_get(valores, 0);
-        log_info(w->logger, "llegue a recibir %d", *cod_op);
+        int cod_op = list_get(valores, 0);
+        log_info(w->logger, "llegue a recibir %d", cod_op);
 
-        switch (*cod_op)
+        switch (cod_op)
         {
         case STORAGE_SEND_BLOCK_SIZE:
             
@@ -128,7 +193,7 @@ void rtas_storage(int storage_socket, t_worker* w){
             break;
         
         default:
-        log_info(w->logger, "Error en el cod_op %d", *cod_op);
+        log_info(w->logger, "Error en el cod_op %d", cod_op);
             break;
         }
 }

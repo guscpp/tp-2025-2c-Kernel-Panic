@@ -7,10 +7,9 @@
 // Struct modelo: borrala, cambiala o lo que haga falta
 typedef struct {
     t_memoria_interna* memoria;
-    // ... otros campos ...
 } t_query_interpreter;
 
 // Modelo para que haya algo, 
 t_query_interpreter*    query_interpreter_crear();
-
+void query_interpreter_ciclo(FILE* archivo_query, t_worker* w);
 #endif
