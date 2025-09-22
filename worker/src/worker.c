@@ -117,15 +117,15 @@ void recibir_path_de_query(int master_socket, t_log* logger)
 }
 */
 
-FILE* recibir_path_de_query(int master_socket, t_worker* w)
+PCB* recibir_path_de_query(int master_socket, t_worker* w)
 {
-    FILE* archivo;
+    PCB* dt_archivo = NULL;
     int codigo_operacion = recibir_operacion(master_socket);
 
     if (codigo_operacion == -1)
     {
         log_error(w->logger, "Error en la conexión con el Master");
-        return;
+        return NULL;
     }
 
     if (codigo_operacion == WORKER_ASSIGN_QUERY)
@@ -143,14 +143,18 @@ FILE* recibir_path_de_query(int master_socket, t_worker* w)
             log_info(w->logger, "Query recibida: ID=%d, Path=%s, Prioridad=%d", 
                     query_id, path_query, prioridad);
             
-            archivo = retornar_archivo(path_query, w->path_scripts, w->logger);
+            dt_archivo = malloc(sizeof(PCB));
+            dt_archivo->nombre_archivo = path_query;
+            dt_archivo->query_id = query_id;
+            dt_archivo->archivo = retornar_archivo(path_query, w->path_scripts, w->logger);
+           
             // Liberar la lista (pero no los elementos)
             list_destroy(valores);
             
-            free(path_query);
+            //free(path_query); //?
         }
     }
-    return archivo;
+    return dt_archivo;
 }
 
 
@@ -165,18 +169,27 @@ FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){
     if (archivo_query == NULL) {
         log_error(logger, "No se pudo abrir el archivo de query: %s", path_final);
         free(path_final);
-        return;
+        return NULL;
     }
     free(path_final);
     return archivo_query;
 }   
 
+
+
+
 void ejecutar_query(t_ejecucion* datos_ejecucion){
 
-    FILE* archivo_query;
-    archivo_query = recibir_path_de_query(datos_ejecucion->master_socket, datos_ejecucion->w);
-    query_interpreter_ciclo(archivo_query, datos_ejecucion->w); 
+    PCB* dt_archivo;
+    dt_archivo = recibir_path_de_query(datos_ejecucion->master_socket, datos_ejecucion->w);
+    if(dt_archivo == NULL){
+        log_info(datos_ejecucion->w->logger, "Error al abrir query, estoy en worker.c");
+        return;
+    }
+    query_interpreter_ciclo(dt_archivo, datos_ejecucion->w); 
 }
+
+
 
 void rtas_storage(int storage_socket, t_worker* w){
         t_list* valores = recibir_paquete(storage_socket);

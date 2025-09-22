@@ -36,7 +36,7 @@ void      verificar_worker(t_worker* worker);
 void      liberar_worker(t_worker* w);
 
 //void      recibir_path_de_query(int master_socket, t_log* logger);
-FILE*      recibir_path_de_query(int master_socket, t_log* logger);
+PCB*      recibir_path_de_query(int master_socket, t_log* logger);
 void rtas_storage(int storage_socket, t_worker* w);
 
 FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger);
