@@ -34,7 +34,19 @@ int main(int argc, char* argv[]) {
     eliminar_paquete(packetID);
 
 
-    //recibir_path_de_query(w->master_socket, w->logger); Este es el de la funcion anterior de recibir_path_de_query
+    //Storage: crear la conexion
+    w->storage_socket = crear_conexion(w->logger, w->ip_storage, w->puerto_storage); //socket y connect
+    t_buffer* buffer2 = crear_buffer();
+    t_paquete* packetHandshake2 = crear_paquete(WORKER_HANDSHAKE, buffer2);
+    enviar_paquete(packetHandshake2, w->storage_socket, w->logger);
+    eliminar_paquete(packetHandshake2);
+
+    rtas_storage(w->storage_socket, w);
+
+
+    //MAster: recibir path de master
+        //recibir_path_de_query(w->master_socket, w->logger); Este es el de la funcion anterior de recibir_path_de_query
+    
     t_ejecucion* datos_ejecucion = malloc(sizeof(t_ejecucion));
     datos_ejecucion->w = w;
     datos_ejecucion->master_socket = w->master_socket;
@@ -47,14 +59,6 @@ int main(int argc, char* argv[]) {
     }
     pthread_detach(ciclo_instrucciones);
 
-    //Storage: crear la conexion
-    w->storage_socket = crear_conexion(w->logger, w->ip_storage, w->puerto_storage); //socket y connect
-    t_buffer* buffer2 = crear_buffer();
-    t_paquete* packetHandshake2 = crear_paquete(WORKER_HANDSHAKE, buffer2);
-    enviar_paquete(packetHandshake2, w->storage_socket, w->logger);
-    eliminar_paquete(packetHandshake2);
-
-    rtas_storage(w->storage_socket, w);
    
     return 0;
 }

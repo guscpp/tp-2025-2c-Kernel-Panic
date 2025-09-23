@@ -1,4 +1,6 @@
 #include "../include/worker.h"
+#include "../include/query_interpreter.h"
+#include "../include/tipos.h"
 #include <unistd.h>
 
 t_worker* inicializar_worker(int id_worker)
@@ -117,9 +119,9 @@ void recibir_path_de_query(int master_socket, t_log* logger)
 }
 */
 
-PCB* recibir_path_de_query(int master_socket, t_worker* w)
+Pcb* recibir_path_de_query(int master_socket, t_worker* w)
 {
-    PCB* dt_archivo = NULL;
+    Pcb* dt_archivo = NULL;
     int codigo_operacion = recibir_operacion(master_socket);
 
     if (codigo_operacion == -1)
@@ -143,7 +145,7 @@ PCB* recibir_path_de_query(int master_socket, t_worker* w)
             log_info(w->logger, "Query recibida: ID=%d, Path=%s, Prioridad=%d", 
                     query_id, path_query, prioridad);
             
-            dt_archivo = malloc(sizeof(PCB));
+            dt_archivo = malloc(sizeof(Pcb));
             dt_archivo->nombre_archivo = path_query;
             dt_archivo->query_id = query_id;
             dt_archivo->archivo = retornar_archivo(path_query, w->path_scripts, w->logger);
@@ -160,10 +162,12 @@ PCB* recibir_path_de_query(int master_socket, t_worker* w)
 
 FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){
 
+    /*
     char* path_final = string_new();
     string_append(&path_final, path_general);
     string_append(&path_final, nombre_archivo);
-
+    */
+    char* path_final = nombre_archivo;
     FILE* archivo_query = fopen(path_final, "r");
 
     if (archivo_query == NULL) {
@@ -176,11 +180,9 @@ FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){
 }   
 
 
-
-
 void ejecutar_query(t_ejecucion* datos_ejecucion){
 
-    PCB* dt_archivo;
+    Pcb* dt_archivo;
     dt_archivo = recibir_path_de_query(datos_ejecucion->master_socket, datos_ejecucion->w);
     if(dt_archivo == NULL){
         log_info(datos_ejecucion->w->logger, "Error al abrir query, estoy en worker.c");
@@ -193,10 +195,10 @@ void ejecutar_query(t_ejecucion* datos_ejecucion){
 
 void rtas_storage(int storage_socket, t_worker* w){
         t_list* valores = recibir_paquete(storage_socket);
-        int cod_op = list_get(valores, 0);
-        log_info(w->logger, "llegue a recibir %d", cod_op);
+        int* cod_op = list_get(valores, 0);
+        log_info(w->logger, "llegue a recibir %d", *cod_op);
 
-        switch (cod_op)
+        switch (*cod_op)
         {
         case STORAGE_SEND_BLOCK_SIZE:
             
@@ -206,7 +208,7 @@ void rtas_storage(int storage_socket, t_worker* w){
             break;
         
         default:
-        log_info(w->logger, "Error en el cod_op %d", cod_op);
+        log_info(w->logger, "Error en el cod_op %d", *cod_op);
             break;
         }
 }

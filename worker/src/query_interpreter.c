@@ -1,16 +1,19 @@
 // worker/src/query_interpreter.c
 #include "../include/query_interpreter.h"
-#include "../include/memoria.h"
+//#include "../include/memoria.h"
 #include "../include/worker.h"
+#include "../include/tipos.h"
 
 // Dejo esto de modelo
+/*
 t_query_interpreter* query_interpreter_crear() {
     t_query_interpreter* interpreter = malloc(sizeof(t_query_interpreter));
     interpreter->pc = 0;
     return interpreter;
 }
+*/
 
-void query_interpreter_ciclo(PCB* pcb, t_worker* w){
+void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
     log_info(w->logger, "El archivo_query que se esta ejecutando es %s. Query ID: %d, PC: %d", pcb->nombre_archivo, pcb->query_id, pcb->pc);
     char* instruccion;
     t_decode* instruccion_decf = malloc(sizeof(t_decode));
@@ -20,13 +23,13 @@ void query_interpreter_ciclo(PCB* pcb, t_worker* w){
         pcb->pc++; //agregar la idea de que puede venir un pc != 0
 
         instruccion_decf = decode(instruccion, w);
-        execute(instruccion_decf->parametros, instruccion_decf->ejecuta_instruccion);
+        execute(instruccion_decf->parametros, instruccion_decf->ejecuta_instruccion, w);
 
     }
 
 }
 
-char* fetch(PCB* pcb, t_worker* w){
+char* fetch(Pcb* pcb, t_worker* w){
     char* buffer_autoselc =  NULL;
     size_t tam_autoselc = 0;
     ssize_t leido = getline(&buffer_autoselc, &tam_autoselc, pcb->archivo);
@@ -167,8 +170,8 @@ t_decode* decode(char* instruccion, t_worker* w){
  
 }
 
-void execute(t_instr_param* parametros, void (*ejecuta_instruccion)(t_instr_param*)){
-    ejecuta_instruccion(parametros);
+void execute(t_instr_param* parametros, void (*ejecuta_instruccion)(t_instr_param*, t_worker*), t_worker* w){
+    ejecuta_instruccion(parametros, w);
 }
 
 char** aux_separar_file_tag(char* cadena){
@@ -178,35 +181,34 @@ char** aux_separar_file_tag(char* cadena){
     
 }
 
-
-void executeCreate(){
-
+void executeCreate(t_instr_param* parametros, t_worker* w){
+    log_info(w->logger, "Llegue a hacer create");
 }
 
-void executeTruncate(){
-
+void executeTruncate(t_instr_param* parametros, t_worker* w){
+    log_info(w->logger, "Llegue a hacer truncate");
 }
 
-void executeWrite(){
-
+void executeWrite(t_instr_param* parametros, t_worker* w){
+    log_info(w->logger, "Llegue a hacer write");
 }
 
-void executeRead(){
-
+void executeRead(t_instr_param* parametros, t_worker* w){
+    log_info(w->logger, "Llegue a hacer read");
 }
 
-void executeTag(){
-
+void executeTag(t_instr_param* parametros, t_worker* w){
+    log_info(w->logger, "Llegue a hacer tag");
 }
 
-void executeCommit(){
-
+void executeCommit(t_instr_param* parametros, t_worker* w){
+    log_info(w->logger, "Llegue a hacer commit");
 }
 
-void executeFlush(){
-
+void executeFlush(t_instr_param* parametros, t_worker* w){
+    log_info(w->logger, "Llegue a hacer flush");
 }
 
-void executeDelete(){
-
+void executeDelete(t_instr_param* parametros, t_worker* w){
+    log_info(w->logger, "Llegue a hacer delete");
 }
