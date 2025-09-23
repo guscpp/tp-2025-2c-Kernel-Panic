@@ -28,7 +28,7 @@ void* atender_conexion(t_hacerConnect* informacion){
     return NULL;
 }
 int query_id = 1;
-char* path_query = "path :)";
+char* path_query = "prueba.txt"; //solo cambie esto de master, porque me servia que me pase un archivo que pueda abrir
 int prioridad = 2;
 
 void atender_Query(t_hacerConnect*  informacion){

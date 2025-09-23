@@ -1,15 +1,20 @@
 #include "../include/worker.h"
 
 int main(int argc, char* argv[]) {
+    
+    //LO COMENTE PARA QUE ME DEJE HACER DEBUG
+    /*
     if (argc != 3)
     {
         printf("Uso: ./bin/worker [archivo_config] [ID Worker]\n");
         return EXIT_FAILURE;
     }
-
-
+*/
+    /*
     int id_worker = atoi(argv[2]);
     t_worker* w = inicializar_worker(id_worker);
+    */
+    t_worker* w = inicializar_worker(0);
     t_memoria_interna* m = crear_memoria(w->logger);
 
     pthread_t ciclo_instrucciones;
@@ -41,7 +46,9 @@ int main(int argc, char* argv[]) {
     enviar_paquete(packetHandshake2, w->storage_socket, w->logger);
     eliminar_paquete(packetHandshake2);
 
+    log_info(w->logger, "Estoy justo antes de crear el hilo");
     rtas_storage(w->storage_socket, w);
+    log_info(w->logger, "Llegue dsp de recibir a storage");
 
 
     //MAster: recibir path de master
@@ -50,14 +57,22 @@ int main(int argc, char* argv[]) {
     t_ejecucion* datos_ejecucion = malloc(sizeof(t_ejecucion));
     datos_ejecucion->w = w;
     datos_ejecucion->master_socket = w->master_socket;
-    int err= pthread_create(&ciclo_instrucciones, 
+    int error = 5;
+    error = pthread_create(&ciclo_instrucciones, 
                             NULL, 
                             ejecutar_query, 
                             datos_ejecucion);
-    if(err != 0){
-        log_info(w->logger, "No se creo el hilo del ciclo de instrucciones");
+    
+    if(error != 0){
+    log_error(w->logger, "No se creo el hilo del ciclo de instrucciones: %s", strerror(error));
     }
-    pthread_detach(ciclo_instrucciones);
+    else {
+    log_info(w->logger, "Hilo creado correctamente");
+    }
+
+    pthread_join(ciclo_instrucciones, NULL); //Para que el hilo main no termine antes de que el hilo ciclo_instrucciones termine
+    //pthread_detach(ciclo_instrucciones);
+    log_info(w->logger, "2do aviso: Llegue a crear el hilo");
 
    
     return 0;

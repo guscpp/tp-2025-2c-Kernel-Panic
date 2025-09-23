@@ -10,7 +10,7 @@ t_worker* inicializar_worker(int id_worker)
     // TODO leer log_level del config
     w->logger = iniciar_logger("worker.log", "[WORKER_PRUEBA]", true, LOG_LEVEL_INFO);
 
-    w->config = iniciar_config(w->logger, "worker.config");
+    w->config = iniciar_config(w->logger, "worker.config");  //cuidado que esta hardcodeado
     w->ip_master = config_get_string_value(w->config, "IP_MASTER");
     w->puerto_master = config_get_string_value(w->config, "PUERTO_MASTER");
     w->ip_storage = config_get_string_value(w->config, "IP_STORAGE");
@@ -121,6 +121,7 @@ void recibir_path_de_query(int master_socket, t_log* logger)
 
 Pcb* recibir_path_de_query(int master_socket, t_worker* w)
 {
+    log_info(w->logger, "Por lo menos entre a recibir_path"); 
     Pcb* dt_archivo = NULL;
     int codigo_operacion = recibir_operacion(master_socket);
 
@@ -133,14 +134,15 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
     if (codigo_operacion == WORKER_ASSIGN_QUERY)
     {
         t_list* valores = recibir_paquete(master_socket);
-        
-        if (valores && list_size(valores) >= 3)
+        log_info(w->logger, "Llegue a recibir el paquete path_query de MAster");
+        int tamanio_valores = list_size(valores); //esto segun el debug es 2
+        if (valores && list_size(valores) >= 3) //Si le pongo >= 2 entra, pero tira seg_fault en (*)
         {
             // Los valores vienen en el orden:
             // query_id, path_query, prioridad
-            int query_id = *(int*)list_get(valores, 0);
-            char* path_query = (char*)list_get(valores, 1);
-            int prioridad = *(int*)list_get(valores, 2);
+            int query_id = *(int*)list_get(valores, 1);
+            char* path_query = (char*)list_get(valores, 2);
+            int prioridad = (int*)list_get(valores, 3); (*)
             
             log_info(w->logger, "Query recibida: ID=%d, Path=%s, Prioridad=%d", 
                     query_id, path_query, prioridad);
@@ -180,10 +182,16 @@ FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){
 }   
 
 
-void ejecutar_query(t_ejecucion* datos_ejecucion){
+void* ejecutar_query(void* arg){
 
+    t_ejecucion* datos_ejecucion = (t_ejecucion*) arg;
+    //printf("Hilo ejecutar_query iniciado\n");
+    //fflush(stdout);
+
+    log_info(datos_ejecucion->w->logger, "Por lo menos entre a ejecutar_query");
     Pcb* dt_archivo;
     dt_archivo = recibir_path_de_query(datos_ejecucion->master_socket, datos_ejecucion->w);
+    log_debug(datos_ejecucion->w->logger, "Llego el path_query: %s", dt_archivo->nombre_archivo);
     if(dt_archivo == NULL){
         log_info(datos_ejecucion->w->logger, "Error al abrir query, estoy en worker.c");
         return;

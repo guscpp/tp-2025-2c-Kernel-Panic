@@ -17,5 +17,5 @@ void rtas_storage(int storage_socket, t_worker* w);
 
 FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger);
 
-void ejecutar_query(t_ejecucion* datos_ejecucion);
+void* ejecutar_query(void* arg);
 #endif /* CLIENTE_H_*/
