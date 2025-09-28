@@ -18,4 +18,8 @@ void rtas_storage(int storage_socket, t_worker* w);
 FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger);
 
 void* ejecutar_query(void* arg);
+
+void* hilo_atender_interrupcion(void* arg);
+
+bool recibir_interrupciones(int master_socket, t_worker* w);
 #endif /* CLIENTE_H_*/

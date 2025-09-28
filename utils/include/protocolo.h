@@ -26,6 +26,7 @@ typedef enum
     // WORKER → MASTER
 
     WORKER_ID,              // Enviar ID
+    WORKER_PC_UPDATE,       //Envio nuevo PC, el queryID del que pertenece y el nombreDelQuery (informo el nuevo pc tras una interrupcion)
 
     WORKER_READ_RESULT,     // Resultado de lectura
     WORKER_QUERY_END,       // Query terminada en worker

@@ -184,7 +184,7 @@ FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){
     return archivo_query;
 }   
 
-
+//------------------HILO DE EJECUCION DE QUERYS-----------------------
 void* ejecutar_query(void* arg){
 
     t_ejecucion* datos_ejecucion = (t_ejecucion*) arg;
@@ -205,7 +205,7 @@ void* ejecutar_query(void* arg){
     
     }
 }
-
+//-------------------------------------------------------------------------------------------------
 
 
 void rtas_storage(int storage_socket, t_worker* w){
@@ -226,4 +226,48 @@ void rtas_storage(int storage_socket, t_worker* w){
         log_info(w->logger, "Error en el cod_op %d", *cod_op);
             break;
         }
+}
+
+//------------------HILO DE ATENCION DE INTERRUPCIONES-----------------------
+void* hilo_atender_interrupcion(void* arg){ //Cuando me lleguen interrupciones, las guardo en el interpreter que tiene un booleano encargado de chquear eso. Y en el ciclo siempre revisamos ese bool
+    
+    t_ejecucion* dt_atender_master = (t_ejecucion*) arg;
+    while(recibir_interrupciones(dt_atender_master->master_socket, dt_atender_master->w)){//solo devuelve true si es cierto
+        dt_atender_master->w->interpreter->hay_interrupcion = true; //aca marcamos en true la interrupcion para verificarlo despues en el ciclo de instrucciones
+    }
+
+}
+//-------------------------------------------------------------------------------------------------
+
+bool recibir_interrupciones(int master_socket, t_worker* w){ //SOlo se encarga de devolver true en el caso de que llegue una interrupcion
+
+    bool llego_interrupcion = false;
+    int cod_op = recibir_operacion(master_socket);
+
+    if (cod_op == -1)
+    {
+        log_error(w->logger, "Error en la conexión con el Master");
+        return false;
+    }
+
+    if (cod_op == WORKER_DESALOJO)
+    {
+        t_list* valores = recibir_paquete(master_socket);
+        log_info(w->logger, "Llegue a recibir el paquete interrupcion de MAster");
+
+        if (valores && list_size(valores) == 1)
+        {
+            // Los valores vienen en el orden:
+            // query_id, path_query, prioridad //los casteo porque trae void *
+            int hay_interrupcion = *(int*)list_get(valores, 1);  //Que mande un 1 si hay interrupcion 
+            log_info(w->logger, "Me llego una interrupcion");
+            
+            list_destroy(valores);
+            return true;
+
+            
+            //free(path_query); //?
+        }
+    }
+    return false;
 }

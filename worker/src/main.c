@@ -16,8 +16,11 @@ int main(int argc, char* argv[]) {
     */
     t_worker* w = inicializar_worker(0);
     t_memoria_interna* m = crear_memoria(w->logger);
+    t_query_interpreter*  query_interpreter =  query_interpreter_crear(w->logger); //tiene pc y un verificador de interrupciones
+    w->interpreter = query_interpreter; 
 
-    pthread_t ciclo_instrucciones;
+    pthread_t ciclo_instrucciones; 
+    pthread_t hilo_interrupciones;
 
     log_info(w->logger, "Verificar funcionamiento logger");
 
@@ -31,7 +34,7 @@ int main(int argc, char* argv[]) {
     enviar_paquete(packetHandshake, w->master_socket, w->logger);
     eliminar_paquete(packetHandshake);
 
-    //Master: enviarle ID de este worker, recibir path a query
+    //Master: enviarle ID de este worker
     buffer1 = crear_buffer();
     t_paquete* packetID = crear_paquete(WORKER_ID, buffer1);
     agregar_a_paquete(packetID, &w->id_worker, sizeof(int));
@@ -39,7 +42,7 @@ int main(int argc, char* argv[]) {
     eliminar_paquete(packetID);
 
 
-    //Storage: crear la conexion
+    //Storge: crear la conexion
     w->storage_socket = crear_conexion(w->logger, w->ip_storage, w->puerto_storage); //socket y connect
     t_buffer* buffer2 = crear_buffer();
     t_paquete* packetHandshake2 = crear_paquete(WORKER_HANDSHAKE, buffer2);
@@ -51,30 +54,45 @@ int main(int argc, char* argv[]) {
     log_info(w->logger, "Llegue dsp de recibir a storage");
 
 
-    //MAster: recibir path de master
+    //MAster: recibir path de master y ejecuto la query 
         //recibir_path_de_query(w->master_socket, w->logger); Este es el de la funcion anterior de recibir_path_de_query
     
     t_ejecucion* datos_ejecucion = malloc(sizeof(t_ejecucion));
     datos_ejecucion->w = w;
     datos_ejecucion->master_socket = w->master_socket;
     //int error = 5;
-    int error = pthread_create(&ciclo_instrucciones, 
+    int error_h1 = pthread_create(&ciclo_instrucciones, 
                             NULL, 
-                            ejecutar_query, 
+                            ejecutar_query,  //recibo el path del query y lo ejecuto
                             datos_ejecucion);
     
-    if(error != 0){
-    log_error(w->logger, "No se creo el hilo del ciclo de instrucciones: %s", strerror(error));
+    if(error_h1 != 0){
+    log_error(w->logger, "No se creo el hilo del ciclo de instrucciones: %s", strerror(error_h1));
     }
     else {
     log_info(w->logger, "Hilo creado correctamente");
     }
 
     pthread_join(ciclo_instrucciones, NULL); //Para que el hilo main no termine antes de que el hilo ciclo_instrucciones termine
-    //pthread_detach(ciclo_instrucciones);
+    //pthread_detach(ciclo_instrucciones);//No lo uso porque me importa que el hilo termine de ejecutar, es decir, no me desligo de el. Me mantengo al tanto de este hilo (de su informacion), por eso hice pthread_join (ademas para que no muera antes del hilo principal)
 
-    log_info(w->logger, "2do aviso: Llegue a crear el hilo");
 
-   
+    //Master: escuchar interrupciones
+    t_ejecucion* recibir_interrupciones = malloc(sizeof(t_ejecucion));
+    recibir_interrupciones->master_socket = w->master_socket;
+    recibir_interrupciones->w = w;
+    int error_h2 = pthread_create(&hilo_interrupciones,
+                            NULL,
+                            hilo_atender_interrupcion,
+                            recibir_interrupciones);
+
+    if(error_h2 != 0){
+    log_error(w->logger, "No se creo el hilo de las interrupciones: %s", strerror(error_h2));
+    }
+    else {
+    log_info(w->logger, "Hilo de las interrupciones creado correctamente");
+    }
+
+    pthread_join(hilo_interrupciones, NULL);
     return 0;
 }

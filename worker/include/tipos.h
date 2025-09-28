@@ -5,6 +5,15 @@
 #include "memoria.h"  
 #include "query_interpreter.h"
 
+
+// Struct modelo: borrala, cambiala o lo que haga falta
+
+typedef struct {
+    t_memoria_interna* memoria;
+    int pc;
+    bool hay_interrupcion; 
+} t_query_interpreter;
+//--------------------------------
 typedef struct
 {
     t_log*              logger;
@@ -21,6 +30,7 @@ typedef struct
     pthread_t           thread_master; 
     pthread_t           thread_storage; 
     t_memoria_interna*  mem;
+    t_query_interpreter* interpreter;
 
 } t_worker;
 
@@ -56,7 +66,7 @@ typedef struct{
     FILE* archivo;
     char* nombre_archivo;
     int query_id;
-    int pc;
+    int pc; //con el que viene desde kernel
 } Pcb;
 
 #endif

@@ -5,23 +5,28 @@
 #include "../include/tipos.h"
 
 // Dejo esto de modelo
-/*
-t_query_interpreter* query_interpreter_crear() {
+
+t_query_interpreter* query_interpreter_crear(t_log* logger){
     t_query_interpreter* interpreter = malloc(sizeof(t_query_interpreter));
     interpreter->pc = 0;
+    interpreter->hay_interrupcion = false;
+    log_info(logger, "Se creo una query_interpreter");
     return interpreter;
 }
-*/
+
 
 void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
+    //me agarro el PC que me enviaron desde kernel y lo guardo en el PC del interpreter. DOnde verdadeeramente va a avanzar va ser en worker, luego si hay interrupciones voy a sobreescribir el pc que me dio kernel (para poner el actual si es que hubo interrupcion)
+    w->interpreter->pc = pcb->pc;
+
     log_info(w->logger, "El archivo_query que se esta ejecutando es %s. Query ID: %d, PC: %d", pcb->nombre_archivo, pcb->query_id, pcb->pc);
     char* instruccion;
     t_decode* instruccion_decf = malloc(sizeof(t_decode));
     for(;;){
-        instruccion = fetch(pcb, w);
+        instruccion = fetch(pcb, w); //aca me llega la instruccion completa
         
 
-        pcb->pc++; //agregar la idea de que puede venir un pc != 0
+        w->interpreter->pc++;  //el pc que avanza es el del interpreter
 
         instruccion_decf = decode(instruccion, w);
 
@@ -31,22 +36,71 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
         }
 
         execute(instruccion_decf->parametros, instruccion_decf->ejecuta_instruccion, w);
-
+        //free(instruccion_decf); revisar con valgrind
+        //free(instruccion_decf->parametros);   revisar con valgrind
+        
+        //checkInterrupt
+        if(w->interpreter->hay_interrupcion){
+            interrupt_envio_a_master(pcb, w); //MAndo el PCB para poder actualizarlo con el PC del w (y mandarlo a master)
+            break;
+        }
     }
 
 }
 
 char* fetch(Pcb* pcb, t_worker* w){
+
+    /*
+    NO es posible simplificarlo solamente en un solo caso (osea, no puedo generalizar todos los casos y poner un solo for que itere incluso si el pc=0), porque si hago eso, siempre que entre a fetch va volver a entrar al ciclo y voy a leer siempre la misma linea despues del desplazamiento
+    */
+   //Puede ser posible: posible mejora
+
     char* buffer_autoselc =  NULL;
     size_t tam_autoselc = 0;
-    ssize_t leido = getline(&buffer_autoselc, &tam_autoselc, pcb->archivo);
-    if(leido == -1){
-        log_info(w->logger, "Error al leer la instruccion");
-        free(buffer_autoselc); //Tengo que liberar el malloc de buffer_autoselec que le encargue a getline. El getline se ocupo hacerme el malloc
-        return NULL;
+
+    //por aca va entrar solamente un proceso que fue interrumpido antes (porque el PC del PCB que me pasaron no va cambiar). POr lo tanto, el getline que va tomar al hacer fetch siempre va ser este, no hay forma de que entre por el de abajo(**) porque se va chequear el PC del PCB que siempre va ser != 0 porque ese nunca se va modificar (ese no es el PC que se avanza, es el que te viene de master)
+    if(pcb->pc !=0){
+
+        if(w->interpreter->pc  == pcb->pc){//SI esto ocurre significa que es el primer fetch de mi ciclo, porque no avance mi PC de interpreter respecto del pc del PCB
+        int i = 0;
+        for(i ; i < pcb->pc; i++)  
+            {
+            ssize_t leido = getline(&buffer_autoselc, &tam_autoselc, pcb->archivo);
+            
+            if(leido == -1){
+            log_info(w->logger, "Error al leer la instruccion que se ignora (la del for en fetch)");
+            free(buffer_autoselc); //Tengo que liberar el malloc de buffer_autoselec que le encargue a getline. El getline se ocupo hacerme el malloc
+            return NULL;
+            }
+
+            }
+        }
+
+        //SI es falso que estoy en el PC inicial (con PC inicial nos referimos al que nos pasa el master), osea que estoy en mi segundo fetch, no entro al for otra vez porque me va tirar lineas abajo en el .txt, entro aca para retomar desde donde me adelanto el for
+        
+        //Ahora, este ultimo getline va retormar la ultima posicion en la que quedo el anterior getline. BAsicamente va comenzar a leer el archivo desde el PC indicado, ignorando las primeras lineas que logre ignorar con el for. NO hay manera de que se confunda con el getline de abajo(**) porque no puede entrar a este y al de abajo a la vez, estan separados por el if del PCB que nunca cambia
+        ssize_t leido = getline(&buffer_autoselc, &tam_autoselc, pcb->archivo);
+        if(leido == -1){
+            log_info(w->logger, "Error al leer la primer instruccion del PC != 0");
+            free(buffer_autoselc);
+            return NULL;
+        }
+        return buffer_autoselc;
+        
     }
-    return buffer_autoselc;
+
+    else{ //est es el de abajo (**)
+    //por aca va entrar solamente un proceso que NO fue interrupido (PC = 0), EL PC DEL PCB NUNCA CAMBIA. ENtonces, cuando llegue al getline, no va confundirse con el getline de la linea de arriba, porque siempre va entrar por aca y va tomar este getline
+    ssize_t leido = getline(&buffer_autoselc, &tam_autoselc, pcb->archivo);
+        if(leido == -1){
+            log_info(w->logger, "Error al leer la instruccion");
+            free(buffer_autoselc); //Tengo que liberar el malloc de buffer_autoselec que le encargue a getline. El getline se ocupo hacerme el malloc
+            return NULL;
+        }
+        return buffer_autoselc;
+    }
 }
+
 
 t_decode* decode(char* instruccion, t_worker* w){
     char** parametros;
@@ -309,4 +363,17 @@ void executeEnd(t_worker* w){ //avisar a master de la finalizacion
     t_paquete* aviso_end_query = crear_paquete(WORKER_QUERY_END, buffer_generico);
     enviar_paquete(aviso_end_query, w->master_socket, w->logger);
     eliminar_paquete(aviso_end_query);
+}
+
+void interrupt_envio_a_master(Pcb* pcb_dsp_de_interrupt, t_worker* w){
+    t_buffer* buffer_generico = crear_buffer();
+    t_paquete* devuelvo_pcb_master = crear_paquete(WORKER_PC_UPDATE, buffer_generico);
+    //TAl vez este no haga falta:
+    agregar_a_paquete(devuelvo_pcb_master, pcb_dsp_de_interrupt->nombre_archivo, strlen(pcb_dsp_de_interrupt->nombre_archivo)+1);
+    
+    //Estos dos si:
+    agregar_a_paquete(devuelvo_pcb_master, pcb_dsp_de_interrupt->query_id, sizeof(int));
+    agregar_a_paquete(devuelvo_pcb_master, pcb_dsp_de_interrupt->pc, sizeof(int));
+    enviar_paquete(devuelvo_pcb_master, w->master_socket, w->logger);
+    eliminar_paquete(devuelvo_pcb_master);
 }

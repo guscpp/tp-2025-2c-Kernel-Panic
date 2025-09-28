@@ -8,15 +8,8 @@
 
 
 
-// Struct modelo: borrala, cambiala o lo que haga falta
-/*
-typedef struct {
-    t_memoria_interna* memoria;
-} t_query_interpreter;
-*/
-
 // Modelo para que haya algo, 
-//t_query_interpreter*    query_interpreter_crear();
+t_query_interpreter*    query_interpreter_crear(t_log* logger);
 
 void query_interpreter_ciclo(Pcb* pcb, t_worker* w);
 char* fetch(Pcb* pcb, t_worker* w);
@@ -31,5 +24,7 @@ void executeTag(t_instr_param* parametros, t_worker* w);
 void executeCommit(t_instr_param* parametros, t_worker* w);
 void executeFlush(t_instr_param* parametros, t_worker* w);
 void executeDelete(t_instr_param* parametros, t_worker* w);
+void executeEnd(t_worker* w);
+void interrupt_envio_a_master(Pcb* pcb_dsp_de_interrupt, t_worker* w);
 
 #endif
