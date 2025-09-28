@@ -142,7 +142,7 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
             // query_id, path_query, prioridad
             int query_id = *(int*)list_get(valores, 1);
             char* path_query = (char*)list_get(valores, 2);
-            int prioridad = (int*)list_get(valores, 3); (*)
+            int prioridad = (int*)list_get(valores, 3); //(*)
             
             log_info(w->logger, "Query recibida: ID=%d, Path=%s, Prioridad=%d", 
                     query_id, path_query, prioridad);
@@ -153,7 +153,10 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
             dt_archivo->archivo = retornar_archivo(path_query, w->path_scripts, w->logger);
            
             // Liberar la lista (pero no los elementos)
+            
             list_destroy(valores);
+            return dt_archivo;
+
             
             //free(path_query); //?
         }
@@ -177,7 +180,7 @@ FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){
         free(path_final);
         return NULL;
     }
-    free(path_final);
+    //free(path_final);
     return archivo_query;
 }   
 
@@ -190,13 +193,17 @@ void* ejecutar_query(void* arg){
 
     log_info(datos_ejecucion->w->logger, "Por lo menos entre a ejecutar_query");
     Pcb* dt_archivo;
-    dt_archivo = recibir_path_de_query(datos_ejecucion->master_socket, datos_ejecucion->w);
-    log_debug(datos_ejecucion->w->logger, "Llego el path_query: %s", dt_archivo->nombre_archivo);
-    if(dt_archivo == NULL){
-        log_info(datos_ejecucion->w->logger, "Error al abrir query, estoy en worker.c");
-        return;
+
+    while(dt_archivo = recibir_path_de_query(datos_ejecucion->master_socket, datos_ejecucion->w)){
+
+        log_debug(datos_ejecucion->w->logger, "Llego el path_query: %s", dt_archivo->nombre_archivo);
+        if(dt_archivo == NULL){
+            log_info(datos_ejecucion->w->logger, "Error al abrir query, estoy en worker.c");
+            return;
+        }
+        query_interpreter_ciclo(dt_archivo, datos_ejecucion->w); 
+    
     }
-    query_interpreter_ciclo(dt_archivo, datos_ejecucion->w); 
 }
 
 

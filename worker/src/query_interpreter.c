@@ -19,10 +19,17 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
     t_decode* instruccion_decf = malloc(sizeof(t_decode));
     for(;;){
         instruccion = fetch(pcb, w);
+        
 
         pcb->pc++; //agregar la idea de que puede venir un pc != 0
 
         instruccion_decf = decode(instruccion, w);
+
+        if(instruccion_decf->fin){ //NO lo hago en el fetch porque ahi todavia no se que instruccion es. REcien en decode, despues de parsear se que se trata de un END.
+            executeEnd(w);
+            break;
+        }
+
         execute(instruccion_decf->parametros, instruccion_decf->ejecuta_instruccion, w);
 
     }
@@ -165,7 +172,8 @@ t_decode* decode(char* instruccion, t_worker* w){
 
     if(string_equals_ignore_case(parametros[0], "END")){
     //creo que se puede sacar
-    return NULL;
+    paquete_decode->fin = true;
+    return paquete_decode;
     }
  
 }
@@ -181,34 +189,124 @@ char** aux_separar_file_tag(char* cadena){
     
 }
 
+
+
 void executeCreate(t_instr_param* parametros, t_worker* w){
+    
+    int tamanio = 0;
+    t_buffer* buffer_generico = crear_buffer();
+    t_paquete* paquete_Create = crear_paquete(STORAGE_CREATE_FILE, buffer_generico);
+    agregar_a_paquete(paquete_Create, parametros->nombre_file, strlen(parametros->nombre_file) + 1); //parametros->nombre_file es un string por eso pasa sin &
+    agregar_a_paquete(paquete_Create, &tamanio, sizeof(int));
+    enviar_paquete(paquete_Create, w->storage_socket, w->logger);
+    eliminar_paquete(paquete_Create);
+    
+    
     log_info(w->logger, "Llegue a hacer create");
 }
 
 void executeTruncate(t_instr_param* parametros, t_worker* w){
+
+
+    t_buffer* buffer_generico = crear_buffer();
+    t_paquete* paqueteTruncate = crear_paquete(STORAGE_TRUNCATE, buffer_generico);
+    agregar_a_paquete(paqueteTruncate, parametros->nombre_file, strlen(parametros->nombre_file)+1);
+    agregar_a_paquete(paqueteTruncate, parametros->tag, strlen(parametros->tag +1));
+    agregar_a_paquete(paqueteTruncate, &parametros->tamanio, sizeof(int));
+    enviar_paquete(paqueteTruncate, w->storage_socket, w->logger);
+    eliminar_paquete(paqueteTruncate);
+    
     log_info(w->logger, "Llegue a hacer truncate");
 }
 
 void executeWrite(t_instr_param* parametros, t_worker* w){
+    /*
+    -----Creo que la logica en este caso seria solamente escribir en memoria. Deberia limitarse solamente a esto y en caso de no encontrarlo en memoria y tenga que pedirlo a storage, la memoria interna es la que deberia ocuparse de todo eso, desde aca solo mando a escrbir, el como eso sucede ya no es mi problema (es decir, de alguna forma, la memoria interna debe encargarse de recuperar esas paginas y escribirlo). Me refiero a que toda esa logica iria dentro de escribir_en_memoria()
+
+    escribir_en_memoria(parametros.nombre_file, parametros.tag, parametros.direccion_base, parametros.contenido);
+
+    ----No creo que deba ir algo como lo de abajo por la explicacion de arriba:
+    bool en_memoria = paginas_estan_en_Memoria()
+    if(en_memoria){
+        escribir_en_memoria(parametros.nombre_file, parametros.tag, parametros.direccion_base, parametros.contenido);
+    }
+    solicitar_contenido_storage()
+    escribir_en_memoria()
+
+*/
     log_info(w->logger, "Llegue a hacer write");
 }
 
 void executeRead(t_instr_param* parametros, t_worker* w){
+
+    /*
+    //La logica seria como la de arriba, esta funcion de encarga de traer esa lectura como sea:
+    //char* contenido_leido = leer_de_memoria(parametros->nombre_file, parametros->tag, parametros->direccion_base, parametros->tamanio)
+    t_paquete* paqueteLectura = crear_paquete(WORKER_READ_RESULT, buffer_generico);
+    agregar_a_paquete(paqueteLectura, contenido_leido, strlen(contenido_leido)+1);
+    enviar_paquete(paqueteLectura, w->master_socket, w->logger); 
+    eliminar_paquete(paqueteLectura); 
+    */
+
     log_info(w->logger, "Llegue a hacer read");
 }
 
 void executeTag(t_instr_param* parametros, t_worker* w){
+
+    t_buffer* buffer_generico = crear_buffer();
+    t_paquete* paquete_nuevo_tag = crear_paquete(STORAGE_TAG, buffer_generico);
+    agregar_a_paquete(paquete_nuevo_tag, parametros->nombre_file_org, strlen(parametros->nombre_file_org)+1);
+    agregar_a_paquete(paquete_nuevo_tag, parametros->tag_origen, strlen(parametros->tag_origen)+1);
+    agregar_a_paquete(paquete_nuevo_tag, parametros->nombre_file_destino, strlen(parametros->nombre_file_destino)+1);
+    agregar_a_paquete(paquete_nuevo_tag, parametros->tag_destino, strlen(parametros->tag_destino)+1);
+    enviar_paquete(paquete_nuevo_tag, w->storage_socket, w->logger);
+    eliminar_paquete(paquete_nuevo_tag);
+    
     log_info(w->logger, "Llegue a hacer tag");
 }
 
 void executeCommit(t_instr_param* parametros, t_worker* w){
+
+    executeFlush(parametros, w); //executeFLush necesita el nombreDelFIle y el tag, y yo aca en commit tengo esos parametros
+    
+    t_buffer* buffer_generico = crear_buffer();
+    t_paquete* paquete_commit = crear_paquete(STORAGE_COMMIT, buffer_generico);
+    agregar_a_paquete(paquete_commit, parametros->nombre_file, strlen(parametros->nombre_file)+1);
+    agregar_a_paquete(paquete_commit, parametros->tag, strlen(parametros->tag)+1);
+    enviar_paquete(paquete_commit, w->storage_socket, w->logger);
+    eliminar_paquete(paquete_commit);
+
     log_info(w->logger, "Llegue a hacer commit");
 }
 
-void executeFlush(t_instr_param* parametros, t_worker* w){
+void executeFlush(t_instr_param* parametros, t_worker* w){ //ESto se hace previo a la ejecucion de un commit y de un desalojo de query
+
+    t_buffer* buffer_generico = crear_buffer();
+    t_paquete* paquete_flush = crear_paquete(STORAGE_FLUSH, buffer_generico);
+    agregar_a_paquete(paquete_flush, parametros->nombre_file, strlen(parametros->nombre_file)+1);
+    agregar_a_paquete(paquete_flush, parametros->tag, strlen(parametros->tag)+1);
+    enviar_paquete(paquete_flush, w->storage_socket, w->logger);
+    eliminar_paquete(paquete_flush);
+    
     log_info(w->logger, "Llegue a hacer flush");
 }
 
 void executeDelete(t_instr_param* parametros, t_worker* w){
+
+    t_buffer* buffer_generico = crear_buffer();
+    t_paquete* paquete_delete = crear_paquete(STORAGE_DELETE, buffer_generico);
+    agregar_a_paquete(paquete_delete, parametros->nombre_file, strlen(parametros->nombre_file)+1);
+    agregar_a_paquete(paquete_delete, parametros->tag, strlen(parametros->tag)+1);
+    enviar_paquete(paquete_delete, w->storage_socket, w->logger);
+    eliminar_paquete(paquete_delete);
+    
     log_info(w->logger, "Llegue a hacer delete");
+}
+
+void executeEnd(t_worker* w){ //avisar a master de la finalizacion
+
+    t_buffer* buffer_generico = crear_buffer();
+    t_paquete* aviso_end_query = crear_paquete(WORKER_QUERY_END, buffer_generico);
+    enviar_paquete(aviso_end_query, w->master_socket, w->logger);
+    eliminar_paquete(aviso_end_query);
 }

@@ -57,8 +57,8 @@ int main(int argc, char* argv[]) {
     t_ejecucion* datos_ejecucion = malloc(sizeof(t_ejecucion));
     datos_ejecucion->w = w;
     datos_ejecucion->master_socket = w->master_socket;
-    int error = 5;
-    error = pthread_create(&ciclo_instrucciones, 
+    //int error = 5;
+    int error = pthread_create(&ciclo_instrucciones, 
                             NULL, 
                             ejecutar_query, 
                             datos_ejecucion);
@@ -72,6 +72,7 @@ int main(int argc, char* argv[]) {
 
     pthread_join(ciclo_instrucciones, NULL); //Para que el hilo main no termine antes de que el hilo ciclo_instrucciones termine
     //pthread_detach(ciclo_instrucciones);
+
     log_info(w->logger, "2do aviso: Llegue a crear el hilo");
 
    

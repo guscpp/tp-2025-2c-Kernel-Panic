@@ -36,7 +36,12 @@ typedef enum
     STORAGE_READ_BLOCK,
     STORAGE_WRITE_BLOCK,
     STORAGE_RESPONSE,
-    STORAGE_SEND_BLOCK_SIZE        // Respuesta generica de Storage
+    STORAGE_SEND_BLOCK_SIZE,      // Respuesta generica de Storage //Preguntar
+    STORAGE_TRUNCATE, 
+    STORAGE_TAG,
+    STORAGE_COMMIT, 
+    STORAGE_FLUSH,
+    STORAGE_DELETE
 } op_code;
 
 #endif /* PROTOCOLO_H_ */

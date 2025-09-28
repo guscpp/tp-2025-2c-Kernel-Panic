@@ -47,6 +47,7 @@ typedef struct{
 } t_instr_param;
 
 typedef struct{
+    bool fin; //true -> es el END
     t_instr_param* parametros;
     void (*ejecuta_instruccion)(t_instr_param*);
 }t_decode; //solo para que haya execute
