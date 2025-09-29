@@ -6,6 +6,7 @@
 #include "query_interpreter.h"
 #include "tipos.h"
 
+
 t_worker* inicializar_worker(int id_worker);
 
 void      verificar_worker(t_worker* worker);

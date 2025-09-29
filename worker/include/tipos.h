@@ -11,7 +11,7 @@
 typedef struct {
     t_memoria_interna* memoria;
     int pc;
-    bool hay_interrupcion; 
+    bool hay_interrupcion; //tal vez se saca
 } t_query_interpreter;
 //--------------------------------
 typedef struct
@@ -42,6 +42,7 @@ typedef struct {
 
 //EN QUERY INTERPRETER
 
+//extern int hay_interrupcion;
 
 typedef struct{
     char* nomb_instr;
@@ -59,7 +60,7 @@ typedef struct{
 typedef struct{
     bool fin; //true -> es el END
     t_instr_param* parametros;
-    void (*ejecuta_instruccion)(t_instr_param*);
+    void (*ejecuta_instruccion)(t_instr_param*, t_worker*);
 }t_decode; //solo para que haya execute
 
 typedef struct{

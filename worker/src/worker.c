@@ -3,6 +3,7 @@
 #include "../include/tipos.h"
 #include <unistd.h>
 
+
 t_worker* inicializar_worker(int id_worker)
 {
     t_worker *w = malloc(sizeof(t_worker));
@@ -136,21 +137,36 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
         t_list* valores = recibir_paquete(master_socket);
         log_info(w->logger, "Llegue a recibir el paquete path_query de MAster");
         int tamanio_valores = list_size(valores); //esto segun el debug es 2
-        if (valores && list_size(valores) >= 3) //Si le pongo >= 2 entra, pero tira seg_fault en (*)
+        if (valores && list_size(valores) >= 2) //Si le pongo >= 2 entra, pero tira seg_fault en (*) //LO PUSE EN 2 PARA PROBAR SOLO
         {
             // Los valores vienen en el orden:
             // query_id, path_query, prioridad
+
+            /*  Por el error de utils lo comento y hardcodeo valores
             int query_id = *(int*)list_get(valores, 1);
             char* path_query = (char*)list_get(valores, 2);
             int prioridad = (int*)list_get(valores, 3); //(*)
+            */
+
+           //SOLO PARA PROBARLO
+           int query_id = 2;
+           char* path_query = "prueba.txt";
+           int prioridad = 1;
+           //int pc = 0; PARA UN PROCESO SIN INTERRUPCION
+           int pc = 4;
+
+            log_info(w->logger, "Query recibida: ID=%d, Path=%s, Prioridad=%d, PC:%d", 
+                    query_id, path_query, prioridad, pc);  
             
-            log_info(w->logger, "Query recibida: ID=%d, Path=%s, Prioridad=%d", 
-                    query_id, path_query, prioridad);
+            if(pc > 0){
+                log_info(w->logger, "Es un proceso que fue interrumpido antes");
+            }
             
             dt_archivo = malloc(sizeof(Pcb));
             dt_archivo->nombre_archivo = path_query;
             dt_archivo->query_id = query_id;
             dt_archivo->archivo = retornar_archivo(path_query, w->path_scripts, w->logger);
+            dt_archivo->pc = pc;
            
             // Liberar la lista (pero no los elementos)
             
@@ -167,13 +183,14 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
 
 FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){
 
-    /*
+    /* En realidad va esto que esta comentado, pero lo deje asi para probarlo
     char* path_final = string_new();
     string_append(&path_final, path_general);
     string_append(&path_final, nombre_archivo);
     */
-    char* path_final = nombre_archivo;
-    FILE* archivo_query = fopen(path_final, "r");
+   //SOLO PARA PROBARLO
+    char* path_final = nombre_archivo; //para poder probarlo con un archivo que se encuentra aca 
+    FILE* archivo_query = fopen("src/prueba.txt", "r"); //EN ESTE CASO TENGO QUE PONERLO ASI PORQUE LO PRUEBO DESDE WORKER/
 
     if (archivo_query == NULL) {
         log_error(logger, "No se pudo abrir el archivo de query: %s", path_final);
@@ -231,9 +248,15 @@ void rtas_storage(int storage_socket, t_worker* w){
 //------------------HILO DE ATENCION DE INTERRUPCIONES-----------------------
 void* hilo_atender_interrupcion(void* arg){ //Cuando me lleguen interrupciones, las guardo en el interpreter que tiene un booleano encargado de chquear eso. Y en el ciclo siempre revisamos ese bool
     
-    t_ejecucion* dt_atender_master = (t_ejecucion*) arg;
+    t_ejecucion* dt_atender_master = (t_ejecucion*) arg;    
+
+    //SOLO PARA PROBAR QUE FUNCIONEN LAS INTERRUPCIONES: quiero que dsp de 15 segundos me mande una interrupcion
+    //sleep(15); //prueba
+    //hay_interrupcion = 0; //si es igual a 0, entonces llego una interrupcion
+
     while(recibir_interrupciones(dt_atender_master->master_socket, dt_atender_master->w)){//solo devuelve true si es cierto
         dt_atender_master->w->interpreter->hay_interrupcion = true; //aca marcamos en true la interrupcion para verificarlo despues en el ciclo de instrucciones
+        //hay_interrupcion =0;
     }
 
 }

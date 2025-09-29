@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
 
     pthread_t ciclo_instrucciones; 
     pthread_t hilo_interrupciones;
-
+    int hay_interrupcion = 1;
     log_info(w->logger, "Verificar funcionamiento logger");
 
     //Solo logs de prueba: 
