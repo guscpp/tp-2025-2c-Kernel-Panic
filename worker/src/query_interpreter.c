@@ -32,7 +32,7 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
         instruccion_decf = decode(instruccion, w);
 
         if(instruccion_decf->fin == true){ //NO lo hago en el fetch porque ahi todavia no se que instruccion es. REcien en decode, despues de parsear se que se trata de un END.
-            executeEnd(w);
+            executeEnd(w);                  //puse el == true para no debugear otra vez 
             break;
         }
 
@@ -44,6 +44,7 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
         if(w->interpreter->hay_interrupcion){ //no entra aca porque al crear query_interpreter se le pone false al hay interrupcion y este cambia recien cuando le llega al hilo de interrupciones
             interrupt_envio_a_master(pcb, w); //MAndo el PCB para poder actualizarlo con el PC del w (y mandarlo a master)
             //hay_interrupcion = 1; //limpio registro de interrupcion
+            w->interpreter->hay_interrupcion =false; 
             break;
         }
     }
@@ -382,7 +383,7 @@ void executeDelete(t_instr_param* parametros, t_worker* w){
 
 void executeEnd(t_worker* w){ //avisar a master de la finalizacion
     
-    log_info(w->logger, "TErmine el proceso");
+    log_info(w->logger, "TErmine el proceso. ESpero uno nuevo");
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* aviso_end_query = crear_paquete(WORKER_QUERY_END, buffer_generico);
     enviar_paquete(aviso_end_query, w->master_socket, w->logger);
@@ -390,7 +391,8 @@ void executeEnd(t_worker* w){ //avisar a master de la finalizacion
 }
 
 void interrupt_envio_a_master(Pcb* pcb_dsp_de_interrupt, t_worker* w){
-    log_info(w->logger, "Llego una interrupcion");
+    log_info(w->logger, "Llego una interrupcion, el proceso fue interrumpido. Espero uno nuevo");
+    /*
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* devuelvo_pcb_master = crear_paquete(WORKER_PC_UPDATE, buffer_generico);
     //TAl vez este no haga falta:
@@ -401,4 +403,5 @@ void interrupt_envio_a_master(Pcb* pcb_dsp_de_interrupt, t_worker* w){
     agregar_a_paquete(devuelvo_pcb_master, pcb_dsp_de_interrupt->pc, sizeof(int));
     enviar_paquete(devuelvo_pcb_master, w->master_socket, w->logger);
     eliminar_paquete(devuelvo_pcb_master);
+    */
 }

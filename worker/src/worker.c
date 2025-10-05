@@ -152,8 +152,8 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
            int query_id = 2;
            char* path_query = "prueba.txt";
            int prioridad = 1;
-           //int pc = 0; PARA UN PROCESO SIN INTERRUPCION
-           int pc = 4;
+           int pc = 0; //PARA UN PROCESO SIN INTERRUPCION
+           //int pc = 4;
 
             log_info(w->logger, "Query recibida: ID=%d, Path=%s, Prioridad=%d, PC:%d", 
                     query_id, path_query, prioridad, pc);  
@@ -193,7 +193,7 @@ FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){
     FILE* archivo_query = fopen("src/prueba.txt", "r"); //EN ESTE CASO TENGO QUE PONERLO ASI PORQUE LO PRUEBO DESDE WORKER/
 
     if (archivo_query == NULL) {
-        log_error(logger, "No se pudo abrir el archivo de query: %s", path_final);
+        log_error(logger, "No se pudo abrir el archivo de query: %s", path_final); 
         free(path_final);
         return NULL;
     }
@@ -205,15 +205,13 @@ FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){
 void* ejecutar_query(void* arg){
 
     t_ejecucion* datos_ejecucion = (t_ejecucion*) arg;
-    //printf("Hilo ejecutar_query iniciado\n");
-    //fflush(stdout);
 
     log_info(datos_ejecucion->w->logger, "Por lo menos entre a ejecutar_query");
     Pcb* dt_archivo;
 
-    while(dt_archivo = recibir_path_de_query(datos_ejecucion->master_socket, datos_ejecucion->w)){
+    while(dt_archivo = recibir_path_de_query(datos_ejecucion->master_socket, datos_ejecucion->w)){ //retorna el pcb con los datos del proceso a ejecutar
 
-        log_debug(datos_ejecucion->w->logger, "Llego el path_query: %s", dt_archivo->nombre_archivo);
+        log_info(datos_ejecucion->w->logger, "Llego el path_query: %s", dt_archivo->nombre_archivo);
         if(dt_archivo == NULL){
             log_info(datos_ejecucion->w->logger, "Error al abrir query, estoy en worker.c");
             return;
@@ -248,23 +246,27 @@ void rtas_storage(int storage_socket, t_worker* w){
 //------------------HILO DE ATENCION DE INTERRUPCIONES-----------------------
 void* hilo_atender_interrupcion(void* arg){ //Cuando me lleguen interrupciones, las guardo en el interpreter que tiene un booleano encargado de chquear eso. Y en el ciclo siempre revisamos ese bool
     
-    t_ejecucion* dt_atender_master = (t_ejecucion*) arg;    
+    t_ejecucion* dt_atender_master = (t_ejecucion*) arg; 
+    log_info(dt_atender_master->w->logger, "ENtre a hilo de interrupciones");
+    //sleep(2);   
 
+    dt_atender_master->w->interpreter->hay_interrupcion = true;
     //SOLO PARA PROBAR QUE FUNCIONEN LAS INTERRUPCIONES: quiero que dsp de 15 segundos me mande una interrupcion
     //sleep(15); //prueba
     //hay_interrupcion = 0; //si es igual a 0, entonces llego una interrupcion
-
+    
+    /*
     while(recibir_interrupciones(dt_atender_master->master_socket, dt_atender_master->w)){//solo devuelve true si es cierto
         dt_atender_master->w->interpreter->hay_interrupcion = true; //aca marcamos en true la interrupcion para verificarlo despues en el ciclo de instrucciones
         //hay_interrupcion =0;
     }
-
+    */
 }
 //-------------------------------------------------------------------------------------------------
 
 bool recibir_interrupciones(int master_socket, t_worker* w){ //SOlo se encarga de devolver true en el caso de que llegue una interrupcion
 
-    bool llego_interrupcion = false;
+    //bool llego_interrupcion = false;
     int cod_op = recibir_operacion(master_socket);
 
     if (cod_op == -1)

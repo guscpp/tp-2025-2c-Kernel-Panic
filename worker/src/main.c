@@ -2,6 +2,7 @@
 
 int main(int argc, char* argv[]) {
     
+
     //LO COMENTE PARA QUE ME DEJE HACER DEBUG
     /*
     if (argc != 3)
@@ -14,6 +15,7 @@ int main(int argc, char* argv[]) {
     int id_worker = atoi(argv[2]);
     t_worker* w = inicializar_worker(id_worker);
     */
+   
     t_worker* w = inicializar_worker(0);
     t_memoria_interna* m = crear_memoria(w->logger);
     t_query_interpreter*  query_interpreter =  query_interpreter_crear(w->logger); //tiene pc y un verificador de interrupciones
@@ -21,7 +23,6 @@ int main(int argc, char* argv[]) {
 
     pthread_t ciclo_instrucciones; 
     pthread_t hilo_interrupciones;
-    int hay_interrupcion = 1;
     log_info(w->logger, "Verificar funcionamiento logger");
 
     //Solo logs de prueba: 
@@ -73,9 +74,7 @@ int main(int argc, char* argv[]) {
     log_info(w->logger, "Hilo creado correctamente");
     }
 
-    pthread_join(ciclo_instrucciones, NULL); //Para que el hilo main no termine antes de que el hilo ciclo_instrucciones termine
-    //pthread_detach(ciclo_instrucciones);//No lo uso porque me importa que el hilo termine de ejecutar, es decir, no me desligo de el. Me mantengo al tanto de este hilo (de su informacion), por eso hice pthread_join (ademas para que no muera antes del hilo principal)
-
+    //pthread_join(ciclo_instrucciones, NULL); //Para que el hilo main no termine antes de que el hilo ciclo_instrucciones termine
 
     //Master: escuchar interrupciones
     t_ejecucion* recibir_interrupciones = malloc(sizeof(t_ejecucion));
@@ -93,6 +92,9 @@ int main(int argc, char* argv[]) {
     log_info(w->logger, "Hilo de las interrupciones creado correctamente");
     }
 
+    pthread_join(ciclo_instrucciones, NULL);
     pthread_join(hilo_interrupciones, NULL);
+  
+    
     return 0;
 }
