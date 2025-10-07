@@ -316,7 +316,9 @@ void executeRead(t_instr_param* parametros, t_worker* w){
 
     /*
     //La logica seria como la de arriba, esta funcion de encarga de traer esa lectura como sea:
+
     //char* contenido_leido = leer_de_memoria(parametros->nombre_file, parametros->tag, parametros->direccion_base, parametros->tamanio)
+    
     t_paquete* paqueteLectura = crear_paquete(WORKER_READ_RESULT, buffer_generico);
     agregar_a_paquete(paqueteLectura, contenido_leido, strlen(contenido_leido)+1);
     enviar_paquete(paqueteLectura, w->master_socket, w->logger); 
