@@ -158,17 +158,17 @@ void atender_Worker(t_hacerConnect* informacion){
         case WORKER_ID:{
             
             
-            int* idWorker = list_get(paqueteWorker, 1);
-            
+            int* idWorkerLista = list_get(paqueteWorker, 1);
+            int idWorker = *idWorkerLista ;
 
             pthread_mutex_lock(&mutexCantWorkers);
             cantidadWorkers ++;
-            log_info(informacion->logger, "Se ha conectado un worker  ID: %d  CANTIDAD TOTAL DE WORKERS: %d", *idWorker , cantidadWorkers);
+            log_info(informacion->logger, "Se ha conectado un worker  ID: %d  CANTIDAD TOTAL DE WORKERS: %d", idWorker , cantidadWorkers);
             
             pthread_mutex_unlock(&mutexCantWorkers);
             list_destroy_and_destroy_elements(paqueteWorker, free);
 
-            comenzar_a_ejecutar(informacion, *idWorker);
+            comenzar_a_ejecutar(informacion, idWorker);
            
             break;
         }
