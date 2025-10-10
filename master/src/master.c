@@ -9,10 +9,12 @@ int idQuery = 0;
 pthread_mutex_t mutexCantWorkers;
 pthread_mutex_t mutexIdQuery;
 pthread_mutex_t mutexColaQuery;
+pthread_mutex_t mutexQueryEnWorker;
 
 // COLA Y SEMAFORO COLA
 sem_t sem_queries;
 t_list* cola_queries;
+t_list* query_en_worker;
 
 
 void inicializar_semaforos(t_log* logger){
@@ -40,7 +42,9 @@ void inicializar_semaforos(t_log* logger){
     if(pthread_mutex_init(&mutexColaQuery,NULL) != 0){
         log_warning(logger,"Error al inicializar el mutex ColaQuery");
     }
-    
+    if(pthread_mutex_init(&mutexQueryEnWorker,NULL) != 0){
+        log_warning(logger,"Error al inicializar el mutex QueryEnWorker");
+    }
 
     log_info(logger, "Semáforos y mutex inicializados correctamente");
 }
@@ -101,7 +105,7 @@ void atender_Query(t_hacerConnect*  informacion){
    nuevaQuery->prioridad = *(int*)list_get(paqueteQuery, 2);
    list_destroy_and_destroy_elements(paqueteQuery, free);
    nuevaQuery->socket = informacion->socket_conexion;
-  
+   nuevaQuery->programCounter = 0 ;
    
    log_info(informacion->logger, "Se conecta un Query Control para ejecutar la Query %s con prioridad %d - Id asignado: %d ", nuevaQuery->path, nuevaQuery->prioridad, nuevaQuery->id);
 
@@ -143,6 +147,7 @@ void* atender_desconexion_query(void* arg){
     
         log_warning(informacion->logger, "QUERY SE DESCONECTO");
         close(informacion->socket_conexion);
+        free(informacion);
         } 
        
 
@@ -172,13 +177,23 @@ void atender_Worker(t_hacerConnect* informacion){
            
             break;
         }
+        case  WORKER_QUERY_END:{
+               
+            break;
+        }
+        default:{
+            log_warning(informacion->logger, "Operacion desconocida");
+            break;
+        } 
     }
 }
 void comenzar_a_ejecutar(t_hacerConnect* informacion, int idWorker){
     sem_wait(&sem_queries);
 
     pthread_mutex_lock(&mutexColaQuery);
+
     t_query* query = list_remove(cola_queries, 0);
+    
       // SOLO PARA PRUEBASSS
    char* idsEnCola = string_new(); // string_new() de commons, crea string vacío
 
@@ -187,8 +202,13 @@ void comenzar_a_ejecutar(t_hacerConnect* informacion, int idWorker){
     string_append_with_format(&idsEnCola, "%d ", q->id);
 }
 // PRUEBAAAAA
-   log_info(informacion->logger, "se quito query a la cola, cola actual:  %s", idsEnCola);
+    log_info(informacion->logger, "se quito query a la cola, cola actual:  %s", idsEnCola);
     pthread_mutex_unlock(&mutexColaQuery);
+
+    pthread_mutex_lock(&mutexQueryEnWorker);
+    query->idWorker = idWorker;
+    list_add(query_en_worker, query);
+    pthread_mutex_unlock(&mutexQueryEnWorker);
 
     enviar_query_a_worker(query,informacion, idWorker );
 }
@@ -201,6 +221,8 @@ void enviar_query_a_worker(t_query* query,t_hacerConnect* informacion, int idWor
     agregar_a_paquete(paquete,&query->id,sizeof(int));
     agregar_a_paquete(paquete,query->path,strlen(query->path) + 1);
     agregar_a_paquete(paquete,&query->prioridad,sizeof(int));
+    agregar_a_paquete(paquete,&query->programCounter,sizeof(int));
+    
 
     enviar_paquete( paquete,  informacion->socket_conexion ,  informacion->logger);
 
@@ -209,6 +231,9 @@ void enviar_query_a_worker(t_query* query,t_hacerConnect* informacion, int idWor
     eliminar_paquete(paquete);
 
     //atender_Worker(informacion);
+
+}
+void buscarQuery(t_list* lista, int idQuery){
 
 }
             

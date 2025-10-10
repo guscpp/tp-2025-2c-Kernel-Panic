@@ -15,6 +15,8 @@ typedef struct {
     char* path;           // Ruta del archivo de la query
     int prioridad;        // Prioridad menor número = mayor prioridad
     int socket; 
+    int programCounter ;
+    int idWorker;
     } t_query;
 
 void* atender_conexion(void*);
