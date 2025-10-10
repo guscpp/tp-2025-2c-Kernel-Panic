@@ -122,7 +122,9 @@ void recibir_path_de_query(int master_socket, t_log* logger)
 
 Pcb* recibir_path_de_query(int master_socket, t_worker* w) 
 {
-    log_info(w->logger, "Por lo menos entre a recibir_path"); 
+    log_info(w->logger, "Por lo menos entre a recibir_path");
+
+    log_info(w->logger, "ESpero que me asignen queries");
     Pcb* dt_archivo = NULL;
 
     t_list* paquete_path = recibir_paquete(master_socket);
@@ -186,16 +188,13 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
 }
 
 
-FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){
+FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){ //esto listo
 
-    /* En realidad va esto que esta comentado, pero lo deje asi para probarlo
     char* path_final = string_new();
     string_append(&path_final, path_general);
     string_append(&path_final, nombre_archivo);
-    */
-   //SOLO PARA PROBARLO
-    char* path_final = nombre_archivo; //para poder probarlo con un archivo que se encuentra aca 
-    FILE* archivo_query = fopen(nombre_archivo, "r"); //EN ESTE CASO TENGO QUE PONERLO ASI PORQUE LO PRUEBO DESDE WORKER/
+    
+    FILE* archivo_query = fopen(path_final, "r"); //EN ESTE CASO TENGO QUE PONERLO ASI PORQUE LO PRUEBO DESDE WORKER/
 
     if (archivo_query == NULL) {
         log_error(logger, "No se pudo abrir el archivo de query: %s", path_final); 

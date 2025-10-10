@@ -1,5 +1,4 @@
 #include "servidorMultihilo.h"
-/* //solo lo comente para poder levantar worker
 pthread_mutex_t socket_worker_temp;
 int socket_client_temp = 1;
 
@@ -23,5 +22,3 @@ void rutina_recepcion(int socket_escucha){
         pthread_mutex_destroy(&socket_worker_temp);
     }
 }
-*/
- 

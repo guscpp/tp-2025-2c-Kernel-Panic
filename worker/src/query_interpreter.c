@@ -245,7 +245,6 @@ t_decode* decode(char* instruccion, t_worker* w){
     }
 
     if(string_equals_ignore_case(parametros[0], "END")){
-    //creo que se puede sacar
     paquete_decode->fin = true;
     return paquete_decode;
     }

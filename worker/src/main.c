@@ -2,21 +2,15 @@
 
 int main(int argc, char* argv[]) {
     
-
-    //LO COMENTE PARA QUE ME DEJE HACER DEBUG
-    /*
     if (argc != 3)
     {
         printf("Uso: ./bin/worker [archivo_config] [ID Worker]\n");
         return EXIT_FAILURE;
     }
-*/
-    /*
+
     int id_worker = atoi(argv[2]);
     t_worker* w = inicializar_worker(id_worker);
-    */
    
-    t_worker* w = inicializar_worker(0);
     t_memoria_interna* m = crear_memoria(w->logger);
     t_query_interpreter*  query_interpreter =  query_interpreter_crear(w->logger); //tiene pc y un verificador de interrupciones
     w->interpreter = query_interpreter; 
