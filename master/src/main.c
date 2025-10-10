@@ -27,14 +27,19 @@ int main(int argc, char* argv[]) {
     
     int master_fd = iniciar_servidor(puerto);
     log_info(logger, "Servidor listo para recibir una conexion");
-   
+     
+    inicializar_semaforos(logger);
    
     while (1) {
+
         t_hacerConnect* datosConexion = malloc(sizeof(t_hacerConnect));
         datosConexion->logger = logger;
+
         pthread_t thread;
+
         int fd_conexion_master = esperar_cliente(master_fd);
         log_info(logger, "Esperando que se conecte un cliente");
+
         datosConexion->socket_conexion = fd_conexion_master;
 
         err= pthread_create(&thread,
@@ -45,6 +50,7 @@ int main(int argc, char* argv[]) {
             log_info(logger, "Hubo un problema al crear el hilo");
         }
         pthread_detach(thread);
+        
     }
 
     terminar_programa(logger,config);

@@ -3,18 +3,27 @@
 
 #include "../../utils/include/utils.h"
 #include <unistd.h>
+#include <semaphore.h>
 
 typedef struct{
     t_log* logger;
     int socket_conexion;
 } t_hacerConnect;
 
-void* atender_conexion(t_hacerConnect*);
+typedef struct {
+    int id;               // ID único asignado por el Master
+    char* path;           // Ruta del archivo de la query
+    int prioridad;        // Prioridad menor número = mayor prioridad
+    int socket; 
+    } t_query;
+
+void* atender_conexion(void*);
 void atender_Query(t_hacerConnect* );
 void atender_Worker(t_hacerConnect* );
-// int cantidadWorkers = 0;
-// int id_Query = 0;
-
-
+void inicializar_semaforos( t_log*);
+void* atender_desconexion_query(void*);
+void asignar_id_query(int* );
+void comenzar_a_ejecutar(t_hacerConnect* , int);
+void enviar_query_a_worker(t_query*,t_hacerConnect*, int);
 
 #endif /* CLIENTE_H_ */
