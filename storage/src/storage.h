@@ -9,6 +9,7 @@
 #include <commons/string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 
 typedef struct {
@@ -43,6 +44,7 @@ void liberar_storage (t_storage* storage);
 void enviar_tamanio_paquete_aworker(int worker_fd, t_storage* storage);
 int  conseguir_tamanio_paquete();
 void rutina_recepcion(void* args);
+void rutina_operaciones();
 extern cola_tareas* cola_tareas_global;
 
 #endif
