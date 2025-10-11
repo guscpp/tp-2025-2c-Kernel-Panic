@@ -27,5 +27,6 @@ void* atender_desconexion_query(void*);
 void asignar_id_query(int* );
 void comenzar_a_ejecutar(t_hacerConnect* , int);
 void enviar_query_a_worker(t_query*,t_hacerConnect*, int);
-
+t_query* eliminar_por_id(t_list* , int );
+void query_completado_con_exito(t_query* , t_hacerConnect* );
 #endif /* CLIENTE_H_ */
