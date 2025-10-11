@@ -88,9 +88,6 @@ void* atender_conexion(void* arg){
 
 
 void atender_Query(t_hacerConnect*  informacion){
-  
-   
-
    t_list* paqueteQuery = recibir_paquete(informacion->socket_conexion);
    
    pthread_t hilo_vigilante;
@@ -102,7 +99,6 @@ void atender_Query(t_hacerConnect*  informacion){
    if (*codOperacion != QUERY_REQUEST){
         log_warning(informacion->logger,"Operacion desconocida");
    }
-
 
    t_query* nuevaQuery = malloc(sizeof(t_query));
 
@@ -118,7 +114,6 @@ void atender_Query(t_hacerConnect*  informacion){
    
    log_info(informacion->logger, "Se conecta un Query Control para ejecutar la Query %s con prioridad %d - Id asignado: %d ", nuevaQuery->path, nuevaQuery->prioridad, nuevaQuery->id);
 
-
    pthread_mutex_lock(&mutexColaQuery);
    list_add(cola_queries, nuevaQuery);
    pthread_mutex_unlock(&mutexColaQuery);
@@ -126,19 +121,19 @@ void atender_Query(t_hacerConnect*  informacion){
    char* idsEnCola = string_new(); // string_new() de commons, crea string vacío
 
     for (int i = 0; i < list_size(cola_queries); i++) {
-    t_query* q = list_get(cola_queries, i);
-    string_append_with_format(&idsEnCola, "%d ", q->id);
-}
-// PRUEBAAAAA
-   log_info(informacion->logger, "se agrego query a la cola, cola actual:  %s", idsEnCola);
-     t_buffer* infoQuery = crear_buffer();
+        t_query* q = list_get(cola_queries, i);
+        string_append_with_format(&idsEnCola, "%d ", q->id);
+    }
+    // PRUEBAAAAA
+    log_info(informacion->logger, "se agrego query a la cola, cola actual:  %s", idsEnCola);
 
-    t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_END, infoQuery);
-
-    enviar_paquete( paquete,  informacion->socket_conexion ,  informacion->logger);
-    close(informacion->socket_conexion );
+    // comento esto abajo porque esta desconectando al QC
+    // t_buffer* infoQuery = crear_buffer();
+    // t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_END, infoQuery);
+    // enviar_paquete( paquete,  informacion->socket_conexion ,  informacion->logger);
+    // close(informacion->socket_conexion );
     
-   sem_post(&sem_queries);
+    sem_post(&sem_queries);
 
 }
 

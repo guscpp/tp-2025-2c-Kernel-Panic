@@ -344,6 +344,7 @@ void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 
     free(contenido);
     log_info(w->logger, "Llegue a hacer read");
+    
 }
 
 void executeTag(t_instr_param* parametros, t_worker* w, Pcb* pcb){

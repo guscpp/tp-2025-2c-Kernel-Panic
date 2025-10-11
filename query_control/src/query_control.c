@@ -42,17 +42,29 @@ void liberar_query_control(t_query_control* qc)
 
 int conectar_al_master(t_query_control* qc)
 {    
-    qc->master_socket = crear_conexion(qc->logger, qc->ip_master, string_itoa(qc->puerto_master));
-    if (qc->master_socket == -1) {
-        log_error(qc->logger, "No se pudo conectar al Master");
-        return -1;
+    int intentos = 0;
+    const int max_intentos = 10;
+    const int delay_segundos = 2;
+    
+    while (intentos < max_intentos) {
+        qc->master_socket = crear_conexion(qc->logger, qc->ip_master, string_itoa(qc->puerto_master));
+        
+        if (qc->master_socket != -1) {
+            log_info(qc->logger, "## Conexión al Master exitosa. IP: %s, Puerto: %d", 
+                     qc->ip_master, qc->puerto_master);
+            return 0;
+        }
+        
+        intentos++;
+        if (intentos < max_intentos) {
+            log_warning(qc->logger, "Intento %d/%d fallado. Reintentando en %d segundos...", 
+                       intentos, max_intentos, delay_segundos);
+            sleep(delay_segundos);
+        }
     }
     
-    // Log de conexión exitosa (obligatorio)
-    log_info(qc->logger, "## Conexión al Master exitosa. IP: %s, Puerto: %d", 
-             qc->ip_master, qc->puerto_master);
-    
-    return 0;
+    log_error(qc->logger, "No se pudo conectar al Master después de %d intentos", max_intentos);
+    return -1;
 }
 
 void enviar_handshake(t_query_control* qc) {

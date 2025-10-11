@@ -10,44 +10,41 @@
 // Conexion del lado del cliente
 int crear_conexion(t_log *logger, char *ip, char *port)
 {
-	int client_socket;
-	struct addrinfo hints;
-	struct addrinfo *server_info;
+    int client_socket;
+    struct addrinfo hints;
+    struct addrinfo *server_info;
 
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
 
-	int result = getaddrinfo(ip, port, &hints, &server_info);
-	if (result != 0)
-	{
-		log_error(logger, "getaddrinfo falló: %s", gai_strerror(result));
+    int result = getaddrinfo(ip, port, &hints, &server_info);
+    if (result != 0)
+    {
+        log_error(logger, "getaddrinfo falló: %s", gai_strerror(result));
         return -1;
-	}
+    }
 
-	// Create client socket
-	client_socket = socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol);
-
-	if (client_socket == -1)
-	{
-        log_error(logger, "Error al crear socket: %s (utils/crear_conexion)", strerror(errno));
+    client_socket = socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol);
+    if (client_socket == -1)
+    {
+        log_error(logger, "Error al crear socket: %s", strerror(errno));
         freeaddrinfo(server_info);
-        exit(1);
-	}
+        return -1;
+    }
 
-	// Connect socket
-	int conection = connect(client_socket, server_info->ai_addr, server_info->ai_addrlen);
-
-	if (conection == -1)
-	{
-        log_error(logger, "Error al conectar: %s (utils/crear_conexion)", strerror(errno));
+    // Connect socket con timeout opcional
+    int conection = connect(client_socket, server_info->ai_addr, server_info->ai_addrlen);
+    if (conection == -1)
+    {
+        log_error(logger, "Error al conectar: %s", strerror(errno));
         close(client_socket);
         freeaddrinfo(server_info);
-        exit(1);
-	}
+        return -1;  // Cambio exit(1) por return -1
+    }
 
-	freeaddrinfo(server_info);
-	return client_socket;
+    freeaddrinfo(server_info);
+    return client_socket;
 }
 
 // Conexion del lado del server
