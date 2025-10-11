@@ -17,7 +17,17 @@ int main(int argc, char* argv[]) {
     */
    
     t_worker* w = inicializar_worker(0);
-    t_memoria_interna* m = crear_memoria(w->logger);
+    
+    int block_size = 128; // <-- valor hardcodeado para test
+    t_memoria_interna* m = crear_memoria(
+        w->logger,
+        config_get_int_value(w->config, "TAM_MEMORIA"),
+        config_get_int_value(w->config, "RETARDO_MEMORIA"),
+        config_get_string_value(w->config, "ALGORITMO_REEMPLAZO"),
+        block_size
+    );
+    w->mem = m;
+
     t_query_interpreter*  query_interpreter =  query_interpreter_crear(w->logger); //tiene pc y un verificador de interrupciones
     w->interpreter = query_interpreter; 
 
