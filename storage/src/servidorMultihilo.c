@@ -73,12 +73,12 @@ void* rutina_recepcion(void* args){ // se encarga de recibir los parametros nece
         case STORAGE_COMMIT:
             parametros = recibir_parametros_commit_de_un_tag(socket_worker);
             break;
-        // case ESTRUCTURA_DE_BLOQUE:
-        //     parametros = recibir_parametros_estructura_de_bloque(socket_worker);
-        //     break;
-        // case LECTURA_DE_BLOQUE:
-        //     parametros = recibir_parametros_lectura_de_bloque(socket_worker);
-        //     break;
+        case STORAGE_READ_BLOCK:
+            parametros = recibir_parametros_estructura_de_bloque(socket_worker);
+            break;
+        case STORAGE_WRITE_BLOCK:
+            parametros = recibir_parametros_lectura_de_bloque(socket_worker);
+            break;
         case STORAGE_DELETE:
             parametros = recibir_parametros_eliminar_un_tag(socket_worker);
             break;
@@ -137,13 +137,13 @@ void* rutina_operaciones(void* args){ // se encarga de ejecutar las operaciones 
             // implementar logica de commit de un tag
             log_info(storage_global->logger, "Operacion STORAGE_COMMIT");
             break;
-        // case ESTRUCTURA_DE_BLOQUE:
-        //     // implementar logica de estructura de bloque
-        // log_info(storage_global->logger, "Operacion ESTRUCTURA_DE_BLOQUE");
-        // case LECTURA_DE_BLOQUE:
-        //     // implementar logica de lectura de bloque
-        // log_info(storage_global->logger, "Operacion STORAGE_DELETE");
-        //     break;
+        case STORAGE_READ_BLOCK:
+            // implementar logica de estructura de bloque
+        log_info(storage_global->logger, "Operacion STORAGE_READ_BLOCK");
+        case STORAGE_WRITE_BLOCK:
+            // implementar logica de lectura de bloque
+        log_info(storage_global->logger, "Operacion STORAGE_WRITE_BLOCK");
+            break;
         case STORAGE_DELETE:
             // implementar logica de eliminar un tag
             log_info(storage_global->logger, "Operacion STORAGE_DELETE");
