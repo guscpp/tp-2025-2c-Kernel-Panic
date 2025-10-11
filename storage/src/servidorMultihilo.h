@@ -7,7 +7,7 @@
 #include "colaSafe.h"
 #include <unistd.h>
 
-
-
+void* rutina_recepcion(void* args);
+void* rutina_operaciones(void* args);
 extern pthread_mutex_t mutex_fs;
 #endif

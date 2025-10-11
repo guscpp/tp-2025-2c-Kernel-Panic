@@ -37,19 +37,23 @@ void* recibir_parametros_eliminar_un_tag(int socket_cliente){
     return NULL;
 }
 
-void rutina_recepcion(void* args){ // se encarga de recibir los parametros necesarios que necesita cada operacion
-    int socket_worker = *(int*)args;
+void* rutina_recepcion(void* args){ // se encarga de recibir los parametros necesarios que necesita cada operacion
+    args_hilo_productor* argumentos = (args_hilo_productor*) args;
+    int socket_worker = argumentos->socket_cliente;
+    t_storage* storage_global = argumentos->storage;
+    cola_tareas* cola_global = argumentos->cola;
+
     free(args);
 
-    log_info(storage_general->logger, "PRODUCTOR: Nuevo hilo para atender woker en [Socket %d]", socket_worker);
+    log_info(storage_global->logger, "PRODUCTOR: Nuevo hilo para atender woker en [Socket %d]", socket_worker);
 
     while(1){
         op_code codigo_operacion = recibir_operacion(socket_worker);
         if(codigo_operacion <= 0){
             if(codigo_operacion == 0){
-                log_info(storage_general->logger, "El worker en [Socket %d] se desconecto", socket_worker);
+                log_info(storage_global->logger, "El worker en [Socket %d] se desconecto", socket_worker);
             }else{
-                log_error(storage_general->logger, "Error al recibir operacion del worker en [Socket %d]", socket_worker);
+                log_error(storage_global->logger, "Error al recibir operacion del worker en [Socket %d]", socket_worker);
             }
             break;
         }
@@ -80,9 +84,9 @@ void rutina_recepcion(void* args){ // se encarga de recibir los parametros neces
             break;
         
         default:
-            log_error(storage_general->logger, "Operacion desconocida %d recibida del worker en [Socket %d]", codigo_operacion, socket_worker);
+            log_error(storage_global->logger, "Operacion desconocida %d recibida del worker en [Socket %d]", codigo_operacion, socket_worker);
             close(socket_worker);
-            return;
+            return NULL;
         }
 
 
@@ -91,24 +95,29 @@ void rutina_recepcion(void* args){ // se encarga de recibir los parametros neces
         nueva_tarea->socket_cliente = socket_worker;
         nueva_tarea->parametros = parametros; // hay que implmentar una funcion que sea recibir parametros
 
-        encolar_tarea(cola_tareas_global, nueva_tarea);
+        encolar_tarea(cola_global, nueva_tarea);
 
-        log_info(storage_general->logger, "PRODUCTOR: Tarea encolada para worker en [Socket %d] con operacion %d", socket_worker, codigo_operacion);
+        log_info(storage_global->logger, "PRODUCTOR: Tarea encolada para worker en [Socket %d] con operacion %d", socket_worker, codigo_operacion);
     }
     close(socket_worker);
-    log_info(storage_general->logger, "Hilo para atender worker en [Socket %d] finalizado", socket_worker);
-    return;
+    log_info(storage_global->logger, "Hilo para atender worker en [Socket %d] finalizado", socket_worker);
+    return NULL;
 }
 
-void rutina_operaciones(){ // se encarga de ejecutar las operaciones que recibe el hilo productor
-    log_info(storage_general->logger, "CONSUMIDOR: Hilo consumidor iniciado");
+void* rutina_operaciones(void* args){ // se encarga de ejecutar las operaciones que recibe el hilo productor
+    args_hilo_consumidor* argumentos = (args_hilo_consumidor*) args;
+    t_storage* storage_global = argumentos->storage;
+    cola_tareas* cola_global = argumentos->cola_tareas;
+    free(args);
+    
+    log_info(storage_global->logger, "CONSUMIDOR: Hilo consumidor iniciado");
     while(1){
-        Tarea* tarea = desencolar_tarea(cola_tareas_global);
+        Tarea* tarea = desencolar_tarea(cola_global);
         if(tarea == NULL){
-            log_error(storage_general->logger, "Error al desencolar tarea");
+            log_error(storage_global->logger, "Error al desencolar tarea");
             continue;
         }
-        log_info(storage_general->logger, "CONSUMIDOR: Procesando tarea de worker en [Socket %d] con operacion %d", tarea->socket_cliente, tarea->codigo_operacion);
+        log_info(storage_global->logger, "CONSUMIDOR: Procesando tarea de worker en [Socket %d] con operacion %d", tarea->socket_cliente, tarea->codigo_operacion);
         // falta implementar la logica de cada operacion con switch case segun codigo_operacion.  (medio raro hay que charlar para ver como hacerlo)
         switch (tarea->codigo_operacion)
         {
@@ -135,7 +144,7 @@ void rutina_operaciones(){ // se encarga de ejecutar las operaciones que recibe 
             break;
         
         default:
-            log_error(storage_general->logger, "Operacion desconocida %d recibida del worker en [Socket %d]", tarea->codigo_operacion, tarea->socket_cliente);
+            log_error(storage_global->logger, "Operacion desconocida %d recibida del worker en [Socket %d]", tarea->codigo_operacion, tarea->socket_cliente);
             close(tarea->socket_cliente);
             free(tarea);
             continue;
@@ -145,7 +154,7 @@ void rutina_operaciones(){ // se encarga de ejecutar las operaciones que recibe 
         free(tarea->parametros); // liberar los parametros si es necesario
         free(tarea);
 
-        log_info(storage_general->logger, "CONSUMIDOR: Tarea procesada para worker en [Socket %d] con operacion %d", tarea->socket_cliente, tarea->codigo_operacion);
+        log_info(storage_global->logger, "CONSUMIDOR: Tarea procesada para worker en [Socket %d] con operacion %d", tarea->socket_cliente, tarea->codigo_operacion);
     }
 
 
