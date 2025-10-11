@@ -23,7 +23,7 @@
  * @ingroup Conexion
  * */
 int iniciar_servidor(const char* puerto);
-
+int iniciar_servidor2(const char* puerto);
 /**
  * @brief Acepta una nueva conexión cliente en un socket servidor
  * @details Bloquea hasta que un cliente se conecte al socket servidor

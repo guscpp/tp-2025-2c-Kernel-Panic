@@ -130,13 +130,15 @@ void atender_Query(t_hacerConnect*  informacion){
     string_append_with_format(&idsEnCola, "%d ", q->id);
 }
 // PRUEBAAAAA
-   log_info(informacion->logger, "se agrego query a la cola, cola actual:  %s", idsEnCola);
-     t_buffer* infoQuery = crear_buffer();
-
+    log_info(informacion->logger, "se agrego query a la cola, cola actual:  %s", idsEnCola);
+    printf("//////");
+    t_buffer* infoQuery = crear_buffer();
+    printf("//////");
     t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_END, infoQuery);
-
+    printf("//////");
     enviar_paquete( paquete,  informacion->socket_conexion ,  informacion->logger);
-    close(informacion->socket_conexion );
+    printf("//////");
+    //close(informacion->socket_conexion );
     
    sem_post(&sem_queries);
 

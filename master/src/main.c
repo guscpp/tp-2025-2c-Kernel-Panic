@@ -25,7 +25,7 @@ int main(int argc, char* argv[]) {
 
      
     
-    int master_fd = iniciar_servidor(puerto);
+    int master_fd = iniciar_servidor2(puerto);
     log_info(logger, "Servidor listo para recibir una conexion");
      
     inicializar_semaforos(logger);

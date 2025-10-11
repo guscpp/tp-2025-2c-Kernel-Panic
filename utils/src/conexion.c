@@ -78,6 +78,59 @@ int iniciar_servidor(const char* puerto)
 
 	return socket_servidor;
 }
+int iniciar_servidor2(const char* puerto)
+{
+    struct addrinfo hints, *servinfo;
+    int socket_servidor;
+    int yes = 1;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+    int rv;
+    if ((rv = getaddrinfo(NULL, puerto, &hints, &servinfo)) != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+        exit(EXIT_FAILURE);
+    }
+
+    socket_servidor = socket(servinfo->ai_family,
+                             servinfo->ai_socktype,
+                             servinfo->ai_protocol);
+    if (socket_servidor < 0) {
+        perror("socket");
+        freeaddrinfo(servinfo);
+        exit(EXIT_FAILURE);
+    }
+
+    // Permite reusar el puerto aunque esté en TIME_WAIT
+    if (setsockopt(socket_servidor, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0) {
+        perror("setsockopt");
+        close(socket_servidor);
+        freeaddrinfo(servinfo);
+        exit(EXIT_FAILURE);
+    }
+
+    if (bind(socket_servidor, servinfo->ai_addr, servinfo->ai_addrlen) < 0) {
+        perror("bind");
+        close(socket_servidor);
+        freeaddrinfo(servinfo);
+        exit(EXIT_FAILURE);
+    }
+
+    if (listen(socket_servidor, SOMAXCONN) < 0) {
+        perror("listen");
+        close(socket_servidor);
+        freeaddrinfo(servinfo);
+        exit(EXIT_FAILURE);
+    }
+
+    freeaddrinfo(servinfo);
+
+    return socket_servidor;
+}
+
 
 int esperar_cliente(int socket_servidor)
 {

@@ -107,6 +107,7 @@ void procesar_respuestas_master(t_query_control* qc)
                 void* motivo = recibir_buffer(&size, qc->master_socket);
                 log_info(qc->logger, "## Query Finalizada - %s", (char*)motivo);
                 free(motivo);
+                close(qc->master_socket);
                 return;
             }
             case QUERY_RESPONSE_ERROR: {
