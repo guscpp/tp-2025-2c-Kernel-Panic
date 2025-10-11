@@ -248,6 +248,15 @@ t_decode* decode(char* instruccion, t_worker* w){
     paquete_decode->fin = true;
     return paquete_decode;
     }
+
+    // CASO POR DEFECTO para instrucción desconocida
+    // lo agrego mayormente porque no quiero ver el warning del compilador
+    log_warning(w->logger, "Instrucción desconocida: %s", parametros[0]);
+    paquete_decode->fin = true;
+    free(parametros[0]);
+    if (parametros[1]) free(parametros[1]);
+    free(parametros);
+    return paquete_decode;
  
 }
 
@@ -322,13 +331,13 @@ void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     log_info(w->logger, "Contenido leído: %s", contenido);
 
     t_buffer* buffer_generico = crear_buffer();
-    t_paquete* paquete_read = crear_paquete(WORKER_READ_RESULT, paquete_read);
+    t_paquete* paquete_read = crear_paquete(WORKER_READ_RESULT, buffer_generico);
 
-    agregar_a_paquete(paquete_read, pcb->query_id, sizeof(int)); //envio querID a master
+    agregar_a_paquete(paquete_read, &(pcb->query_id), sizeof(int)); //envio querID a master
     agregar_a_paquete(paquete_read, contenido, strlen(contenido)+1); //envio contrenido leido a master
     agregar_a_paquete(paquete_read, parametros->nombre_file, strlen(parametros->nombre_file)+1); //envio file a master para loggear en querycontrol
     agregar_a_paquete(paquete_read, parametros->tag, strlen(parametros->tag)+1); //envio tag a master para loggear en querycontrol
-    agregar_a_paquete(paquete_read, w->interpreter->pc, sizeof(int));  //envio el pc por las dudas
+    agregar_a_paquete(paquete_read, &(w->interpreter->pc), sizeof(int));  //envio el pc por las dudas
 
     enviar_paquete(paquete_read, w->master_socket, w->logger);
     eliminar_paquete(paquete_read);
@@ -397,7 +406,7 @@ void executeEnd(t_worker* w, Pcb* pcb){ //avisar a master de la finalizacion
     log_info(w->logger, "TErmine el proceso. ESpero uno nuevo");
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* aviso_end_query = crear_paquete(WORKER_QUERY_END, buffer_generico);
-    agregar_a_paquete(aviso_end_query, pcb->query_id, sizeof(int)); //envio queryId
+    agregar_a_paquete(aviso_end_query, &(pcb->query_id), sizeof(int)); //envio queryId
     enviar_paquete(aviso_end_query, w->master_socket, w->logger);
     eliminar_paquete(aviso_end_query);
 }
