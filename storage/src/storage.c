@@ -61,7 +61,7 @@ void crear_archivos(char* ruta, char* modo){
     char* ruta_abs = obtener_ruta_absoluta(ruta);
     FILE* archivo = fopen(ruta_abs, modo);
     if(archivo != NULL){
-        fclose(archivo);
+        perror("No se pudo abrir el archivo");
     }
     free(ruta_abs);
 }
@@ -109,7 +109,7 @@ bool inicializar_file_system(t_storage* storage){
     }else{
         log_info(storage->logger, "RESH_START=FALSE → Levantar estructura existente (falta implementar)");
     }
-
+    // falta crear archivo inicial
     return true;
 }
 
@@ -117,13 +117,9 @@ void enviar_tamanio_paquete_aworker(int worker_fd, t_storage* storage)
 {
     t_buffer* buffer = crear_buffer();
     t_paquete* paquete = crear_paquete(STORAGE_SEND_BLOCK_SIZE, buffer);
-    int tamanio_paquete = conseguir_tamanio_paquete();
+    int tamanio_paquete = config_get_int_value(storage->config, "BLOCK_SIZE");
     agregar_a_paquete(paquete, &tamanio_paquete, sizeof(int));
     enviar_paquete(paquete, worker_fd, storage->logger);
     log_info(storage->logger, "Llegue a enviar");
 }
 
-int conseguir_tamanio_paquete()
-{
-    return 1000;
-}

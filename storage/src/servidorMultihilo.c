@@ -1,24 +1,52 @@
 #include "servidorMultihilo.h"
-pthread_mutex_t socket_worker_temp;
-int socket_client_temp = 1;
+ //solo lo comente para poder levantar worker
+pthread_mutex_t mutex_cola;
+pthread_cond_t hay_tarea_cond;
 
-void rutina_recepcion(int socket_escucha){
-    pthread_t hilo_ejecucion;
-    int error;
-    int aux_socket_worker;
-    pthread_mutex_init(&socket_worker_temp, NULL);
+void rutina_recepcion(void* args){ // se encarga de recibir los parametros necesarios que necesita cada operacion
+    int socket_worker = *(int*)args;
+    free(args);
+
+    log_info(storage_general->logger, "PRODUCTOR: Nuevo hilo para atender woker en [Socket %d]", socket_worker);
+
+    void* parametros = NULL; // hay que implmentar una funcion que sea recibir parametros
 
     while(1){
-        aux_socket_worker = esperar_cliente(socket_escucha);
-        pthread_mutex_lock(&socket_worker_temp);
-        socket_client_temp = aux_socket_worker;
-
-        error = pthread_create(&hilo_ejecucion, NULL, rutina_recepcion, NULL); // rutina recepcion a revisar
-        if (error != 0){
-            log_error(storage_general->logger, "error al crear el hilo_ejecucion");
-        }else{
-            pthread_detach(hilo_ejecucion);
+        op_code codigo_operacion = recibir_operacion(socket_worker);
+        if(codigo_operacion <= 0){
+            if(codigo_operacion == 0){
+                log_info(storage_general->logger, "El worker en [Socket %d] se desconecto", socket_worker);
+            }else{
+                log_error(storage_general->logger, "Error al recibir operacion del worker en [Socket %d]", socket_worker);
+            }
+            break;
         }
-        pthread_mutex_destroy(&socket_worker_temp);
+        // falta implementar la recepcion de parametros con switch case segun codigo_operacion.  (medio raro hay que charlar para ver como hacerlo)
+        Tarea* nueva_tarea = malloc(sizeof(Tarea));
+        nueva_tarea->codigo_operacion = codigo_operacion;
+        nueva_tarea->socket_cliente = socket_worker;
+        nueva_tarea->parametros = parametros; // hay que implmentar una funcion que sea recibir parametros
+
+        encolar_tarea(cola_tareas_global, nueva_tarea);
+
+        log_info(storage_general->logger, "PRODUCTOR: Tarea encolada para worker en [Socket %d] con operacion %d", socket_worker, codigo_operacion);
     }
+    close(socket_worker);
+    log_info(storage_general->logger, "Hilo para atender worker en [Socket %d] finalizado", socket_worker);
+    return NULL;
 }
+
+void rutina_operaciones(){ // se encarga de ejecutar las operaciones que recibe el hilo productor
+    return NULL;
+}
+
+
+
+
+
+
+
+
+
+
+ 

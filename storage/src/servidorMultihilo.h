@@ -3,6 +3,10 @@
 
 #include "storage.h"
 #include <pthread.h>
+#include <commons/collections/list.h>
+#include "colaSafe.h"
+
+
 
 extern pthread_mutex_t mutex_fs;
 #endif

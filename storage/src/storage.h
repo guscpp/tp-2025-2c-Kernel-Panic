@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+
 typedef struct {
     t_log* logger;
     t_config* config;
@@ -21,10 +22,27 @@ typedef struct {
     char* log_level;   
 } t_storage;
 
+t_storage* storage_general;
+
+typedef struct {
+    t_list* lista_tareas;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+} cola_tareas;
+
+
+typedef struct{
+    op_code codigo_operacion;
+    void* parametros;
+    int socket_cliente;
+}Tarea;
+
 t_storage* iniciar_storage();
 void verificar_storage(t_storage* s);
 void liberar_storage (t_storage* storage);
 void enviar_tamanio_paquete_aworker(int worker_fd, t_storage* storage);
 int  conseguir_tamanio_paquete();
+void rutina_recepcion(void* args);
+extern cola_tareas* cola_tareas_global;
 
 #endif
