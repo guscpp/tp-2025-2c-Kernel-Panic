@@ -6,8 +6,6 @@
 //#include "memoria.h"
 #include "tipos.h"
 
-
-
 // Modelo para que haya algo, 
 t_query_interpreter*    query_interpreter_crear(t_log* logger);
 

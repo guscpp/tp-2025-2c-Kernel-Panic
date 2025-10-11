@@ -122,9 +122,7 @@ void recibir_path_de_query(int master_socket, t_log* logger)
 
 Pcb* recibir_path_de_query(int master_socket, t_worker* w) 
 {
-    log_info(w->logger, "Por lo menos entre a recibir_path");
-
-    log_info(w->logger, "ESpero que me asignen queries");
+    log_info(w->logger, "Por lo menos entre a recibir_path"); 
     Pcb* dt_archivo = NULL;
 
     t_list* paquete_path = recibir_paquete(master_socket);
@@ -188,13 +186,16 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
 }
 
 
-FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){ //esto listo
+FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){
 
+    /* En realidad va esto que esta comentado, pero lo deje asi para probarlo
     char* path_final = string_new();
     string_append(&path_final, path_general);
     string_append(&path_final, nombre_archivo);
-    
-    FILE* archivo_query = fopen(path_final, "r"); //EN ESTE CASO TENGO QUE PONERLO ASI PORQUE LO PRUEBO DESDE WORKER/
+    */
+   //SOLO PARA PROBARLO
+    char* path_final = nombre_archivo; //para poder probarlo con un archivo que se encuentra aca 
+    FILE* archivo_query = fopen(nombre_archivo, "r"); //EN ESTE CASO TENGO QUE PONERLO ASI PORQUE LO PRUEBO DESDE WORKER/
 
     if (archivo_query == NULL) {
         log_error(logger, "No se pudo abrir el archivo de query: %s", path_final); 
@@ -207,22 +208,27 @@ FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){
 
 //------------------HILO DE EJECUCION DE QUERYS-----------------------
 void* ejecutar_query(void* arg){
+    // te agrego NULL a los returns porque la funcion espera un void* (linea 210)
+    // se podria modificar a void sin el asterisco?
 
     t_ejecucion* datos_ejecucion = (t_ejecucion*) arg;
 
     log_info(datos_ejecucion->w->logger, "Por lo menos entre a ejecutar_query");
     Pcb* dt_archivo;
 
-    while(dt_archivo = recibir_path_de_query(datos_ejecucion->master_socket, datos_ejecucion->w)){ //retorna el pcb con los datos del proceso a ejecutar
+    while((dt_archivo = recibir_path_de_query(datos_ejecucion->master_socket, datos_ejecucion->w))){ 
+        //retorna el pcb con los datos del proceso a ejecutar
 
         log_info(datos_ejecucion->w->logger, "Llego el path_query: %s", dt_archivo->nombre_archivo);
         if(dt_archivo == NULL){
             log_info(datos_ejecucion->w->logger, "Error al abrir query, estoy en worker.c");
-            return;
+            return NULL;
         }
         query_interpreter_ciclo(dt_archivo, datos_ejecucion->w); 
     
     }
+
+    return NULL;
 }
 //-------------------------------------------------------------------------------------------------
 
@@ -273,13 +279,13 @@ bool recibir_interrupciones(int master_socket, t_worker* w){ //SOlo se encarga d
     t_list* paquete_interrupcion = recibir_paquete(master_socket);
     int* codigo_operacion =  list_get(paquete_interrupcion, 0);
 
-    if (codigo_operacion == -1)
+    if (*codigo_operacion == -1)
     {
         log_error(w->logger, "Error en la conexión con el Master");
         return false;
     }
 
-    if (codigo_operacion == WORKER_DESALOJO)
+    if (*codigo_operacion == WORKER_DESALOJO)
     {
         t_list* valores = recibir_paquete(master_socket);
         log_info(w->logger, "Llegue a recibir el paquete interrupcion de MAster");

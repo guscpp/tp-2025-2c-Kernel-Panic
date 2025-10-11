@@ -1,6 +1,6 @@
 // worker/src/query_interpreter.c
 #include "../include/query_interpreter.h"
-//#include "../include/memoria.h"
+#include "../include/memoria.h"
 #include "../include/worker.h"
 #include "../include/tipos.h"
 
@@ -66,7 +66,7 @@ char* fetch(Pcb* pcb, t_worker* w){
 
         if(w->interpreter->pc  == pcb->pc){//SI esto ocurre significa que es el primer fetch de mi ciclo, porque no avance mi PC de interpreter respecto del pc del PCB
         int i = 0;
-        for(i ; i < pcb->pc; i++)  
+        for(; i < pcb->pc; i++)  
             {
             ssize_t leido = getline(&buffer_autoselc, &tam_autoselc, pcb->archivo);
             
@@ -245,6 +245,7 @@ t_decode* decode(char* instruccion, t_worker* w){
     }
 
     if(string_equals_ignore_case(parametros[0], "END")){
+    //creo que se puede sacar
     paquete_decode->fin = true;
     return paquete_decode;
     }
@@ -293,37 +294,34 @@ void executeTruncate(t_instr_param* parametros, t_worker* w){
     log_info(w->logger, "Llegue a hacer truncate");
 }
 
-void executeWrite(t_instr_param* parametros, t_worker* w){
-    /*
-    -----Creo que la logica en este caso seria solamente escribir en memoria. Deberia limitarse solamente a esto y en caso de no encontrarlo en memoria y tenga que pedirlo a storage, la memoria interna es la que deberia ocuparse de todo eso, desde aca solo mando a escrbir, el como eso sucede ya no es mi problema (es decir, de alguna forma, la memoria interna debe encargarse de recuperar esas paginas y escribirlo). Me refiero a que toda esa logica iria dentro de escribir_en_memoria()
-
-    escribir_en_memoria(parametros.nombre_file, parametros.tag, parametros.direccion_base, parametros.contenido);
-
-    ----No creo que deba ir algo como lo de abajo por la explicacion de arriba:
-    bool en_memoria = paginas_estan_en_Memoria()
-    if(en_memoria){
-        escribir_en_memoria(parametros.nombre_file, parametros.tag, parametros.direccion_base, parametros.contenido);
-    }
-    solicitar_contenido_storage()
-    escribir_en_memoria()
-
-*/
+void executeWrite(t_instr_param* parametros, t_worker* w) {
+    size_t tam = strlen(parametros->contenido);
+    void* dir = acceder_memoria(
+        w->mem,
+        /* query_id */ 0, // en CP2 lo hardcodeo; en CP3 usar pcb->query_id
+        parametros->nombre_file,
+        parametros->tag,
+        parametros->direccion_base,
+        tam,
+        true // es escritura
+    );
+    memcpy(dir, parametros->contenido, tam);
     log_info(w->logger, "Llegue a hacer write");
 }
 
-void executeRead(t_instr_param* parametros, t_worker* w){
-
-    /*
-    //La logica seria como la de arriba, esta funcion de encarga de traer esa lectura como sea:
-
-    //char* contenido_leido = leer_de_memoria(parametros->nombre_file, parametros->tag, parametros->direccion_base, parametros->tamanio)
-    
-    t_paquete* paqueteLectura = crear_paquete(WORKER_READ_RESULT, buffer_generico);
-    agregar_a_paquete(paqueteLectura, contenido_leido, strlen(contenido_leido)+1);
-    enviar_paquete(paqueteLectura, w->master_socket, w->logger); 
-    eliminar_paquete(paqueteLectura); 
-    */
-
+void executeRead(t_instr_param* parametros, t_worker* w) {
+    void* dir = acceder_memoria(
+        w->mem,
+        /* query_id */ 0,
+        parametros->nombre_file,
+        parametros->tag,
+        parametros->direccion_base,
+        parametros->tamanio,
+        false // es lectura
+    );
+    char* contenido = string_substring(dir, 0, parametros->tamanio);
+    log_info(w->logger, "Contenido leído: %s", contenido);
+    free(contenido);
     log_info(w->logger, "Llegue a hacer read");
 }
 

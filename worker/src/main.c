@@ -2,16 +2,32 @@
 
 int main(int argc, char* argv[]) {
     
+
+    //LO COMENTE PARA QUE ME DEJE HACER DEBUG
+    /*
     if (argc != 3)
     {
         printf("Uso: ./bin/worker [archivo_config] [ID Worker]\n");
         return EXIT_FAILURE;
     }
-
+*/
+    /*
     int id_worker = atoi(argv[2]);
     t_worker* w = inicializar_worker(id_worker);
+    */
    
-    t_memoria_interna* m = crear_memoria(w->logger);
+    t_worker* w = inicializar_worker(0);
+    
+    int block_size = 128; // <-- valor hardcodeado para test
+    t_memoria_interna* m = crear_memoria(
+        w->logger,
+        config_get_int_value(w->config, "TAM_MEMORIA"),
+        config_get_int_value(w->config, "RETARDO_MEMORIA"),
+        config_get_string_value(w->config, "ALGORITMO_REEMPLAZO"),
+        block_size
+    );
+    w->mem = m;
+
     t_query_interpreter*  query_interpreter =  query_interpreter_crear(w->logger); //tiene pc y un verificador de interrupciones
     w->interpreter = query_interpreter; 
 
