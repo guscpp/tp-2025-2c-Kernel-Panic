@@ -58,16 +58,16 @@ typedef struct{
 } t_instr_param;
 
 typedef struct{
-    bool fin; //true -> es el END
-    t_instr_param* parametros;
-    void (*ejecuta_instruccion)(t_instr_param*, t_worker*);
-}t_decode; //solo para que haya execute
-
-typedef struct{
     FILE* archivo;
     char* nombre_archivo;
     int query_id;
     int pc; //con el que viene desde kernel
 } Pcb;
+
+typedef struct{
+    bool fin; //true -> es el END
+    t_instr_param* parametros;
+    void (*ejecuta_instruccion)(t_instr_param*, t_worker*, Pcb*);
+}t_decode; //solo para que haya execute
 
 #endif

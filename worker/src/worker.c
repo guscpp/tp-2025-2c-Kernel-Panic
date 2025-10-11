@@ -37,6 +37,8 @@ void verificar_worker(t_worker* w)
     log_info(w->logger, "PathScript: %s", w->path_scripts);
 }
 
+
+//POr que esta dos veces? probar por cual de las dos recibe
 void procesar_asignacion_query(int master_socket, t_log* logger)
 {
     while (1)
@@ -81,44 +83,6 @@ void liberar_worker(t_worker* w)
     }
 }
 
-// Esta funcion puede adaptarse despues del checkpoint 1 para
-// procesar queries, no solo recibir y mandar paths al log
-//Podria devolver el path o directamente el archivo
-
-/*
-void recibir_path_de_query(int master_socket, t_log* logger)
-{
-    int codigo_operacion = recibir_operacion(master_socket);
-
-    if (codigo_operacion == -1)
-    {
-        log_error(logger, "Error en la conexión con el Master");
-        return;
-    }
-
-    if (codigo_operacion == WORKER_ASSIGN_QUERY)
-    {
-        t_list* valores = recibir_paquete(master_socket);
-        
-        if (valores && list_size(valores) >= 3)
-        {
-            // Los valores vienen en el orden:
-            // query_id, path_query, prioridad
-            int query_id = *(int*)list_get(valores, 0);
-            char* path_query = (char*)list_get(valores, 1);
-            int prioridad = *(int*)list_get(valores, 2);
-            
-            log_info(logger, "Query recibida: ID=%d, Path=%s, Prioridad=%d", 
-                    query_id, path_query, prioridad);
-            
-            // Liberar la lista (pero no los elementos)
-            list_destroy(valores);
-            
-            free(path_query);
-        }
-    }
-}
-*/
 
 Pcb* recibir_path_de_query(int master_socket, t_worker* w) 
 {
@@ -151,15 +115,6 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
 
             int pc = 0; //pongo este porque en el codigo master todavia no me manda el pc
             
-            /*ESTOS SON LOS VALORES DE PRUEBA QUE ANDAN;  //EStos eran los valores hardcodeados de antes porque no funcionaba el pasaje de datos entre master y worker
-           //SOLO PARA PROBARLO
-           int query_id = 2;
-           char* path_query = "prueba.txt";
-           int prioridad = 1;
-           int pc = 0; //PARA UN PROCESO SIN INTERRUPCION
-           //int pc = 4;
-            */
-
             log_info(w->logger, "Query recibida: ID=%d, Path=%s, Prioridad=%d, PC:%d", 
                     query_id, path_query, prioridad, pc);  
 
@@ -188,14 +143,11 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
 
 FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){
 
-    /* En realidad va esto que esta comentado, pero lo deje asi para probarlo
     char* path_final = string_new();
     string_append(&path_final, path_general);
     string_append(&path_final, nombre_archivo);
-    */
-   //SOLO PARA PROBARLO
-    char* path_final = nombre_archivo; //para poder probarlo con un archivo que se encuentra aca 
-    FILE* archivo_query = fopen(nombre_archivo, "r"); //EN ESTE CASO TENGO QUE PONERLO ASI PORQUE LO PRUEBO DESDE WORKER/
+    
+    FILE* archivo_query = fopen(path_final, "r"); //lo pruebo desde worker/
 
     if (archivo_query == NULL) {
         log_error(logger, "No se pudo abrir el archivo de query: %s", path_final); 
@@ -261,8 +213,6 @@ void* hilo_atender_interrupcion(void* arg){ //Cuando me lleguen interrupciones, 
     //sleep(2);   
 
     dt_atender_master->w->interpreter->hay_interrupcion = false;
-    //SOLO PARA PROBAR QUE FUNCIONEN LAS INTERRUPCIONES: quiero que dsp de 15 segundos me mande una interrupcion
-    //sleep(15); //prueba
     
     /*
     while(recibir_interrupciones(dt_atender_master->master_socket, dt_atender_master->w)){//solo devuelve true si es cierto

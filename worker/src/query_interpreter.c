@@ -32,11 +32,11 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
         instruccion_decf = decode(instruccion, w);
 
         if(instruccion_decf->fin == true){ //NO lo hago en el fetch porque ahi todavia no se que instruccion es. REcien en decode, despues de parsear se que se trata de un END.
-            executeEnd(w);                  //puse el == true para no debugear otra vez 
+            executeEnd(w, pcb);                  //puse el == true para no debugear otra vez 
             break;
         }
 
-        execute(instruccion_decf->parametros, instruccion_decf->ejecuta_instruccion, w);
+        execute(instruccion_decf->parametros, instruccion_decf->ejecuta_instruccion, w, pcb);
         //free(instruccion_decf); revisar con valgrind
         //free(instruccion_decf->parametros);   revisar con valgrind
         
@@ -245,15 +245,14 @@ t_decode* decode(char* instruccion, t_worker* w){
     }
 
     if(string_equals_ignore_case(parametros[0], "END")){
-    //creo que se puede sacar
     paquete_decode->fin = true;
     return paquete_decode;
     }
  
 }
 
-void execute(t_instr_param* parametros, void (*ejecuta_instruccion)(t_instr_param*, t_worker*), t_worker* w){
-    ejecuta_instruccion(parametros, w);
+void execute(t_instr_param* parametros, void (*ejecuta_instruccion)(t_instr_param*, t_worker*, Pcb*), t_worker* w, Pcb* pcb){
+    ejecuta_instruccion(parametros, w, pcb);
 }
 
 char** aux_separar_file_tag(char* cadena){
@@ -265,7 +264,7 @@ char** aux_separar_file_tag(char* cadena){
 
 
 
-void executeCreate(t_instr_param* parametros, t_worker* w){
+void executeCreate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     
     /*
     int tamanio = 0;
@@ -280,7 +279,7 @@ void executeCreate(t_instr_param* parametros, t_worker* w){
     log_info(w->logger, "Llegue a hacer create");
 }
 
-void executeTruncate(t_instr_param* parametros, t_worker* w){
+void executeTruncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 
     /*
     t_buffer* buffer_generico = crear_buffer();
@@ -294,7 +293,7 @@ void executeTruncate(t_instr_param* parametros, t_worker* w){
     log_info(w->logger, "Llegue a hacer truncate");
 }
 
-void executeWrite(t_instr_param* parametros, t_worker* w) {
+void executeWrite(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     size_t tam = strlen(parametros->contenido);
     void* dir = acceder_memoria(
         w->mem,
@@ -309,7 +308,7 @@ void executeWrite(t_instr_param* parametros, t_worker* w) {
     log_info(w->logger, "Llegue a hacer write");
 }
 
-void executeRead(t_instr_param* parametros, t_worker* w) {
+void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     void* dir = acceder_memoria(
         w->mem,
         /* query_id */ 0,
@@ -321,11 +320,24 @@ void executeRead(t_instr_param* parametros, t_worker* w) {
     );
     char* contenido = string_substring(dir, 0, parametros->tamanio);
     log_info(w->logger, "Contenido leído: %s", contenido);
+
+    t_buffer* buffer_generico = crear_buffer();
+    t_paquete* paquete_read = crear_paquete(WORKER_READ_RESULT, paquete_read);
+
+    agregar_a_paquete(paquete_read, pcb->query_id, sizeof(int)); //envio querID a master
+    agregar_a_paquete(paquete_read, contenido, strlen(contenido)+1); //envio contrenido leido a master
+    agregar_a_paquete(paquete_read, parametros->nombre_file, strlen(parametros->nombre_file)+1); //envio file a master para loggear en querycontrol
+    agregar_a_paquete(paquete_read, parametros->tag, strlen(parametros->tag)+1); //envio tag a master para loggear en querycontrol
+    agregar_a_paquete(paquete_read, w->interpreter->pc, sizeof(int));  //envio el pc por las dudas
+
+    enviar_paquete(paquete_read, w->master_socket, w->logger);
+    eliminar_paquete(paquete_read);
+
     free(contenido);
     log_info(w->logger, "Llegue a hacer read");
 }
 
-void executeTag(t_instr_param* parametros, t_worker* w){
+void executeTag(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 
     /*
     t_buffer* buffer_generico = crear_buffer();
@@ -340,8 +352,7 @@ void executeTag(t_instr_param* parametros, t_worker* w){
     log_info(w->logger, "Llegue a hacer tag");
 }
 
-void executeCommit(t_instr_param* parametros, t_worker* w){
-
+void executeCommit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     /*
     executeFlush(parametros, w); //executeFLush necesita el nombreDelFIle y el tag, y yo aca en commit tengo esos parametros
     
@@ -355,7 +366,7 @@ void executeCommit(t_instr_param* parametros, t_worker* w){
     log_info(w->logger, "Llegue a hacer commit");
 }
 
-void executeFlush(t_instr_param* parametros, t_worker* w){ //ESto se hace previo a la ejecucion de un commit y de un desalojo de query
+void executeFlush(t_instr_param* parametros, t_worker* w, Pcb* pcb){ //ESto se hace previo a la ejecucion de un commit y de un desalojo de query
 
     /*
     t_buffer* buffer_generico = crear_buffer();
@@ -368,7 +379,7 @@ void executeFlush(t_instr_param* parametros, t_worker* w){ //ESto se hace previo
     log_info(w->logger, "Llegue a hacer flush");
 }
 
-void executeDelete(t_instr_param* parametros, t_worker* w){
+void executeDelete(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     /*
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_delete = crear_paquete(STORAGE_DELETE, buffer_generico);
@@ -376,15 +387,17 @@ void executeDelete(t_instr_param* parametros, t_worker* w){
     agregar_a_paquete(paquete_delete, parametros->tag, strlen(parametros->tag)+1);
     enviar_paquete(paquete_delete, w->storage_socket, w->logger);
     eliminar_paquete(paquete_delete);
-    */
+    
     log_info(w->logger, "Llegue a hacer delete");
+    */
 }
 
-void executeEnd(t_worker* w){ //avisar a master de la finalizacion
+void executeEnd(t_worker* w, Pcb* pcb){ //avisar a master de la finalizacion
     
     log_info(w->logger, "TErmine el proceso. ESpero uno nuevo");
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* aviso_end_query = crear_paquete(WORKER_QUERY_END, buffer_generico);
+    agregar_a_paquete(aviso_end_query, pcb->query_id, sizeof(int)); //envio queryId
     enviar_paquete(aviso_end_query, w->master_socket, w->logger);
     eliminar_paquete(aviso_end_query);
 }
