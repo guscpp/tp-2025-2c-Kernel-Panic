@@ -61,25 +61,25 @@ void* rutina_recepcion(void* args){ // se encarga de recibir los parametros nece
         void* parametros = NULL;
         switch (codigo_operacion)
         {
-        case CREACION_DE_FILE:
+        case STORAGE_CREATE_FILE:
             parametros = recibir_parametros_creacion_de_file(socket_worker);
             break;
-        case TRUNCADO_DE_ARCHIVO:
+        case STORAGE_TRUNCATE:
             parametros = recibir_parametros_truncado_de_archivo(socket_worker);
             break;
-        case TAG_DE_FILE:
+        case STORAGE_TAG:
             parametros = recibir_parametros_tag_de_file(socket_worker);
             break;
-        case COMMIT_DE_UN_TAG:
+        case STORAGE_COMMIT:
             parametros = recibir_parametros_commit_de_un_tag(socket_worker);
             break;
-        case ESTRUCTURA_DE_BLOQUE:
+        case STORAGE_READ_BLOCK:
             parametros = recibir_parametros_estructura_de_bloque(socket_worker);
             break;
-        case LECTURA_DE_BLOQUE:
+        case STORAGE_WRITE_BLOCK:
             parametros = recibir_parametros_lectura_de_bloque(socket_worker);
             break;
-        case ELIMINAR_UN_TAG:
+        case STORAGE_DELETE:
             parametros = recibir_parametros_eliminar_un_tag(socket_worker);
             break;
         
@@ -121,26 +121,32 @@ void* rutina_operaciones(void* args){ // se encarga de ejecutar las operaciones 
         // falta implementar la logica de cada operacion con switch case segun codigo_operacion.  (medio raro hay que charlar para ver como hacerlo)
         switch (tarea->codigo_operacion)
         {
-        case CREACION_DE_FILE:
+        case STORAGE_CREATE_FILE:
             // implementar logica de creacion de file
+            log_info(storage_global->logger, "Operacion STORAGE_CREATE_FILE");
             break;
-        case TRUNCADO_DE_ARCHIVO:
+        case STORAGE_TRUNCATE:
             // implementar logica de truncado de archivo
+            log_info(storage_global->logger, "Operacion STORAGE_TRUNCATE");
             break;
-        case TAG_DE_FILE:
+        case STORAGE_TAG:
             // implementar logica de tag de file
+            log_info(storage_global->logger, "Operacion STORAGE_TAG");
             break;
-        case COMMIT_DE_UN_TAG:
+        case STORAGE_COMMIT:
             // implementar logica de commit de un tag
+            log_info(storage_global->logger, "Operacion STORAGE_COMMIT");
             break;
-        case ESTRUCTURA_DE_BLOQUE:
+        case STORAGE_READ_BLOCK:
             // implementar logica de estructura de bloque
-            break;
-        case LECTURA_DE_BLOQUE:
+        log_info(storage_global->logger, "Operacion STORAGE_READ_BLOCK");
+        case STORAGE_WRITE_BLOCK:
             // implementar logica de lectura de bloque
+        log_info(storage_global->logger, "Operacion STORAGE_WRITE_BLOCK");
             break;
-        case ELIMINAR_UN_TAG:
+        case STORAGE_DELETE:
             // implementar logica de eliminar un tag
+            log_info(storage_global->logger, "Operacion STORAGE_DELETE");
             break;
         
         default:
