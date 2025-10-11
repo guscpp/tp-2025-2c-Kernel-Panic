@@ -55,18 +55,10 @@ int conectar_al_master(t_query_control* qc)
     return 0;
 }
 
-
-void enviar_handshake (t_query_control* qc)
-{
-    t_buffer* buffer = crear_buffer();
-    t_paquete* paquete = crear_paquete(QC_HANDSHAKE, buffer);
-
-    char *mensaje = "QUERY_CONTROL";
-    agregar_a_paquete(paquete, mensaje, strlen(mensaje) + 1);
-
+void enviar_handshake(t_query_control* qc) {
+    t_paquete* paquete = crear_paquete(QC_HANDSHAKE, crear_buffer());
     enviar_paquete(paquete, qc->master_socket, qc->logger);
     eliminar_paquete(paquete);
-
     log_info(qc->logger, "## HANDSHAKE MASTER");
 }
 
@@ -100,7 +92,13 @@ void procesar_respuestas_master(t_query_control* qc)
             case QUERY_RESPONSE_READ: {
                 int size;
                 void* contenido = recibir_buffer(&size, qc->master_socket);
-                log_info(qc->logger, "## Lectura realizada: %s", (char*)contenido);
+                // el log obligatorio pide esto otro, con file:tag
+                // hardcodeo valores y dejo un leak hasta que esto se implemente
+                // y Master los envie
+                char* file="FILE_HARDCODEADO";
+                char* tag ="TAG_HARDCODEADO";
+                log_info(qc->logger, "## Lectura realizada: File<%s:%s>, contenido:%s", 
+                    file, tag, (char*)contenido);
                 free(contenido);
                 break;
             }

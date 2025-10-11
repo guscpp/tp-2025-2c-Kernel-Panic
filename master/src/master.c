@@ -28,10 +28,14 @@ void inicializar_semaforos(t_log* logger){
     }
     
     cola_queries = list_create();
-
     if (cola_queries == NULL) {
         log_warning(logger, "Error al crear la lista de queries");
         
+    }
+
+    query_en_worker = list_create();
+    if (query_en_worker == NULL) {
+        log_warning(logger, "Error al crear la lista query_en_worker");
     }
 
     if (sem_init(&sem_queries, 0, 0) != 0) {
@@ -59,17 +63,20 @@ void* atender_conexion(void* arg){
     switch(*handshake){
         case QC_HANDSHAKE:
         log_info(informacion->logger, "Se ha conectado un Query");
+        list_destroy_and_destroy_elements(paqueteHandshake, free);
         atender_Query(informacion);
         
         break;
         
         case WORKER_HANDSHAKE:
         log_info(informacion->logger, "Se ha conectado un worker");
+        list_destroy_and_destroy_elements(paqueteHandshake, free);
         atender_Worker(informacion);
         break;
         
         default:
         log_warning(informacion->logger,"Operacion desconocida");
+        list_destroy_and_destroy_elements(paqueteHandshake, free);
 		break;
 
     }
@@ -103,7 +110,9 @@ void atender_Query(t_hacerConnect*  informacion){
    char* pathFromPaquete = list_get(paqueteQuery, 1);
    nuevaQuery->path = string_duplicate(pathFromPaquete);
    nuevaQuery->prioridad = *(int*)list_get(paqueteQuery, 2);
+
    list_destroy_and_destroy_elements(paqueteQuery, free);
+
    nuevaQuery->socket = informacion->socket_conexion;
    nuevaQuery->programCounter = 0 ;
    
@@ -177,15 +186,59 @@ void atender_Worker(t_hacerConnect* informacion){
            
             break;
         }
-        case  WORKER_QUERY_END:{
+        case   WORKER_READ_RESULT:{
+               /*t_query* queryRecivida;
+               int idQueryLista = *(int*)list_get(paqueteWorker, 1);
+
+               pthread_mutex_lock(&mutexQueryEnWorker);
+               queryRecivida = eliminar_por_id(query_en_worker, idQueryLista);
+               pthread_mutex_unlock(&mutexQueryEnWorker);
                
+               char* pathFromPaquete = list_get(paqueteWorker, 2);
+               queryRecivida->path = string_duplicate(pathFromPaquete);
+               queryRecivida->prioridad = *(int*)list_get(paqueteWorker, 3);
+               
+               list_destroy_and_destroy_elements(paqueteWorker, free);
+              */
             break;
         }
+        case WORKER_QUERY_END:{
+            t_query* queryTerminada;
+            int idQueryLista = *(int*)list_get(paqueteWorker, 1);
+          
+
+            pthread_mutex_lock(&mutexQueryEnWorker);
+            queryTerminada = eliminar_por_id(query_en_worker, idQueryLista);
+            pthread_mutex_unlock(&mutexQueryEnWorker);
+           
+            int idWorker = queryTerminada -> idWorker;
+            
+            query_completado_con_exito( queryTerminada , informacion );
+
+            list_destroy_and_destroy_elements(paqueteWorker, free);
+            
+            comenzar_a_ejecutar(informacion,idWorker);
+
+            break;
+        } 
         default:{
             log_warning(informacion->logger, "Operacion desconocida");
             break;
         } 
     }
+}
+void query_completado_con_exito(t_query* query,t_hacerConnect* informacion ){
+    t_buffer* infoQuery = crear_buffer();
+
+    t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_END, infoQuery);
+
+    enviar_paquete( paquete,  query->socket ,  informacion->logger);
+    close(query->socket);
+    
+    eliminar_paquete(paquete);
+    
+    free(query);
+
 }
 void comenzar_a_ejecutar(t_hacerConnect* informacion, int idWorker){
     sem_wait(&sem_queries);
@@ -233,9 +286,15 @@ void enviar_query_a_worker(t_query* query,t_hacerConnect* informacion, int idWor
     //atender_Worker(informacion);
 
 }
-void buscarQuery(t_list* lista, int idQuery){
+t_query* eliminar_por_id(t_list* lista, int idBuscado) {
+    
+    bool coincide_id(t_query* query) {
+        return query->id == idBuscado;
+    }
 
+    return list_remove_by_condition(lista, (void*) coincide_id);
 }
+
             
 
 
