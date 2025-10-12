@@ -128,10 +128,10 @@ void atender_Query(t_hacerConnect*  informacion){
     log_info(informacion->logger, "se agrego query a la cola, cola actual:  %s", idsEnCola);
 
     // comento esto abajo porque esta desconectando al QC
-    // t_buffer* infoQuery = crear_buffer();
-    // t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_END, infoQuery);
-    // enviar_paquete( paquete,  informacion->socket_conexion ,  informacion->logger);
-    // close(informacion->socket_conexion );
+    t_buffer* infoQuery = crear_buffer();
+    t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_READ, infoQuery);
+    enviar_paquete( paquete,  informacion->socket_conexion ,  informacion->logger);
+    // close(informacion->socket_conexioatender_Queryn );
     
     sem_post(&sem_queries);
 
@@ -205,6 +205,8 @@ void atender_Worker(t_hacerConnect* informacion){
             break;
         }
         case WORKER_QUERY_END:{
+
+            printf("///// Entra a case woeker_query_end ////// \n");
             t_query* queryTerminada;
             int idQueryLista = *(int*)list_get(paqueteWorker, 1);
           
@@ -296,13 +298,3 @@ t_query* eliminar_por_id(t_list* lista, int idBuscado) {
 
     return list_remove_by_condition(lista, (void*) coincide_id);
 }
-
-            
-
-
-
- 
-            
-
-
-
