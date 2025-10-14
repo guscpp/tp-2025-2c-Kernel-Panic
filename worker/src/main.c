@@ -33,7 +33,7 @@ int main(int argc, char* argv[]) {
     verificar_worker(w);
  
     //Master: crear la conexion
-    w->master_socket = crear_conexion(w->logger, w->ip_master, w->puerto_master); 
+    w->master_socket = crear_conexion(w->logger, w->ip_master, string_itoa(w->puerto_master)); 
     t_buffer* buffer1 = crear_buffer();
     t_paquete* packetHandshake = crear_paquete(WORKER_HANDSHAKE, buffer1);
     enviar_paquete(packetHandshake, w->master_socket, w->logger);
@@ -97,7 +97,8 @@ int main(int argc, char* argv[]) {
 
     pthread_join(ciclo_instrucciones, NULL);
     pthread_join(hilo_interrupciones, NULL);
-  
+    
+    //terminar_programa(w->logger, w->config);
     
     return 0;
 }

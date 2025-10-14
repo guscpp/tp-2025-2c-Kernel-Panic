@@ -19,7 +19,7 @@ typedef struct
     t_log*              logger;
     t_config*           config;
     char*               ip_master;
-    char*               puerto_master;
+    int               puerto_master;
     char*               ip_storage;
     char*               puerto_storage;
     char*               path_scripts;

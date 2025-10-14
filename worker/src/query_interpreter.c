@@ -410,6 +410,7 @@ void executeEnd(t_worker* w, Pcb* pcb){ //avisar a master de la finalizacion
     agregar_a_paquete(aviso_end_query, &(pcb->query_id), sizeof(int)); //envio queryId
     enviar_paquete(aviso_end_query, w->master_socket, w->logger);
     eliminar_paquete(aviso_end_query);
+    log_info(w->logger, "termine End");
 }
 
 void interrupt_envio_a_master(Pcb* pcb_dsp_de_interrupt, t_worker* w){

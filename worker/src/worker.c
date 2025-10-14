@@ -13,7 +13,7 @@ t_worker* inicializar_worker(int id_worker)
 
     w->config = iniciar_config(w->logger, "worker.config");  //cuidado que esta hardcodeado
     w->ip_master = config_get_string_value(w->config, "IP_MASTER");
-    w->puerto_master = config_get_string_value(w->config, "PUERTO_MASTER");
+    w->puerto_master = config_get_int_value(w->config, "PUERTO_MASTER");
     w->ip_storage = config_get_string_value(w->config, "IP_STORAGE");
     w->puerto_storage = config_get_string_value(w->config, "PUERTO_STORAGE");
     w->path_scripts = config_get_string_value(w->config, "PATH_QUERIES");
@@ -28,7 +28,7 @@ t_worker* inicializar_worker(int id_worker)
 void verificar_worker(t_worker* w)
 {
     log_info(w->logger, "Ip_Master: %s", w->ip_master);
-    log_info(w->logger, "Puerto Master: %s", w->puerto_master);
+    log_info(w->logger, "Puerto Master: %d", w->puerto_master);
     log_info(w->logger, "Ip_Storage: %s", w->ip_storage);
     log_info(w->logger, "Puerto_Storage: %s", w->puerto_storage);
     // log_info(w->logger, "Tam_memoria: %d", w->tamanio_memoria);
