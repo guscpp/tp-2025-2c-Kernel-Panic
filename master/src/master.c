@@ -169,6 +169,13 @@ void* atender_desconexion_query(void* arg){
 
 void atender_Worker(t_hacerConnect* informacion){
     t_list* paqueteWorker = recibir_paquete(informacion->socket_conexion);
+    if(paqueteWorker == NULL){
+        log_warning(informacion->logger, "WORKER SE DESCONECTO");
+         pthread_mutex_lock(&mutexCantWorkers);
+            -- cantidadWorkers ;
+            log_warning(informacion->logger, "Se ha desconectado un worker   CANTIDAD TOTAL DE WORKERS: %d",  cantidadWorkers);
+         pthread_mutex_unlock(&mutexCantWorkers);
+    }
     int* codOperacion =  list_get(paqueteWorker, 0);
     switch (*codOperacion){
         case WORKER_ID:{
@@ -287,7 +294,7 @@ void enviar_query_a_worker(t_query* query,t_hacerConnect* informacion, int idWor
 
     eliminar_paquete(paquete);
 
-    //atender_Worker(informacion);
+    atender_Worker(informacion);
 
 }
 t_query* eliminar_por_id(t_list* lista, int idBuscado) {
