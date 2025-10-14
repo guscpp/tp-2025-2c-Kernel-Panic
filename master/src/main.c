@@ -22,14 +22,12 @@ int main(int argc, char* argv[]) {
     logger = iniciar_logger("master.log","MASTER",true, LOG_LEVEL_INFO);
     config = iniciar_config(logger,argv[1]);
     puerto = config_get_string_value(config, "PUERTO_ESCUCHA");
-
-     
     
     int master_fd = iniciar_servidor(puerto);
-    log_info(logger, "Servidor listo para recibir una conexion");
+    log_info(logger, "Servidor listo para recibir una conexion - FD: %i", master_fd);
      
     inicializar_semaforos(logger);
-   
+     
     while (1) {
 
         t_hacerConnect* datosConexion = malloc(sizeof(t_hacerConnect));

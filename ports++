@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# ports++ - Gestor simple de puertos
+# Ubicación: tp-2025-2c-Kernel-Panic/
+
+# Valores originales para reset
+MASTER_ORIGINAL=9001
+STORAGE_ORIGINAL=9002
+QUERY_ORIGINAL=9001
+
+# Función para obtener puerto actual
+get_port() {
+    grep "^$2=" "$1" 2>/dev/null | cut -d'=' -f2
+}
+
+# Función para establecer puerto
+set_port() {
+    sed -i "s/^$2=.*/$2=$3/" "$1"
+}
+
+# Comando reset
+if [ "$1" = "reset" ]; then
+    set_port "master/master.config" "PUERTO_ESCUCHA" "$MASTER_ORIGINAL"
+    set_port "storage/storage.config" "PUERTO_ESCUCHA" "$STORAGE_ORIGINAL"
+    set_port "query_control/query_control.config" "PUERTO_MASTER" "$QUERY_ORIGINAL"
+    echo "Puertos restablecidos:"
+    echo "  Master: $MASTER_ORIGINAL"
+    echo "  Storage: $STORAGE_ORIGINAL"
+    echo "  Query Control: $QUERY_ORIGINAL"
+    exit 0
+fi
+
+# Incrementar puertos (comportamiento por defecto)
+CURRENT_MASTER=$(get_port "master/master.config" "PUERTO_ESCUCHA")
+CURRENT_STORAGE=$(get_port "storage/storage.config" "PUERTO_ESCUCHA")
+CURRENT_QUERY=$(get_port "query_control/query_control.config" "PUERTO_MASTER")
+
+NEW_MASTER=$((CURRENT_MASTER + 1))
+NEW_STORAGE=$((CURRENT_STORAGE + 1))
+NEW_QUERY=$((CURRENT_QUERY + 1))
+
+set_port "master/master.config" "PUERTO_ESCUCHA" "$NEW_MASTER"
+set_port "storage/storage.config" "PUERTO_ESCUCHA" "$NEW_STORAGE"
+set_port "query_control/query_control.config" "PUERTO_MASTER" "$NEW_QUERY"
+
+echo "Puertos incrementados exitosamente:"
+echo "  Master: $CURRENT_MASTER -> $NEW_MASTER"
+echo "  Storage: $CURRENT_STORAGE -> $NEW_STORAGE"
+echo "  Query Control: $CURRENT_QUERY -> $NEW_QUERY"
