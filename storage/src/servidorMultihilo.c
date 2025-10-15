@@ -1,168 +1,111 @@
 #include "servidorMultihilo.h"
- //solo lo comente para poder levantar worker
-pthread_mutex_t mutex_cola;
-pthread_cond_t hay_tarea_cond;
 
-void* recibir_parametros_creacion_de_file(int socket_cliente){
-    // falta implementar la logica
-    return NULL;
-}
 
-void* recibir_parametros_truncado_de_archivo(int socket_cliente){
-    // falta implementar la logica
-    return NULL;
-}
+void rutina_recepcion(t_storage* storage, int storage_fd){ // se encarga de aceptar conexiones y crear hilos para cada worker que se conecte
+    pthread_t hilo_ejecucion;
+    int aux_socket_worker_temp;
 
-void* recibir_parametros_tag_de_file(int socket_cliente){
-    // falta implementar la logica
-    return NULL;
-}
-
-void* recibir_parametros_commit_de_un_tag(int socket_cliente){
-    // falta implementar la logica
-    return NULL;
-}
-
-void* recibir_parametros_estructura_de_bloque(int socket_cliente){
-    // falta implementar la logica
-    return NULL;
-}   
-
-void* recibir_parametros_lectura_de_bloque(int socket_cliente){
-    // falta implementar la logica
-    return NULL;
-}
-void* recibir_parametros_eliminar_un_tag(int socket_cliente){
-    // falta implementar la logica
-    return NULL;
-}
-
-void* rutina_recepcion(void* args){ // se encarga de recibir los parametros necesarios que necesita cada operacion
-    args_hilo_productor* argumentos = (args_hilo_productor*) args;
-    int socket_worker = argumentos->socket_cliente;
-    t_storage* storage_global = argumentos->storage;
-    cola_tareas* cola_global = argumentos->cola;
-
-    free(args);
-
-    log_info(storage_global->logger, "PRODUCTOR: Nuevo hilo para atender woker en [Socket %d]", socket_worker);
+    log_info(storage->logger, "Hilo recepcion listo");
 
     while(1){
-        op_code codigo_operacion = recibir_operacion(socket_worker);
-        if(codigo_operacion <= 0){
-            if(codigo_operacion == 0){
-                log_info(storage_global->logger, "El worker en [Socket %d] se desconecto", socket_worker);
-            }else{
-                log_error(storage_global->logger, "Error al recibir operacion del worker en [Socket %d]", socket_worker);
-            }
-            break;
+        aux_socket_worker_temp = esperar_cliente(storage_fd);//acept
+        if(aux_socket_worker_temp < 0 ){
+            log_error(storage->logger, "Error al esperar cliente");
+            continue;
         }
-        // falta implementar la recepcion de parametros con switch case segun codigo_operacion.  (medio raro hay que charlar para ver como hacerlo)
-        void* parametros = NULL;
+        log_info(storage->logger, "Cliente conectado");
+
+        args_hilo_worker* args = malloc(sizeof(args_hilo_worker));
+        args->socket_cliente = aux_socket_worker_temp;
+        args->storage = storage;
+
+        if(pthread_create(&hilo_ejecucion, NULL, rutina_operaciones, args) != 0){
+            log_error(storage->logger, "Error al crear el hilo ejecucion");
+        }else{
+            pthread_detach(hilo_ejecucion);
+            log_info(storage->logger, "Hilo ejecucion creado");
+        }
+    }
+}
+
+void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones de los workers y ejecutar la logica correspondiente
+    args_hilo_worker* argumentos = (args_hilo_worker*) args;
+    int socket_cliente = argumentos->socket_cliente;
+    t_storage* storage = argumentos->storage;
+    free(argumentos);
+
+    t_list* paquete = recibir_paquete(socket_cliente);
+    if(!paquete){
+        log_error(storage->logger, "Error al recibir paquete del worker en [Socket %d]", socket_cliente);
+        close(socket_cliente);
+        return NULL;
+    }
+    int handshake = *(int*) list_get(paquete, 0); // primer recive que hace es recibir el handshake
+    list_destroy_and_destroy_elements(paquete, free);
+
+    if(handshake != WORKER_HANDSHAKE){
+        log_error(storage->logger, "Error: No se recibio handshake de worker");
+        close(socket_cliente);
+        return NULL;
+    }
+
+    log_info(storage->logger, "Hilo ejecucion listo para recibir operaciones de worker en [Socket %d]", socket_cliente);
+
+    t_list* parametros;
+
+    while(1){
+        paquete = recibir_paquete(socket_cliente); // segundo recibe que hace es recibir la operacion
+        if(!paquete) break;
+
+        int codigo_operacion = *(int*) list_get(paquete, 0);
+        list_destroy_and_destroy_elements(paquete, free);
+
         switch (codigo_operacion)
         {
         case STORAGE_CREATE_FILE:
-            parametros = recibir_parametros_creacion_de_file(socket_worker);
-            break;
-        case STORAGE_TRUNCATE:
-            parametros = recibir_parametros_truncado_de_archivo(socket_worker);
-            break;
-        case STORAGE_TAG:
-            parametros = recibir_parametros_tag_de_file(socket_worker);
-            break;
-        case STORAGE_COMMIT:
-            parametros = recibir_parametros_commit_de_un_tag(socket_worker);
-            break;
-        case STORAGE_READ_BLOCK:
-            parametros = recibir_parametros_estructura_de_bloque(socket_worker);
-            break;
-        case STORAGE_WRITE_BLOCK:
-            parametros = recibir_parametros_lectura_de_bloque(socket_worker);
-            break;
-        case STORAGE_DELETE:
-            parametros = recibir_parametros_eliminar_un_tag(socket_worker);
-            break;
-        
-        default:
-            log_error(storage_global->logger, "Operacion desconocida %d recibida del worker en [Socket %d]", codigo_operacion, socket_worker);
-            close(socket_worker);
-            return NULL;
-        }
-
-
-        Tarea* nueva_tarea = malloc(sizeof(Tarea));
-        nueva_tarea->codigo_operacion = codigo_operacion;
-        nueva_tarea->socket_cliente = socket_worker;
-        nueva_tarea->parametros = parametros; // hay que implmentar una funcion que sea recibir parametros
-
-        encolar_tarea(cola_global, nueva_tarea);
-
-        log_info(storage_global->logger, "PRODUCTOR: Tarea encolada para worker en [Socket %d] con operacion %d", socket_worker, codigo_operacion);
-    }
-    close(socket_worker);
-    log_info(storage_global->logger, "Hilo para atender worker en [Socket %d] finalizado", socket_worker);
-    return NULL;
-}
-
-void* rutina_operaciones(void* args){ // se encarga de ejecutar las operaciones que recibe el hilo productor
-    args_hilo_consumidor* argumentos = (args_hilo_consumidor*) args;
-    t_storage* storage_global = argumentos->storage;
-    cola_tareas* cola_global = argumentos->cola_tareas;
-    free(args);
-    
-    log_info(storage_global->logger, "CONSUMIDOR: Hilo consumidor iniciado");
-    while(1){
-        Tarea* tarea = desencolar_tarea(cola_global);
-        if(tarea == NULL){
-            log_error(storage_global->logger, "Error al desencolar tarea");
-            continue;
-        }
-        log_info(storage_global->logger, "CONSUMIDOR: Procesando tarea de worker en [Socket %d] con operacion %d", tarea->socket_cliente, tarea->codigo_operacion);
-        // falta implementar la logica de cada operacion con switch case segun codigo_operacion.  (medio raro hay que charlar para ver como hacerlo)
-        switch (tarea->codigo_operacion)
-        {
-        case STORAGE_CREATE_FILE:
             // implementar logica de creacion de file
-            log_info(storage_global->logger, "Operacion STORAGE_CREATE_FILE");
+            log_info(storage->logger, "Operacion STORAGE_CREATE_FILE");
+            parametros = recibir_paquete(socket_cliente); // tercer recive que hace es recibir los parametros
             break;
         case STORAGE_TRUNCATE:
             // implementar logica de truncado de archivo
-            log_info(storage_global->logger, "Operacion STORAGE_TRUNCATE");
+            parametros = recibir_paquete(socket_cliente);
+            log_info(storage->logger, "Operacion STORAGE_TRUNCATE");
             break;
         case STORAGE_TAG:
             // implementar logica de tag de file
-            log_info(storage_global->logger, "Operacion STORAGE_TAG");
+            parametros = recibir_paquete(socket_cliente);
+            log_info(storage->logger, "Operacion STORAGE_TAG");
             break;
         case STORAGE_COMMIT:
             // implementar logica de commit de un tag
-            log_info(storage_global->logger, "Operacion STORAGE_COMMIT");
+            parametros = recibir_paquete(socket_cliente);
+            log_info(storage->logger, "Operacion STORAGE_COMMIT");
             break;
         case STORAGE_READ_BLOCK:
             // implementar logica de estructura de bloque
-        log_info(storage_global->logger, "Operacion STORAGE_READ_BLOCK");
+            parametros = recibir_paquete(socket_cliente);
+            log_info(storage->logger, "Operacion STORAGE_READ_BLOCK");
         case STORAGE_WRITE_BLOCK:
             // implementar logica de lectura de bloque
-        log_info(storage_global->logger, "Operacion STORAGE_WRITE_BLOCK");
+            parametros = recibir_paquete(socket_cliente);
+            log_info(storage->logger, "Operacion STORAGE_WRITE_BLOCK");
             break;
         case STORAGE_DELETE:
             // implementar logica de eliminar un tag
-            log_info(storage_global->logger, "Operacion STORAGE_DELETE");
+            parametros = recibir_paquete(socket_cliente);
+            log_info(storage->logger, "Operacion STORAGE_DELETE");
             break;
         
         default:
-            log_error(storage_global->logger, "Operacion desconocida %d recibida del worker en [Socket %d]", tarea->codigo_operacion, tarea->socket_cliente);
-            close(tarea->socket_cliente);
-            free(tarea);
-            continue;
+            log_error(storage->logger, "Operacion desconocida %d recibida del worker en [Socket %d]", codigo_operacion, socket_cliente);
+
         }
-
-        // liberar recursos de la tarea
-        free(tarea->parametros); // liberar los parametros si es necesario
-        free(tarea);
-
-        log_info(storage_global->logger, "CONSUMIDOR: Tarea procesada para worker en [Socket %d] con operacion %d", tarea->socket_cliente, tarea->codigo_operacion);
     }
-
+    
+    close(socket_cliente);
+    log_info(storage->logger, "Hilo worker finalizado [Socket %d]", socket_cliente);
+    return NULL;
 
 
 }
