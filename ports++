@@ -7,6 +7,8 @@
 MASTER_ORIGINAL=9001
 STORAGE_ORIGINAL=9002
 QUERY_ORIGINAL=9001
+WORKER_MASTER_ORIGINAL=9001
+WORKER_STORAGE_ORIGINAL=9002
 
 # Función para obtener puerto actual
 get_port() {
@@ -18,15 +20,34 @@ set_port() {
     sed -i "s/^$2=.*/$2=$3/" "$1"
 }
 
+# Mostrar ayuda
+if [ "$1" = "help" ]; then
+    echo "Uso: ./ports++ [comando]"
+    echo ""
+    echo "Comandos:"
+    echo "  (sin comando) - Incrementa todos los puertos en 1"
+    echo "  reset         - Restaura los puertos a los valores originales"
+    echo "  help          - Muestra esta ayuda"
+    echo ""
+    echo "Ejemplos:"
+    echo "  ./ports++           # Puertos: 9001 -> 9002, 9002 -> 9003, etc."
+    echo "  ./ports++ reset     # Puertos: 9001, 9002, 9001, 9001, 9002"
+    exit 0
+fi
+
 # Comando reset
 if [ "$1" = "reset" ]; then
     set_port "master/master.config" "PUERTO_ESCUCHA" "$MASTER_ORIGINAL"
     set_port "storage/storage.config" "PUERTO_ESCUCHA" "$STORAGE_ORIGINAL"
     set_port "query_control/query_control.config" "PUERTO_MASTER" "$QUERY_ORIGINAL"
+    set_port "worker/worker.config" "PUERTO_MASTER" "$WORKER_MASTER_ORIGINAL"
+    set_port "worker/worker.config" "PUERTO_STORAGE" "$WORKER_STORAGE_ORIGINAL"
     echo "Puertos restablecidos:"
     echo "  Master: $MASTER_ORIGINAL"
     echo "  Storage: $STORAGE_ORIGINAL"
     echo "  Query Control: $QUERY_ORIGINAL"
+    echo "  Worker Master: $WORKER_MASTER_ORIGINAL"
+    echo "  Worker Storage: $WORKER_STORAGE_ORIGINAL"
     exit 0
 fi
 
@@ -34,16 +55,24 @@ fi
 CURRENT_MASTER=$(get_port "master/master.config" "PUERTO_ESCUCHA")
 CURRENT_STORAGE=$(get_port "storage/storage.config" "PUERTO_ESCUCHA")
 CURRENT_QUERY=$(get_port "query_control/query_control.config" "PUERTO_MASTER")
+CURRENT_WORKER_MASTER=$(get_port "worker/worker.config" "PUERTO_MASTER")
+CURRENT_WORKER_STORAGE=$(get_port "worker/worker.config" "PUERTO_STORAGE")
 
 NEW_MASTER=$((CURRENT_MASTER + 1))
 NEW_STORAGE=$((CURRENT_STORAGE + 1))
 NEW_QUERY=$((CURRENT_QUERY + 1))
+NEW_WORKER_MASTER=$((CURRENT_WORKER_MASTER + 1))
+NEW_WORKER_STORAGE=$((CURRENT_WORKER_STORAGE + 1))
 
 set_port "master/master.config" "PUERTO_ESCUCHA" "$NEW_MASTER"
 set_port "storage/storage.config" "PUERTO_ESCUCHA" "$NEW_STORAGE"
 set_port "query_control/query_control.config" "PUERTO_MASTER" "$NEW_QUERY"
+set_port "worker/worker.config" "PUERTO_MASTER" "$NEW_WORKER_MASTER"
+set_port "worker/worker.config" "PUERTO_STORAGE" "$NEW_WORKER_STORAGE"
 
 echo "Puertos incrementados exitosamente:"
 echo "  Master: $CURRENT_MASTER -> $NEW_MASTER"
 echo "  Storage: $CURRENT_STORAGE -> $NEW_STORAGE"
 echo "  Query Control: $CURRENT_QUERY -> $NEW_QUERY"
+echo "  Worker Master: $CURRENT_WORKER_MASTER -> $NEW_WORKER_MASTER"
+echo "  Worker Storage: $CURRENT_WORKER_STORAGE -> $NEW_WORKER_STORAGE"
