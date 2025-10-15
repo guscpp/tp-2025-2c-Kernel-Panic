@@ -25,12 +25,12 @@ if [ "$1" = "help" ]; then
     echo "Uso: ./ports++ [comando]"
     echo ""
     echo "Comandos:"
-    echo "  (sin comando) - Incrementa todos los puertos en 1"
+    echo "  (sin comando) - Incrementa todos los puertos en 5"
     echo "  reset         - Restaura los puertos a los valores originales"
     echo "  help          - Muestra esta ayuda"
     echo ""
     echo "Ejemplos:"
-    echo "  ./ports++           # Puertos: 9001 -> 9002, 9002 -> 9003, etc."
+    echo "  ./ports++           # Puertos: 9001 -> 9006, 9006 -> 9011, etc."
     echo "  ./ports++ reset     # Puertos: 9001, 9002, 9001, 9001, 9002"
     exit 0
 fi
@@ -58,11 +58,11 @@ CURRENT_QUERY=$(get_port "query_control/query_control.config" "PUERTO_MASTER")
 CURRENT_WORKER_MASTER=$(get_port "worker/worker.config" "PUERTO_MASTER")
 CURRENT_WORKER_STORAGE=$(get_port "worker/worker.config" "PUERTO_STORAGE")
 
-NEW_MASTER=$((CURRENT_MASTER + 1))
-NEW_STORAGE=$((CURRENT_STORAGE + 1))
-NEW_QUERY=$((CURRENT_QUERY + 1))
-NEW_WORKER_MASTER=$((CURRENT_WORKER_MASTER + 1))
-NEW_WORKER_STORAGE=$((CURRENT_WORKER_STORAGE + 1))
+NEW_MASTER=$((CURRENT_MASTER + 5))
+NEW_STORAGE=$((CURRENT_STORAGE + 5))
+NEW_QUERY=$((CURRENT_QUERY + 5))
+NEW_WORKER_MASTER=$((CURRENT_WORKER_MASTER + 5))
+NEW_WORKER_STORAGE=$((CURRENT_WORKER_STORAGE + 5))
 
 set_port "master/master.config" "PUERTO_ESCUCHA" "$NEW_MASTER"
 set_port "storage/storage.config" "PUERTO_ESCUCHA" "$NEW_STORAGE"
