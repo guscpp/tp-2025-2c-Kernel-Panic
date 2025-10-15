@@ -20,17 +20,22 @@ echo "Iniciando $CANTIDAD instancias de query..."
 echo ""
 
 PIDS=""
-for ((i=0; i<$CANTIDAD; i++)); do
-    echo "Iniciando query $i con prioridad $i"
-    ./bin/query_control ./query_control.config "../queries/query_ejemplo_$i" $i &
-    PID=$!
-    PIDS="$PIDS $PID"
-    echo "  PID: $PID"
-    sleep 1
-done
+if [ $CANTIDAD -eq 1 ]; then
+    echo "Iniciando query 0 con prioridad 0 (ejecución en primer plano)"
+    ./bin/query_control ./query_control.config "../queries/query_ejemplo_0" 0
+else
+    for ((i=0; i<$CANTIDAD; i++)); do
+        echo "Iniciando query $i con prioridad $i"
+        ./bin/query_control ./query_control.config "../queries/query_ejemplo_$i" $i &
+        PID=$!
+        PIDS="$PIDS $PID"
+        echo "  PID: $PID"
+        sleep 1
+    done
 
-echo "Para terminar los procesos (si no crashearon primero) se ejecuta:"
-echo "  kill $PIDS"
-echo ""
-echo "Para verificar que están ejecutándose:"
-echo "  ps -p $PIDS -o pid,cmd"
+    echo "Para terminar los procesos (si no crashearon primero) se ejecuta:"
+    echo "  kill $PIDS"
+    echo ""
+    echo "Para verificar que están ejecutándose:"
+    echo "  ps -p $PIDS -o pid,cmd"
+fi

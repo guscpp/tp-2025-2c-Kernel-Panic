@@ -43,7 +43,7 @@ void liberar_query_control(t_query_control* qc)
 int conectar_al_master(t_query_control* qc)
 {    
     int intentos = 0;
-    const int max_intentos = 10;
+    const int max_intentos = 3;
     const int delay_segundos = 2;
     
     while (intentos < max_intentos) {
