@@ -33,17 +33,19 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
     int socket_cliente = argumentos->socket_cliente;
     t_storage* storage = argumentos->storage;
     free(argumentos);
-
+    log_info(storage->logger, "LLEGUE A ANTES DE RECIBIR PAQUETE");
     t_list* paquete = recibir_paquete(socket_cliente);
-    if(!paquete){
+    log_info(storage->logger, "LLEGUE A RECIBIR PAQUETE");
+    if(paquete == NULL){
         log_error(storage->logger, "Error al recibir paquete del worker en [Socket %d]", socket_cliente);
         close(socket_cliente);
         return NULL;
     }
-    int handshake = *(int*) list_get(paquete, 0); // primer recive que hace es recibir el handshake
+    int* handshake =  list_get(paquete, 0); // primer recive que hace es recibir el handshake
+    log_info(storage->logger, "Handsheke recibido: %d", handshake);
     list_destroy_and_destroy_elements(paquete, free);
 
-    if(handshake != WORKER_HANDSHAKE){
+    if(*handshake != WORKER_HANDSHAKE){
         log_error(storage->logger, "Error: No se recibio handshake de worker");
         close(socket_cliente);
         return NULL;
