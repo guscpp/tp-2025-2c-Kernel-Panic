@@ -8,6 +8,7 @@
 typedef struct{
     t_log* logger;
     int socket_conexion;
+    int id;
 } t_hacerConnect;
 
 typedef struct {
@@ -17,7 +18,13 @@ typedef struct {
     int socket; 
     int programCounter ;
     int idWorker;
+    int estado;
     } t_query;
+
+enum estado{ // PARA MANEJAR ESTADOS
+    READY,
+    RUNNING
+};
 
 void* atender_conexion(void*);
 void atender_Query(t_hacerConnect* );
@@ -27,6 +34,11 @@ void* atender_desconexion_query(void*);
 void asignar_id_query(int* );
 void comenzar_a_ejecutar(t_hacerConnect* , int);
 void enviar_query_a_worker(t_query*,t_hacerConnect*, int);
+
 t_query* eliminar_por_id(t_list* , int );
+
 void query_completado_con_exito(t_query* , t_hacerConnect* );
+void* atender_desconexion_worker(void*);
+
+
 #endif /* CLIENTE_H_ */

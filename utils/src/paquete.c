@@ -64,12 +64,21 @@ void* serializar_paquete(t_paquete* paquete, int bytes, t_log* logger)
 }
 
 //Enviar paquete
-void enviar_paquete(t_paquete* paquete, int socket_cliente, t_log* logger)
+int enviar_paquete(t_paquete* paquete, int socket_cliente, t_log* logger)
 {
 	int bytes = paquete->buffer->size + 2*sizeof(int);
 	void* a_enviar = serializar_paquete(paquete, bytes, logger);
 
-	send(socket_cliente, a_enviar, bytes, 0);
+	int resultado = send(socket_cliente, a_enviar, bytes, 0);
+	if (resultado <= 0) {
+            if (resultado == -1) {
+                log_warning(logger, "Error al enviar (socket %d)", socket_cliente);
+            } else {
+                log_warning(logger, "Socket %d cerrado durante envío", socket_cliente);
+            }
+            return -1; // fallo
+        }
+	return 0;
 
 	free(a_enviar);
 }

@@ -49,7 +49,7 @@ t_buffer*    crear_buffer(void);
 t_paquete*   crear_paquete(op_code code, t_buffer* buffer);
 void         agregar_a_paquete(t_paquete* packet, void* stream, int size);
 void*        serializar_paquete(t_paquete* packet, int bytes, t_log* logger);
-void         enviar_paquete(t_paquete* packet, int client_socket, t_log* logger);
+int         enviar_paquete(t_paquete* packet, int client_socket, t_log* logger);
 void         eliminar_paquete(t_paquete* packet);
 
 // Funciones del lado del servidor

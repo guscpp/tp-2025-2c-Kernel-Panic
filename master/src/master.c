@@ -103,6 +103,7 @@ void atender_Query(t_hacerConnect*  informacion){
    t_query* nuevaQuery = malloc(sizeof(t_query));
 
    asignar_id_query(&nuevaQuery->id);
+   informacion->id = nuevaQuery->id;
    char* pathFromPaquete = list_get(paqueteQuery, 1);
    nuevaQuery->path = string_duplicate(pathFromPaquete);
    nuevaQuery->prioridad = *(int*)list_get(paqueteQuery, 2);
@@ -111,6 +112,7 @@ void atender_Query(t_hacerConnect*  informacion){
 
    nuevaQuery->socket = informacion->socket_conexion;
    nuevaQuery->programCounter = 0 ;
+   nuevaQuery->estado= READY;
    
    log_info(informacion->logger, "Se conecta un Query Control para ejecutar la Query %s con prioridad %d - Id asignado: %d ", nuevaQuery->path, nuevaQuery->prioridad, nuevaQuery->id);
 
@@ -142,7 +144,7 @@ void asignar_id_query(int* idAsignado){
     pthread_mutex_lock(&mutexIdQuery);
     *idAsignado = idQuery ++; 
     pthread_mutex_unlock(&mutexIdQuery);
-
+    
 }
 
 
@@ -156,7 +158,7 @@ void* atender_desconexion_query(void* arg){
     if (ret == 0) {
       
     
-        log_warning(informacion->logger, "QUERY SE DESCONECTO");
+        log_warning(informacion->logger, "QUERY SE DESCONECTO ID: %d", informacion->id);
         close(informacion->socket_conexion);
         free(informacion);
         } 
@@ -169,13 +171,14 @@ void* atender_desconexion_query(void* arg){
 
 void atender_Worker(t_hacerConnect* informacion){
     t_list* paqueteWorker = recibir_paquete(informacion->socket_conexion);
-    if(paqueteWorker == NULL){
-        log_warning(informacion->logger, "WORKER SE DESCONECTO");
-         pthread_mutex_lock(&mutexCantWorkers);
-            -- cantidadWorkers ;
-            log_warning(informacion->logger, "Se ha desconectado un worker   CANTIDAD TOTAL DE WORKERS: %d",  cantidadWorkers);
-         pthread_mutex_unlock(&mutexCantWorkers);
-    }
+  
+        if (paqueteWorker == NULL) {
+        log_warning(informacion->logger, "WORKER SE DESCONECTO ID: %d", informacion->id);
+        close(informacion->socket_conexion);
+        free(informacion);
+        return;
+        } 
+
     int* codOperacion =  list_get(paqueteWorker, 0);
     switch (*codOperacion){
         case WORKER_ID:{
@@ -183,20 +186,21 @@ void atender_Worker(t_hacerConnect* informacion){
             
             int* idWorkerLista = list_get(paqueteWorker, 1);
             int idWorker = *idWorkerLista ;
-
+            informacion->id = idWorker;
             pthread_mutex_lock(&mutexCantWorkers);
             cantidadWorkers ++;
             log_info(informacion->logger, "Se ha conectado un worker  ID: %d  CANTIDAD TOTAL DE WORKERS: %d", idWorker , cantidadWorkers);
             
             pthread_mutex_unlock(&mutexCantWorkers);
             list_destroy_and_destroy_elements(paqueteWorker, free);
-
-            comenzar_a_ejecutar(informacion, idWorker);
+             
+            comenzar_a_ejecutar(informacion,idWorker);
            
             break;
         }
         case   WORKER_READ_RESULT:{
-               /*t_query* queryRecivida;
+            /*
+               t_query* queryRecivida;
                int idQueryLista = *(int*)list_get(paqueteWorker, 1);
 
                pthread_mutex_lock(&mutexQueryEnWorker);
@@ -209,6 +213,7 @@ void atender_Worker(t_hacerConnect* informacion){
                
                list_destroy_and_destroy_elements(paqueteWorker, free);
               */
+              atender_Worker(informacion);
             break;
         }
         case WORKER_QUERY_END:{
@@ -238,16 +243,19 @@ void atender_Worker(t_hacerConnect* informacion){
         } 
     }
 }
+
 void query_completado_con_exito(t_query* query,t_hacerConnect* informacion ){
     t_buffer* infoQuery = crear_buffer();
 
     t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_END, infoQuery);
+    char* motivo= "holaa";
+    agregar_a_paquete(paquete,motivo,strlen(motivo) + 1);
 
     enviar_paquete( paquete,  query->socket ,  informacion->logger);
+    log_info(informacion->logger, "Query id: %d terminada con exito", query->id);
     close(query->socket);
-    
+    log_info(informacion->logger, "Comunicacion Cerrada con Query");
     eliminar_paquete(paquete);
-    
     free(query);
 
 }
@@ -259,8 +267,8 @@ void comenzar_a_ejecutar(t_hacerConnect* informacion, int idWorker){
     t_query* query = list_remove(cola_queries, 0);
     
       // SOLO PARA PRUEBASSS
-   char* idsEnCola = string_new(); // string_new() de commons, crea string vacío
-
+    char* idsEnCola = string_new(); // string_new() de commons, crea string vacío
+    query->estado= RUNNING;
     for (int i = 0; i < list_size(cola_queries); i++) {
     t_query* q = list_get(cola_queries, i);
     string_append_with_format(&idsEnCola, "%d ", q->id);
@@ -288,7 +296,12 @@ void enviar_query_a_worker(t_query* query,t_hacerConnect* informacion, int idWor
     agregar_a_paquete(paquete,&query->programCounter,sizeof(int));
     
 
-    enviar_paquete( paquete,  informacion->socket_conexion ,  informacion->logger);
+    int desconexion = enviar_paquete( paquete,  informacion->socket_conexion ,  informacion->logger);
+    if (desconexion == -1){
+        log_warning(informacion->logger, "WORKER SE DESCONECTO ID: %d", informacion->id);
+        close(informacion->socket_conexion);
+        free(informacion);
+    }
 
     log_info(informacion->logger, "se ha enviado al worker id: %d una query", idWorker);
 
@@ -305,3 +318,23 @@ t_query* eliminar_por_id(t_list* lista, int idBuscado) {
 
     return list_remove_by_condition(lista, (void*) coincide_id);
 }
+
+void* atender_desconexion_worker(void* arg){
+    t_hacerConnect* informacion = (t_hacerConnect*) arg;
+  
+    char buffer[1];
+
+    int ret = recv(informacion->socket_conexion, buffer, 1, 0);
+
+    if (ret == 0) {
+      
+        log_warning(informacion->logger, "WORKER SE DESCONECTO ID: %d", informacion->id);
+        close(informacion->socket_conexion);
+        free(informacion);
+        } 
+       
+
+    return NULL;
+
+}
+
