@@ -94,6 +94,7 @@ void atender_Query(t_hacerConnect*  informacion){
    pthread_create(&hilo_vigilante, NULL, atender_desconexion_query, informacion);
    pthread_detach(hilo_vigilante);
    
+
    int* codOperacion = list_get(paqueteQuery, 0);
 
    if (*codOperacion != QUERY_REQUEST){
@@ -116,17 +117,18 @@ void atender_Query(t_hacerConnect*  informacion){
    
    log_info(informacion->logger, "Se conecta un Query Control para ejecutar la Query %s con prioridad %d - Id asignado: %d ", nuevaQuery->path, nuevaQuery->prioridad, nuevaQuery->id);
 
+
    pthread_mutex_lock(&mutexColaQuery);
    list_add(cola_queries, nuevaQuery);
    pthread_mutex_unlock(&mutexColaQuery);
-   // SOLO PARA PRUEBASSS
-   char* idsEnCola = string_new(); // string_new() de commons, crea string vacío
+ // SOLO PARA PRUEBASSS
+    char* idsEnCola = string_new(); // string_new() de commons, crea string vacío
 
     for (int i = 0; i < list_size(cola_queries); i++) {
         t_query* q = list_get(cola_queries, i);
         string_append_with_format(&idsEnCola, "%d ", q->id);
     }
-    // PRUEBAAAAA
+// PRUEBAAAAA
     log_info(informacion->logger, "se agrego query a la cola, cola actual:  %s", idsEnCola);
 
     // comento esto abajo porque esta desconectando al QC
@@ -264,7 +266,7 @@ void comenzar_a_ejecutar(t_hacerConnect* informacion, int idWorker){
 
     pthread_mutex_lock(&mutexColaQuery);
 
-    t_query* query = list_remove(cola_queries, 0);
+    t_query* query = obtener_menor_prioridad(cola_queries);
     
       // SOLO PARA PRUEBASSS
     char* idsEnCola = string_new(); // string_new() de commons, crea string vacío
@@ -319,22 +321,21 @@ t_query* eliminar_por_id(t_list* lista, int idBuscado) {
     return list_remove_by_condition(lista, (void*) coincide_id);
 }
 
-void* atender_desconexion_worker(void* arg){
-    t_hacerConnect* informacion = (t_hacerConnect*) arg;
-  
-    char buffer[1];
+t_query* obtener_menor_prioridad(t_list* lista_queries) {
+    if (list_is_empty(lista_queries))
+        return NULL;
 
-    int ret = recv(informacion->socket_conexion, buffer, 1, 0);
+    int min_index = 0;
+    t_query* min_query = list_get(lista_queries, 0);
 
-    if (ret == 0) {
-      
-        log_warning(informacion->logger, "WORKER SE DESCONECTO ID: %d", informacion->id);
-        close(informacion->socket_conexion);
-        free(informacion);
-        } 
-       
+    for (int i = 1; i < list_size(lista_queries); i++) {
+        t_query* actual = list_get(lista_queries, i);
+        if (actual->prioridad < min_query->prioridad) {
+            min_query = actual;
+            min_index = i;
+        }
+    }
 
-    return NULL;
-
+    // Lo saca de la lista y lo devuelve (sin liberar)
+    return list_remove(lista_queries, min_index);
 }
-

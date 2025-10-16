@@ -38,7 +38,8 @@ void enviar_query_a_worker(t_query*,t_hacerConnect*, int);
 t_query* eliminar_por_id(t_list* , int );
 
 void query_completado_con_exito(t_query* , t_hacerConnect* );
-void* atender_desconexion_worker(void*);
+
+t_query* obtener_menor_prioridad(t_list*);
 
 
 #endif /* CLIENTE_H_ */
