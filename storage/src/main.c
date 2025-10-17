@@ -1,12 +1,13 @@
 #include "storage.h"
 
 int main(int argc, char* argv[]) {
+    
         if (argc != 2)
         {
             printf("Uso: ./bin/storage [archivo_config]\n");
             return EXIT_FAILURE;
         }
-
+    
     t_storage* storage = iniciar_storage(); // obtiene los configs y los logs
 
     verificar_storage(storage);

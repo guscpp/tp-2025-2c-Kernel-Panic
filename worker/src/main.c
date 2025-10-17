@@ -1,7 +1,7 @@
 #include "../include/worker.h"
 
 int main(int argc, char* argv[]) {
-    
+    /*
     if (argc != 3)
     {
         printf("Uso: ./bin/worker [archivo_config] [ID Worker]\n");
@@ -9,6 +9,8 @@ int main(int argc, char* argv[]) {
     }
 
     int id_worker = atoi(argv[2]);
+    */
+   int id_worker = 5;
     t_worker* w = inicializar_worker(id_worker);
     
 
@@ -51,17 +53,27 @@ int main(int argc, char* argv[]) {
     w->storage_socket = crear_conexion(w->logger, w->ip_storage, w->puerto_storage); //socket y connect
     t_buffer* buffer2 = crear_buffer();
     t_paquete* packetHandshake2 = crear_paquete(WORKER_HANDSHAKE, buffer2);
+    int a = 12;
+    agregar_a_paquete(packetHandshake2, &a, sizeof(int));
     enviar_paquete(packetHandshake2, w->storage_socket, w->logger);
     eliminar_paquete(packetHandshake2);
-
     log_info(w->logger, "Estoy justo antes de crear el hilo");
+
+
+    //Storage: pedir el tamanio de bloque
+    t_buffer* buffer3 = crear_buffer();
+    t_paquete* paquete_tamanio_bloque = crear_paquete(STORAGE_GET_BLOCK_SIZE, buffer3);
+    agregar_a_paquete(paquete_tamanio_bloque, &a, sizeof(int));
+    enviar_paquete(paquete_tamanio_bloque, w->storage_socket, w->logger);
+    eliminar_paquete(paquete_tamanio_bloque);
+
+
+    //Respuestas de storage
     rtas_storage(w->storage_socket, w);
     log_info(w->logger, "Llegue dsp de recibir a storage");
 
-
-    //MAster: recibir path de master y ejecuto la query 
-        //recibir_path_de_query(w->master_socket, w->logger); Este es el de la funcion anterior de recibir_path_de_query
     
+
     t_ejecucion* datos_ejecucion = malloc(sizeof(t_ejecucion));
     datos_ejecucion->w = w;
     datos_ejecucion->master_socket = w->master_socket;
@@ -98,7 +110,6 @@ int main(int argc, char* argv[]) {
     pthread_join(ciclo_instrucciones, NULL);
     pthread_join(hilo_interrupciones, NULL);
     
-    //terminar_programa(w->logger, w->config);
     
     return 0;
 }

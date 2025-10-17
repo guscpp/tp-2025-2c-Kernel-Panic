@@ -32,7 +32,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
     args_hilo_worker* argumentos = (args_hilo_worker*) args;
     int socket_cliente = argumentos->socket_cliente;
     t_storage* storage = argumentos->storage;
-    free(argumentos);
+    //free(argumentos);
     log_info(storage->logger, "LLEGUE A ANTES DE RECIBIR PAQUETE");
     t_list* paquete = recibir_paquete(socket_cliente);
     log_info(storage->logger, "LLEGUE A RECIBIR PAQUETE");
@@ -42,9 +42,10 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
         return NULL;
     }
     int* handshake =  list_get(paquete, 0); // primer recive que hace es recibir el handshake
-    log_info(storage->logger, "Handsheke recibido: %d", handshake);
-    list_destroy_and_destroy_elements(paquete, free);
+    log_info(storage->logger, "Handsheke recibido: %d", *handshake);
+   // list_destroy_and_destroy_elements(paquete, free);
 
+    
     if(*handshake != WORKER_HANDSHAKE){
         log_error(storage->logger, "Error: No se recibio handshake de worker");
         close(socket_cliente);
@@ -64,6 +65,12 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
 
         switch (codigo_operacion)
         {
+        case STORAGE_GET_BLOCK_SIZE:
+            // implementar logica de creacion de file
+            log_info(storage->logger, "Operacion STORAGE_GET_BLOCK_SIZE");
+            enviar_tamanio_paquete_aworker(socket_cliente, storage);
+            break;
+            
         case STORAGE_CREATE_FILE:
             // implementar logica de creacion de file
             log_info(storage->logger, "Operacion STORAGE_CREATE_FILE");
