@@ -53,8 +53,8 @@ int main(int argc, char* argv[]) {
     w->storage_socket = crear_conexion(w->logger, w->ip_storage, w->puerto_storage); //socket y connect
     t_buffer* buffer2 = crear_buffer();
     t_paquete* packetHandshake2 = crear_paquete(WORKER_HANDSHAKE, buffer2);
-    int a = 12;
-    agregar_a_paquete(packetHandshake2, &a, sizeof(int));
+    // int a = 12;
+    // agregar_a_paquete(packetHandshake2, &a, sizeof(int));
     enviar_paquete(packetHandshake2, w->storage_socket, w->logger);
     eliminar_paquete(packetHandshake2);
     log_info(w->logger, "Estoy justo antes de crear el hilo");
@@ -63,7 +63,8 @@ int main(int argc, char* argv[]) {
     //Storage: pedir el tamanio de bloque
     t_buffer* buffer3 = crear_buffer();
     t_paquete* paquete_tamanio_bloque = crear_paquete(STORAGE_GET_BLOCK_SIZE, buffer3);
-    agregar_a_paquete(paquete_tamanio_bloque, &a, sizeof(int));
+    // int a = 12;
+    // agregar_a_paquete(paquete_tamanio_bloque, &a, sizeof(int));
     enviar_paquete(paquete_tamanio_bloque, w->storage_socket, w->logger);
     eliminar_paquete(paquete_tamanio_bloque);
 
