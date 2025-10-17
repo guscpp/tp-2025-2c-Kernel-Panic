@@ -312,6 +312,7 @@ void enviar_query_a_worker(t_query* query,t_hacerConnect* informacion, int idWor
     atender_Worker(informacion);
 
 }
+
 t_query* eliminar_por_id(t_list* lista, int idBuscado) {
     
     bool coincide_id(t_query* query) {
