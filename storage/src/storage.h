@@ -9,13 +9,16 @@
 
 typedef struct {
     t_log* logger;
-    t_config* config;
+    t_config* config;          // storage.config
+    t_config* superblock;      // superblock.config
     char* puerto_escucha;
     int fresh_start;
     char* punto_montaje;
     int retardo_operacion;
     int retardo_acceso_bloque;
     char* log_level;   
+    int tamanio_bloque;
+    int tamanio_filesystem;
 } t_storage;
 
 typedef struct{

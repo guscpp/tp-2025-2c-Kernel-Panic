@@ -8,6 +8,7 @@ t_storage* iniciar_storage(){
     storage->logger = iniciar_logger("storage.log", "STORAGE", 1, LOG_LEVEL_INFO);
 
     storage->config = iniciar_config(storage->logger, "storage.config");
+    storage->superblock = iniciar_config(storage->logger, "superblock.config");
 
     storage->puerto_escucha = config_get_string_value(storage->config, "PUERTO_ESCUCHA");
     storage->fresh_start = config_get_int_value(storage->config, "FRESH_START");
@@ -15,6 +16,8 @@ t_storage* iniciar_storage(){
     storage->retardo_operacion = config_get_int_value(storage->config, "RETARDO_OPERACION");
     storage->retardo_acceso_bloque = config_get_int_value(storage->config, "RETARDO_ACCESO_BLOQUE");
     storage->log_level = config_get_string_value(storage->config, "LOG_LEVEL");
+    storage->tamanio_bloque = config_get_int_value(storage->superblock, "BLOCK_SIZE");
+    storage->tamanio_filesystem = config_get_int_value(storage->superblock, "FS_SIZE");
 
     log_info(storage->logger, "El storage se inicializo correctamente");
 
@@ -118,7 +121,7 @@ void enviar_tamanio_paquete_aworker(int worker_fd, t_storage* storage)
     t_buffer* buffer = crear_buffer();
     t_paquete* paquete = crear_paquete(STORAGE_SEND_BLOCK_SIZE, buffer);
     //int tamanio_paquete = config_get_int_value(storage->config, "BLOCK_SIZE");
-    int tamanio_paquete = 1000; //solo para probar que mande la respuesta
+    int tamanio_paquete = storage->tamanio_bloque; //solo para probar que mande la respuesta
     agregar_a_paquete(paquete, &tamanio_paquete, sizeof(int));
     enviar_paquete(paquete, worker_fd, storage->logger);
     log_info(storage->logger, "Llegue a enviar");

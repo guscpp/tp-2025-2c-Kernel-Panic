@@ -193,10 +193,10 @@ void rtas_storage(int storage_socket, t_worker* w){
         switch (*cod_op)
         {
         case STORAGE_SEND_BLOCK_SIZE:
-            
             int* size = list_get(valores, 1);
-            log_info(w->logger, "Rta tamanio de bloque: %d", *size);
-            //cuidado de free
+            w->tamanio_bloque = *size;
+            log_info(w->logger, "Tamaño de bloque recibido: %d", w->tamanio_bloque);
+            list_destroy_and_destroy_elements(valores, free);
             break;
         
         default:

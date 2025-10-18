@@ -33,35 +33,29 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
     int socket_cliente = argumentos->socket_cliente;
     t_storage* storage = argumentos->storage;
     //free(argumentos);
-    log_info(storage->logger, "LLEGUE A ANTES DE RECIBIR PAQUETE");
+    
     t_list* paquete = recibir_paquete(socket_cliente);
-    log_info(storage->logger, "LLEGUE A RECIBIR PAQUETE");
-    if(paquete == NULL){
+    int codigo_operacion = *(int*) list_get(paquete, 0);
+    if (codigo_operacion == WORKER_HANDSHAKE)
+        log_info(storage->logger, "Handshake recibido, opcode: %d", codigo_operacion);
+    else if (paquete == NULL) {
         log_error(storage->logger, "Error al recibir paquete del worker en [Socket %d]", socket_cliente);
         close(socket_cliente);
         return NULL;
     }
-    int* handshake =  list_get(paquete, 0); // primer recive que hace es recibir el handshake
-    log_info(storage->logger, "Handsheke recibido: %d", *handshake);
-   // list_destroy_and_destroy_elements(paquete, free);
-
-    
-    if(*handshake != WORKER_HANDSHAKE){
-        log_error(storage->logger, "Error: No se recibio handshake de worker");
-        close(socket_cliente);
-        return NULL;
-    }
-
+    list_destroy_and_destroy_elements(paquete, free);
+  
     log_info(storage->logger, "Hilo ejecucion listo para recibir operaciones de worker en [Socket %d]", socket_cliente);
-
     t_list* parametros;
 
-    while(1){
-        paquete = recibir_paquete(socket_cliente); // segundo recibe que hace es recibir la operacion
+    while(1)
+    {
+        printf("Inicio del while(1)\n"); //debug        
+        t_list* paquete = recibir_paquete(socket_cliente); // segundo recibe que hace es recibir la operacion
         if(!paquete) break;
-
         int codigo_operacion = *(int*) list_get(paquete, 0);
-        list_destroy_and_destroy_elements(paquete, free);
+        //list_destroy_and_destroy_elements(paquete, free);
+        printf("opcode: %i\n", codigo_operacion);
 
         switch (codigo_operacion)
         {
@@ -76,30 +70,37 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             log_info(storage->logger, "Operacion STORAGE_CREATE_FILE");
             parametros = recibir_paquete(socket_cliente); // tercer recive que hace es recibir los parametros
             break;
+
         case STORAGE_TRUNCATE:
             // implementar logica de truncado de archivo
             parametros = recibir_paquete(socket_cliente);
             log_info(storage->logger, "Operacion STORAGE_TRUNCATE");
             break;
+
         case STORAGE_TAG:
             // implementar logica de tag de file
             parametros = recibir_paquete(socket_cliente);
             log_info(storage->logger, "Operacion STORAGE_TAG");
             break;
+
         case STORAGE_COMMIT:
             // implementar logica de commit de un tag
             parametros = recibir_paquete(socket_cliente);
             log_info(storage->logger, "Operacion STORAGE_COMMIT");
             break;
+
         case STORAGE_READ_BLOCK:
             // implementar logica de estructura de bloque
             parametros = recibir_paquete(socket_cliente);
             log_info(storage->logger, "Operacion STORAGE_READ_BLOCK");
+            break;
+
         case STORAGE_WRITE_BLOCK:
             // implementar logica de lectura de bloque
             parametros = recibir_paquete(socket_cliente);
             log_info(storage->logger, "Operacion STORAGE_WRITE_BLOCK");
             break;
+
         case STORAGE_DELETE:
             // implementar logica de eliminar un tag
             parametros = recibir_paquete(socket_cliente);
@@ -110,6 +111,8 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             log_error(storage->logger, "Operacion desconocida %d recibida del worker en [Socket %d]", codigo_operacion, socket_cliente);
 
         }
+
+        list_destroy_and_destroy_elements(paquete, free);
     }
     
     close(socket_cliente);

@@ -16,22 +16,23 @@ typedef struct {
 //--------------------------------
 typedef struct
 {
-    t_log*              logger;
-    t_config*           config;
-    char*               ip_master;
-    int               puerto_master;
-    char*               ip_storage;
-    char*               puerto_storage;
-    char*               path_scripts;
-    char*               log_level;
-    int                 id_worker;
-    int                 storage_socket;
-    int                 master_socket;
-    pthread_t           thread_master; 
-    pthread_t           thread_storage; 
-    t_memoria_interna*  mem;
+    t_log*               logger;
+    t_config*            config;
+    char*                ip_master;
+    int                  puerto_master;
+    char*                ip_storage;
+    char*                puerto_storage;
+    char*                path_scripts;
+    char*                log_level;
+    int                  id_worker;
+    int                  storage_socket;
+    int                  master_socket;
+    pthread_t            thread_master; 
+    pthread_t            thread_storage; 
+    t_memoria_interna*   mem;
     t_query_interpreter* interpreter;
-
+    int                  tamanio_bloque;
+    int                  cantidad_bloques;
 } t_worker;
 
 typedef struct {

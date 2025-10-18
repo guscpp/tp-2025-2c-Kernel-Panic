@@ -13,17 +13,6 @@ int main(int argc, char* argv[]) {
    int id_worker = 5;
     t_worker* w = inicializar_worker(id_worker);
     
-
-    int block_size = 128; // <-- valor hardcodeado para test
-    t_memoria_interna* m = crear_memoria(
-        w->logger,
-        config_get_int_value(w->config, "TAM_MEMORIA"),
-        config_get_int_value(w->config, "RETARDO_MEMORIA"),
-        config_get_string_value(w->config, "ALGORITMO_REEMPLAZO"),
-        block_size
-    );
-    w->mem = m;
-
     t_query_interpreter*  query_interpreter =  query_interpreter_crear(w->logger); //tiene pc y un verificador de interrupciones
     w->interpreter = query_interpreter; 
 
@@ -48,7 +37,6 @@ int main(int argc, char* argv[]) {
     enviar_paquete(packetID, w->master_socket, w->logger);
     eliminar_paquete(packetID);
 
-
     //Storge: crear la conexion
     w->storage_socket = crear_conexion(w->logger, w->ip_storage, w->puerto_storage); //socket y connect
     t_buffer* buffer2 = crear_buffer();
@@ -56,9 +44,8 @@ int main(int argc, char* argv[]) {
     // int a = 12;
     // agregar_a_paquete(packetHandshake2, &a, sizeof(int));
     enviar_paquete(packetHandshake2, w->storage_socket, w->logger);
+    log_info(w->logger, "Acabo de enviar WORKER_HANDSHAKE a Storage");
     eliminar_paquete(packetHandshake2);
-    log_info(w->logger, "Estoy justo antes de crear el hilo");
-
 
     //Storage: pedir el tamanio de bloque
     t_buffer* buffer3 = crear_buffer();
@@ -66,14 +53,22 @@ int main(int argc, char* argv[]) {
     // int a = 12;
     // agregar_a_paquete(paquete_tamanio_bloque, &a, sizeof(int));
     enviar_paquete(paquete_tamanio_bloque, w->storage_socket, w->logger);
+    enviar_paquete(paquete_tamanio_bloque, w->storage_socket, w->logger); // enviarlo 2 veces :|
+    log_info(w->logger, "Acabo de enviar STORAGE_GET_BLOCK_SIZE a Storage");
     eliminar_paquete(paquete_tamanio_bloque);
-
 
     //Respuestas de storage
     rtas_storage(w->storage_socket, w);
     log_info(w->logger, "Llegue dsp de recibir a storage");
 
-    
+    t_memoria_interna* m = crear_memoria(
+        w->logger,
+        config_get_int_value(w->config, "TAM_MEMORIA"),
+        config_get_int_value(w->config, "RETARDO_MEMORIA"),
+        config_get_string_value(w->config, "ALGORITMO_REEMPLAZO"),
+        w->tamanio_bloque
+    );
+    w->mem = m;    
 
     t_ejecucion* datos_ejecucion = malloc(sizeof(t_ejecucion));
     datos_ejecucion->w = w;

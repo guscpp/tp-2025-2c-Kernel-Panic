@@ -78,9 +78,11 @@ int enviar_paquete(t_paquete* paquete, int socket_cliente, t_log* logger)
             }
             return -1; // fallo
         }
+	
+	free(a_enviar);
 	return 0;
 
-	free(a_enviar);
+	//free(a_enviar);
 }
 
 //eliminarPaquete

@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
     puerto = config_get_string_value(config, "PUERTO_ESCUCHA");
     
     int master_fd = iniciar_servidor(puerto);
-    log_info(logger, "Servidor listo para recibir una conexion - FD: %i", master_fd);
+    log_info(logger, "Servidor listo para recibir una conexion - FD: %i / puerto: %s", master_fd, puerto);
      
     inicializar_semaforos(logger);
      
