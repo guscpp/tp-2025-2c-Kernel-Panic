@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <commons/collections/list.h>
 #include <unistd.h>
+#include "operaciones.h"
 
 void rutina_recepcion(t_storage* storage, int storage_fd);
 void* rutina_operaciones(void* args);

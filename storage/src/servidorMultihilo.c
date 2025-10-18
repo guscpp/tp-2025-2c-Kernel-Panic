@@ -32,7 +32,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
     args_hilo_worker* argumentos = (args_hilo_worker*) args;
     int socket_cliente = argumentos->socket_cliente;
     t_storage* storage = argumentos->storage;
-    //free(argumentos);
+    free(argumentos);
     
     t_list* paquete = recibir_paquete(socket_cliente);
     int codigo_operacion = *(int*) list_get(paquete, 0);
@@ -67,43 +67,56 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             
         case STORAGE_CREATE_FILE:
             // implementar logica de creacion de file
-            log_info(storage->logger, "Operacion STORAGE_CREATE_FILE");
-            parametros = recibir_paquete(socket_cliente); // tercer recive que hace es recibir los parametros
+            if(crear_file(storage, paquete)){
+                log_info(storage->logger, "File creado exitosamente");
+                t_buffer* respuesta_buffer = crear_buffer();
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK, respuesta_buffer);
+                enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
+                eliminar_paquete(paquete_respuesta);
+
+            }else{
+                log_error(storage->logger, "Error al crear el file");
+                t_buffer* respuesta_buffer = crear_buffer();
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR, respuesta_buffer);
+                enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
+                eliminar_paquete(paquete_respuesta);
+            }
+            
             break;
 
         case STORAGE_TRUNCATE:
             // implementar logica de truncado de archivo
-            parametros = recibir_paquete(socket_cliente);
+            
             log_info(storage->logger, "Operacion STORAGE_TRUNCATE");
             break;
 
         case STORAGE_TAG:
             // implementar logica de tag de file
-            parametros = recibir_paquete(socket_cliente);
+            
             log_info(storage->logger, "Operacion STORAGE_TAG");
             break;
 
         case STORAGE_COMMIT:
             // implementar logica de commit de un tag
-            parametros = recibir_paquete(socket_cliente);
+
             log_info(storage->logger, "Operacion STORAGE_COMMIT");
             break;
 
         case STORAGE_READ_BLOCK:
             // implementar logica de estructura de bloque
-            parametros = recibir_paquete(socket_cliente);
+            
             log_info(storage->logger, "Operacion STORAGE_READ_BLOCK");
             break;
 
         case STORAGE_WRITE_BLOCK:
             // implementar logica de lectura de bloque
-            parametros = recibir_paquete(socket_cliente);
+            
             log_info(storage->logger, "Operacion STORAGE_WRITE_BLOCK");
             break;
 
         case STORAGE_DELETE:
             // implementar logica de eliminar un tag
-            parametros = recibir_paquete(socket_cliente);
+            
             log_info(storage->logger, "Operacion STORAGE_DELETE");
             break;
         
@@ -121,7 +134,6 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
 
 
 }
-
 
 
 
