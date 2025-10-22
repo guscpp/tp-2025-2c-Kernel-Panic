@@ -85,15 +85,19 @@ void enviar_path_y_prioridad(t_query_control *qc)
     enviar_paquete(paquete, qc->master_socket, qc->logger);
     eliminar_paquete(paquete);
 
-    log_info(qc->logger, "## Envío de query al Master -> Archivo: %s | Prioridad: %d",
-        qc->archivo_query, qc->prioridad);
+    log_info(qc->logger, "## Envío de query al Master -> Archivo: %s | Prioridad: %d", qc->archivo_query, qc->prioridad);
+    printf("/////");
 }
 
 void procesar_respuestas_master(t_query_control* qc)
-{
-    // WHILE (1) esta ok porque recibir_operacion() es bloqueante
+{    
+    printf("/////"); // WHILE (1) esta ok porque recibir_operacion() es bloqueante
     while (1) {
-        int codigo_operacion = recibir_operacion(qc->master_socket);
+        printf("ENTRE A WHILE 1");
+         t_list* paqueteMaster = recibir_paquete(qc->master_socket);
+
+        int codigo_operacion =  *(int*)list_get(paqueteMaster, 0);
+        printf("codigo de op %d",codigo_operacion  );
         
         if (codigo_operacion == -1) {
             log_error(qc->logger, "Error en la conexión con el Master");
@@ -102,15 +106,15 @@ void procesar_respuestas_master(t_query_control* qc)
         
         switch (codigo_operacion) {
             case QUERY_RESPONSE_READ: {
-                int size;
-                void* contenido = recibir_buffer(&size, qc->master_socket);
-                // el log obligatorio pide esto otro, con file:tag
-                // hardcodeo valores y dejo un leak hasta que esto se implemente
-                // y Master los envie
-                char* file="FILE_HARDCODEADO";
-                char* tag ="TAG_HARDCODEADO";
+                
+               
+                
+                char* contenido = list_get(paqueteMaster, 1);
+                char* file =  list_get(paqueteMaster, 2);
+                char* tag = list_get(paqueteMaster, 3);
+                
                 log_info(qc->logger, "## Lectura realizada: File<%s:%s>, contenido:%s", 
-                    file, tag, (char*)contenido);
+                     *(char*)file, *(char*)tag, *(char*)contenido);
                 free(contenido);
                 break;
             }
