@@ -21,9 +21,17 @@ typedef struct {
     int estado;
     } t_query;
 
+typedef struct {
+    char* contenido;  
+    char* file;   
+    char* tag;  
+    } t_readQuery;
+
+
 enum estado{ // PARA MANEJAR ESTADOS
     READY,
-    RUNNING
+    RUNNING,
+    EXIT
 };
 
 void* atender_conexion(void*);
@@ -34,8 +42,10 @@ void* atender_desconexion_query(void*);
 void asignar_id_query(int* );
 void comenzar_a_ejecutar(t_hacerConnect* , int);
 void enviar_query_a_worker(t_query*,t_hacerConnect*, int);
+void enviar_read_a_query(t_query* , t_readQuery* ,t_hacerConnect* );
 
 t_query* eliminar_por_id(t_list* , int );
+t_query* obtener_por_id(t_list* , int );
 
 void query_completado_con_exito(t_query* , t_hacerConnect* );
 

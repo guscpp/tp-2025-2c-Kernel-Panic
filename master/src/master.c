@@ -201,21 +201,28 @@ void atender_Worker(t_hacerConnect* informacion){
             break;
         }
         case   WORKER_READ_RESULT:{
-            /*
+            
                t_query* queryRecivida;
+               t_readQuery* readQuery = malloc(sizeof(t_readQuery));
+
                int idQueryLista = *(int*)list_get(paqueteWorker, 1);
 
                pthread_mutex_lock(&mutexQueryEnWorker);
-               queryRecivida = eliminar_por_id(query_en_worker, idQueryLista);
+               queryRecivida = obtener_por_id(query_en_worker, idQueryLista);
                pthread_mutex_unlock(&mutexQueryEnWorker);
                
-               char* pathFromPaquete = list_get(paqueteWorker, 2);
-               queryRecivida->path = string_duplicate(pathFromPaquete);
-               queryRecivida->prioridad = *(int*)list_get(paqueteWorker, 3);
+               readQuery->contenido = list_get(paqueteWorker, 2);
+               readQuery->file =  list_get(paqueteWorker, 3);
+               readQuery->tag = list_get(paqueteWorker, 4);
+               queryRecivida->programCounter = *(int*)list_get(paqueteWorker, 5);
+                   
+             
+               enviar_read_a_query(queryRecivida, readQuery,informacion);
                
+
                list_destroy_and_destroy_elements(paqueteWorker, free);
-              */
-              atender_Worker(informacion);
+            
+               atender_Worker(informacion);
             break;
         }
         case WORKER_QUERY_END:{
@@ -245,7 +252,20 @@ void atender_Worker(t_hacerConnect* informacion){
         } 
     }
 }
+void   enviar_read_a_query(t_query* queryRecivida, t_readQuery* readQuery,t_hacerConnect* informacion ){
+    t_buffer* lecturaQuery = crear_buffer();
 
+    t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_READ, lecturaQuery);
+
+    agregar_a_paquete(paquete,lecturaQuery,strlen(readQuery->contenido) + 1);
+    agregar_a_paquete(paquete,lecturaQuery,strlen(readQuery->file) + 1);
+    agregar_a_paquete(paquete,lecturaQuery,strlen(readQuery->tag) + 1);
+
+    enviar_paquete(paquete, queryRecivida->socket, informacion->logger);
+    eliminar_paquete(paquete);
+
+
+}
 void query_completado_con_exito(t_query* query,t_hacerConnect* informacion ){
     t_buffer* infoQuery = crear_buffer();
 
@@ -284,6 +304,8 @@ void comenzar_a_ejecutar(t_hacerConnect* informacion, int idWorker){
     list_add(query_en_worker, query);
     pthread_mutex_unlock(&mutexQueryEnWorker);
 
+
+
     enviar_query_a_worker(query,informacion, idWorker );
 }
 
@@ -320,6 +342,15 @@ t_query* eliminar_por_id(t_list* lista, int idBuscado) {
     }
 
     return list_remove_by_condition(lista, (void*) coincide_id);
+}
+
+t_query* obtener_por_id(t_list* lista, int idBuscado) {
+    
+    bool coincide_id(t_query* query) {
+        return query->id == idBuscado;
+    }
+
+    return list_find(lista, (void*) coincide_id);
 }
 
 t_query* obtener_menor_prioridad(t_list* lista_queries) {
