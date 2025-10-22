@@ -110,9 +110,8 @@ bool inicializar_file_system(t_storage* storage){
         log_info(storage->logger, "FRESH_START=TRUE → Formateo inicial");
         formatear_fs();
     }else{
-        log_info(storage->logger, "RESH_START=FALSE → Levantar estructura existente (falta implementar)");
+        log_info(storage->logger, "FRESH_START=FALSE → Mantiene el contenido preexistente");
     }
-    // falta crear archivo inicial
     return true;
 }
 

@@ -44,6 +44,9 @@ typedef enum
     STORAGE_FLUSH,
     STORAGE_DELETE,
 
+    STORAGE_SEND_OK,
+    STORAGE_SEND_ERROR
+
 } op_code;
 
 #endif /* PROTOCOLO_H_ */
