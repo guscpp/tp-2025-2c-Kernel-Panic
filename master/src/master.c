@@ -132,8 +132,16 @@ void atender_Query(t_hacerConnect*  informacion){
     log_info(informacion->logger, "se agrego query a la cola, cola actual:  %s", idsEnCola);
 
     // comento esto abajo porque esta desconectando al QC
+    // FALTA ENVIAT FILE Y TAG A QC
+    // HARDCODEADO PARA TEST 
     t_buffer* infoQuery = crear_buffer();
+    char* file="FILE_HARDCODEADO";
+    char* tag ="TAG_HARDCODEADO";
     t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_READ, infoQuery);
+    agregar_a_paquete(paquete, file, strlen(file) +1);
+    printf("%li\n", strlen(file));
+    printf("%li\n", strlen(tag));
+    agregar_a_paquete(paquete, tag, strlen(tag) +1);
     enviar_paquete( paquete,  informacion->socket_conexion ,  informacion->logger);
     // close(informacion->socket_conexioatender_Queryn );
     
