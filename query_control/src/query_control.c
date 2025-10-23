@@ -85,16 +85,20 @@ void enviar_path_y_prioridad(t_query_control *qc)
     enviar_paquete(paquete, qc->master_socket, qc->logger);
     eliminar_paquete(paquete);
 
-    log_info(qc->logger, "## Envío de query al Master -> Archivo: %s | Prioridad: %d",
-        qc->archivo_query, qc->prioridad);
+    log_info(qc->logger, "## Envío de query al Master -> Archivo: %s | Prioridad: %d", qc->archivo_query, qc->prioridad);
+    printf("/////");
 }
 
 void procesar_respuestas_master(t_query_control* qc)
-{
-    // WHILE (1) esta ok porque recibir_operacion() es bloqueante
+{    
+     // WHILE (1) esta ok porque recibir_operacion() es bloqueante
     while (1) {
-        int codigo_operacion = recibir_operacion(qc->master_socket);
-        
+
+        printf("Entra al WHile \n");
+        t_list* paqueteMaster = recibir_paquete(qc->master_socket);
+        int codigo_operacion = *(int*)list_get(paqueteMaster, 0);
+        printf("Se lee el codigo de operacion: %i \n", codigo_operacion);
+
         if (codigo_operacion == -1) {
             log_error(qc->logger, "Error en la conexión con el Master");
             break;
@@ -102,23 +106,21 @@ void procesar_respuestas_master(t_query_control* qc)
         
         switch (codigo_operacion) {
             case QUERY_RESPONSE_READ: {
-                int size;
-                void* contenido = recibir_buffer(&size, qc->master_socket);
-                // el log obligatorio pide esto otro, con file:tag
-                // hardcodeo valores y dejo un leak hasta que esto se implemente
-                // y Master los envie
-                char* file="FILE_HARDCODEADO";
-                char* tag ="TAG_HARDCODEADO";
-                log_info(qc->logger, "## Lectura realizada: File<%s:%s>, contenido:%s", 
-                    file, tag, (char*)contenido);
-                free(contenido);
+                
+                printf("Entra a QUERY_RESPONSE_READ  \n");
+                char* file= (char*)list_get(paqueteMaster, 1);
+                char* tag = (char*)list_get(paqueteMaster, 2);
+                log_info(qc->logger, "## Lectura realizada: File<%s:%s>", file, tag);
+                //free(file);
+                //free(tag);
                 break;
             }
             case QUERY_RESPONSE_END: {
-                int size;
-                void* motivo = recibir_buffer(&size, qc->master_socket);
+
+                printf("Entra a QUERY_RESPONSE_END  \n");
+                void* motivo = (char*)list_get(paqueteMaster, 1);
                 log_info(qc->logger, "## Query Finalizada - %s", (char*)motivo);
-                free(motivo);
+                //free(motivo);
                 return;
             }
             case QUERY_RESPONSE_ERROR: {

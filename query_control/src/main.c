@@ -13,9 +13,12 @@ int main(int argc, char* argv[]) {
         liberar_query_control(qc);
         return EXIT_FAILURE;
     }
-    
+     printf("/////");
     enviar_handshake(qc);
+     printf("/////");
     enviar_path_y_prioridad(qc);
+
+    printf("/////");
 
     procesar_respuestas_master(qc);
 

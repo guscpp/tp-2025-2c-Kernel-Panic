@@ -132,8 +132,16 @@ void atender_Query(t_hacerConnect*  informacion){
     log_info(informacion->logger, "se agrego query a la cola, cola actual:  %s", idsEnCola);
 
     // comento esto abajo porque esta desconectando al QC
+    // FALTA ENVIAT FILE Y TAG A QC
+    // HARDCODEADO PARA TEST 
     t_buffer* infoQuery = crear_buffer();
+    char* file="FILE_HARDCODEADO";
+    char* tag ="TAG_HARDCODEADO";
     t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_READ, infoQuery);
+    agregar_a_paquete(paquete, file, strlen(file) +1);
+    printf("%li\n", strlen(file));
+    printf("%li\n", strlen(tag));
+    agregar_a_paquete(paquete, tag, strlen(tag) +1);
     enviar_paquete( paquete,  informacion->socket_conexion ,  informacion->logger);
     // close(informacion->socket_conexioatender_Queryn );
     
@@ -216,7 +224,7 @@ void atender_Worker(t_hacerConnect* informacion){
                readQuery->tag = list_get(paqueteWorker, 4);
                queryRecivida->programCounter = *(int*)list_get(paqueteWorker, 5);
                    
-             
+               log_info(informacion->logger,"cargando paquete; contenido: %s, file:  %s, tag:  %s", readQuery->contenido,readQuery->file, readQuery->tag );
                enviar_read_a_query(queryRecivida, readQuery,informacion);
                
 
@@ -227,20 +235,30 @@ void atender_Worker(t_hacerConnect* informacion){
         }
         case WORKER_QUERY_END:{
 
-            printf("///// Entra a case woeker_query_end ////// \n");
+            printf("///// Entra a case woeker_query_end  \n");
             t_query* queryTerminada;
+            
+            printf("/////");
+
             int idQueryLista = *(int*)list_get(paqueteWorker, 1);
-          
+            
+            printf("/////");
 
             pthread_mutex_lock(&mutexQueryEnWorker);
             queryTerminada = eliminar_por_id(query_en_worker, idQueryLista);
             pthread_mutex_unlock(&mutexQueryEnWorker);
            
             int idWorker = queryTerminada -> idWorker;
-            
+
+            printf("/////");
+
             query_completado_con_exito( queryTerminada , informacion );
 
+            printf("/////");
+
             list_destroy_and_destroy_elements(paqueteWorker, free);
+            
+            printf("/////");
             
             comenzar_a_ejecutar(informacion,idWorker);
 
