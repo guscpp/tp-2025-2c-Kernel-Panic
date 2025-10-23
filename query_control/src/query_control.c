@@ -108,8 +108,8 @@ void procesar_respuestas_master(t_query_control* qc)
             case QUERY_RESPONSE_READ: {
                 
                 printf("Entra a QUERY_RESPONSE_READ  \n");
-                char* file= (char*)list_get(paqueteMaster, 1);
-                char* tag = (char*)list_get(paqueteMaster, 2);
+                char* file= (char*)list_get(paqueteMaster, 2);
+                char* tag = (char*)list_get(paqueteMaster, 3);
                 log_info(qc->logger, "## Lectura realizada: File<%s:%s>", file, tag);
                 //free(file);
                 //free(tag);

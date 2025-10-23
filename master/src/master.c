@@ -131,18 +131,7 @@ void atender_Query(t_hacerConnect*  informacion){
 // PRUEBAAAAA
     log_info(informacion->logger, "se agrego query a la cola, cola actual:  %s", idsEnCola);
 
-    // comento esto abajo porque esta desconectando al QC
-    // FALTA ENVIAT FILE Y TAG A QC
-    // HARDCODEADO PARA TEST 
-    t_buffer* infoQuery = crear_buffer();
-    char* file="FILE_HARDCODEADO";
-    char* tag ="TAG_HARDCODEADO";
-    t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_READ, infoQuery);
-    agregar_a_paquete(paquete, file, strlen(file) +1);
-    printf("%li\n", strlen(file));
-    printf("%li\n", strlen(tag));
-    agregar_a_paquete(paquete, tag, strlen(tag) +1);
-    enviar_paquete( paquete,  informacion->socket_conexion ,  informacion->logger);
+   
     // close(informacion->socket_conexioatender_Queryn );
     
     sem_post(&sem_queries);
@@ -275,11 +264,13 @@ void   enviar_read_a_query(t_query* queryRecivida, t_readQuery* readQuery,t_hace
 
     t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_READ, lecturaQuery);
 
-    agregar_a_paquete(paquete,lecturaQuery,strlen(readQuery->contenido) + 1);
-    agregar_a_paquete(paquete,lecturaQuery,strlen(readQuery->file) + 1);
-    agregar_a_paquete(paquete,lecturaQuery,strlen(readQuery->tag) + 1);
+    agregar_a_paquete(paquete,readQuery->contenido,strlen(readQuery->contenido) + 1);
+    agregar_a_paquete(paquete,readQuery->file,strlen(readQuery->file) + 1);
+    agregar_a_paquete(paquete,readQuery->tag,strlen(readQuery->tag) + 1);
 
     enviar_paquete(paquete, queryRecivida->socket, informacion->logger);
+    log_info(informacion->logger,"cargado paquete; contenido: %s, file:  %s, tag:  %s", readQuery->contenido,readQuery->file, readQuery->tag );
+
     eliminar_paquete(paquete);
 
 
