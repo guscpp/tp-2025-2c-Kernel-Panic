@@ -91,13 +91,12 @@ void enviar_path_y_prioridad(t_query_control *qc)
 
 void procesar_respuestas_master(t_query_control* qc)
 {    
-     // WHILE (1) esta ok porque recibir_operacion() es bloqueante
     while (1) {
 
-        printf("Entra al WHile \n");
+        printf("Esperando Codigo de Operacion...\n");
         t_list* paqueteMaster = recibir_paquete(qc->master_socket);
         int codigo_operacion = *(int*)list_get(paqueteMaster, 0);
-        printf("Se lee el codigo de operacion: %i \n", codigo_operacion);
+        printf("Codigo de Operacion: %i \n", codigo_operacion);
 
         if (codigo_operacion == -1) {
             log_error(qc->logger, "Error en la conexión con el Master");
@@ -107,31 +106,31 @@ void procesar_respuestas_master(t_query_control* qc)
         switch (codigo_operacion) {
             case QUERY_RESPONSE_READ: {
                 
-                printf("Entra a QUERY_RESPONSE_READ  \n");
-                char* file= (char*)list_get(paqueteMaster, 2);
-                char* tag = (char*)list_get(paqueteMaster, 3);
-                log_info(qc->logger, "## Lectura realizada: File<%s:%s>", file, tag);
-                //free(file);
-                //free(tag);
+                char* file = (char*)list_get(paqueteMaster, 1);
+                char* tag = (char*)list_get(paqueteMaster, 2);
+                char* contenido = (char*)list_get(paqueteMaster, 3);
+                log_info(qc->logger, "## Lectura realizada: File<%s:%s>  Contenido<%s>"
+                , file, tag, contenido);
+                list_destroy_and_destroy_elements(paqueteMaster, free);
                 break;
             }
             case QUERY_RESPONSE_END: {
 
-                printf("Entra a QUERY_RESPONSE_END  \n");
                 void* motivo = (char*)list_get(paqueteMaster, 1);
                 log_info(qc->logger, "## Query Finalizada - %s", (char*)motivo);
-                //free(motivo);
+                list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
             }
             case QUERY_RESPONSE_ERROR: {
-                int size;
-                void* error = recibir_buffer(&size, qc->master_socket);
+                
+                void* error = (char*)list_get(paqueteMaster, 1);
                 log_error(qc->logger, "## Query Finalizada - Error: %s", (char*)error);
-                free(error);
+                list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
             }
             default:
                 log_warning(qc->logger, "Código de operación desconocido: %d", codigo_operacion);
+                list_destroy_and_destroy_elements(paqueteMaster, free);
                 break;
         }
     }

@@ -264,9 +264,9 @@ void   enviar_read_a_query(t_query* queryRecivida, t_readQuery* readQuery,t_hace
 
     t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_READ, lecturaQuery);
 
-    agregar_a_paquete(paquete,readQuery->contenido,strlen(readQuery->contenido) + 1);
     agregar_a_paquete(paquete,readQuery->file,strlen(readQuery->file) + 1);
     agregar_a_paquete(paquete,readQuery->tag,strlen(readQuery->tag) + 1);
+    agregar_a_paquete(paquete,readQuery->contenido,strlen(readQuery->contenido) + 1);
 
     enviar_paquete(paquete, queryRecivida->socket, informacion->logger);
     log_info(informacion->logger,"cargado paquete; contenido: %s, file:  %s, tag:  %s", readQuery->contenido,readQuery->file, readQuery->tag );
@@ -279,7 +279,7 @@ void query_completado_con_exito(t_query* query,t_hacerConnect* informacion ){
     t_buffer* infoQuery = crear_buffer();
 
     t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_END, infoQuery);
-    char* motivo= "holaa";
+    char* motivo= "Finalizacion Hardcodeada";
     agregar_a_paquete(paquete,motivo,strlen(motivo) + 1);
 
     enviar_paquete( paquete,  query->socket ,  informacion->logger);
