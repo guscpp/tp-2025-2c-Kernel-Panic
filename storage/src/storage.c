@@ -71,12 +71,73 @@ void crear_archivos(char* ruta, char* modo){
 
 void crear_directorios(char* ruta_rel){
     char* ruta_abs = obtener_ruta_absoluta(ruta_rel);
-    mkdir(ruta_abs, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    mkdir(ruta_abs, 0777);
     free(ruta_abs);
 }
 
 
-void formatear_fs(){
+void recrear_bmap(int cantidad_bloques, char* path_bmap){
+    FILE* archivo_bmap = fopen(path_bmap, "w");
+    if(archivo_bmap != NULL){   
+        int bytes = cantidad_bloques / 8;
+        void* bitmap_data = calloc(1, bytes); // calloc inicializa alocando memoria en 0, apunta al principio del array de memoria
+        fwrite(bitmap_data, 1, bytes, archivo_bmap);
+        fclose(archivo_bmap);
+        free(bitmap_data);
+    }
+    free(path_bmap);
+}
+
+void recrear_hash(char* path_hash){
+    FILE* archivo_hash = fopen(path_hash, "w");
+    if(archivo_hash != NULL){
+        fclose(archivo_hash);
+    }
+    free(path_hash);
+
+}
+
+void crear_initial_file(t_storage* storage){
+    crear_directorios("files/initial_file");
+    crear_directorios("files/initial_file/BASE");
+    crear_directorios("files/initial_file/logical_blocks");
+
+    char* path_block0 = obtener_ruta_absoluta("physical_blocks/block0000.dat");
+    FILE* block0 = fopen(path_block0, "w");
+    if (block0){
+        int block_size = config_get_int_value(storage->superblock, "BLOCK_SIZE");
+        char* ceros = calloc(1, block_size); // pq char*? pero porque char ? y no void*?
+        memset(ceros, 0, block_size);
+        fwrite(ceros, 1, block_size, block0);
+        fclose(block0);
+        free(ceros);
+    }else{
+        log_error(storage->logger, "No se pudo crear el bloque inicial");
+    }
+
+    char* path_logico0 = obtener_ruta_absoluta("files/initial_file/logical_blocks/block000000.dat");
+    if(link(path_block0, path_logico0) == 0){
+        log_info(storage->logger, "Se creo el link del bloque inicial con el bloque fisico correctamente");
+    }else{
+        log_error(storage->logger, "No se pudo crear el link del bloque inicial con el bloque fisico");
+    }
+
+
+    char* metadata = obtener_ruta_absoluta("files/initial_file/BASE/metadata.config");
+    FILE* archivo_metadata = fopen(metadata, "w");
+    if(archivo_metadata){
+        fprintf(archivo_metadata, "TAMANIO=%d\n", config_get_int_value(storage->superblock, "BLOCK_SIZE"));
+        fprintf(archivo_metadata, "ESTADO=WORK_IN_PROGRESS\n");
+        fprintf(archivo_metadata, "BLOQUES=[0]\n");
+        fclose(archivo_metadata);
+    }
+
+    free(path_block0);
+    free(path_logico0);
+    free(metadata);
+}
+
+void formatear_fs(t_storage* storage){
     char* path_hash = obtener_ruta_absoluta("blocks_hash_index.config");
     char* path_bmap = obtener_ruta_absoluta("bitmap.bit");
     char* path_files = obtener_ruta_absoluta("files");
@@ -87,28 +148,34 @@ void formatear_fs(){
     rm_rf(path_files);
     rm_rf(path_phblck);
 
-    free(path_hash);
-    free(path_bmap);
-    free(path_files);
-    free(path_phblck);
+    int tamanio_storage = config_get_int_value(storage->superblock, "FS_SIZE");
+    int tamanio_bloque = config_get_int_value(storage->superblock, "BLOCK_SIZE");
+    int cantidad_bloques = tamanio_storage / tamanio_bloque;
+
+    recrear_bmap(cantidad_bloques, path_bmap);
+
+    recrear_hash(path_hash);
 
     crear_directorios("files");
+    free(path_files);
     crear_directorios("physical_blocks");
+    free(path_phblck);
 
-    crear_archivos("bitmap.bit", "wb");
-    crear_archivos("blocks_hash_index.config", "w");
-    
+
+    crear_initial_file(storage);
+
 }
+
+
 
 bool inicializar_file_system(t_storage* storage){
     log_info(storage->logger, "Inicializando File System...");
 
     PATH_BASE = config_get_string_value(storage->config, "PUNTO_MONTAJE");
 
-    
     if(storage->fresh_start){
         log_info(storage->logger, "FRESH_START=TRUE → Formateo inicial");
-        formatear_fs();
+        formatear_fs(storage);
     }else{
         log_info(storage->logger, "FRESH_START=FALSE → Mantiene el contenido preexistente");
     }

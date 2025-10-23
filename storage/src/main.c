@@ -10,6 +10,8 @@ int main(int argc, char* argv[]) {
     
     t_storage* storage = iniciar_storage(); // obtiene los configs y los logs
 
+    inicializar_file_system(storage); // crea el FS si es fresh start
+
     verificar_storage(storage);
     
     int storage_fd = iniciar_servidor(storage->puerto_escucha);  //socket, bind, listen    inicia el servidor 

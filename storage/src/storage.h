@@ -28,6 +28,7 @@ typedef struct{
 
 
 t_storage* iniciar_storage();
+bool inicializar_file_system(t_storage* storage);
 void verificar_storage(t_storage* s);
 void liberar_storage (t_storage* storage);
 void enviar_tamanio_paquete_aworker(int worker_fd, t_storage* storage);
