@@ -12,7 +12,7 @@ int main(int argc, char* argv[]) {
 
     inicializar_file_system(storage); // crea el FS si es fresh start
 
-    verificar_storage(storage);
+    // verificar_storage(storage);
     
     int storage_fd = iniciar_servidor(storage->puerto_escucha);  //socket, bind, listen    inicia el servidor 
     log_info(storage->logger, "Servidor listo");
@@ -22,3 +22,7 @@ int main(int argc, char* argv[]) {
     return 0;
 
 }
+
+// para el yo del futuro: el archivo block_hash_index.config para asociar cada bloque fisico con un hash tiene que ser dentro de recrear_hash?
+// como se agrega los bloques fisicos al physical_blocks? por ejemplo si quiero agregar block00001.dat y asi sucesivamente, significa que el tamanio del file system indica la cantidad de bloques que necesita ?
+// los contenidos del archivo config son constantes o pueden cambiar en tiempo de ejecucion? por ejemplo el tamanio del file system puede cambiar en tiempo de ejecucion? o el tamanio del bloque?, para saber si usar config_get_int_value o guardarlos en variables al iniciar el storage

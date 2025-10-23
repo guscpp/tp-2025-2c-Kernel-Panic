@@ -105,10 +105,10 @@ void crear_initial_file(t_storage* storage){
     char* path_block0 = obtener_ruta_absoluta("physical_blocks/block0000.dat");
     FILE* block0 = fopen(path_block0, "w");
     if (block0){
-        int block_size = config_get_int_value(storage->superblock, "BLOCK_SIZE");
-        char* ceros = calloc(1, block_size); // pq char*? pero porque char ? y no void*?
-        memset(ceros, 0, block_size);
-        fwrite(ceros, 1, block_size, block0);
+        int tamanio_bloque = storage->tamanio_bloque;
+        void* ceros = calloc(1, tamanio_bloque); 
+        memset(ceros, 0, tamanio_bloque);
+        fwrite(ceros, 1, tamanio_bloque, block0);
         fclose(block0);
         free(ceros);
     }else{
@@ -126,7 +126,7 @@ void crear_initial_file(t_storage* storage){
     char* metadata = obtener_ruta_absoluta("files/initial_file/BASE/metadata.config");
     FILE* archivo_metadata = fopen(metadata, "w");
     if(archivo_metadata){
-        fprintf(archivo_metadata, "TAMANIO=%d\n", config_get_int_value(storage->superblock, "BLOCK_SIZE"));
+        fprintf(archivo_metadata, "TAMANIO=%d\n", storage->tamanio_bloque);
         fprintf(archivo_metadata, "ESTADO=WORK_IN_PROGRESS\n");
         fprintf(archivo_metadata, "BLOQUES=[0]\n");
         fclose(archivo_metadata);
@@ -148,8 +148,8 @@ void formatear_fs(t_storage* storage){
     rm_rf(path_files);
     rm_rf(path_phblck);
 
-    int tamanio_storage = config_get_int_value(storage->superblock, "FS_SIZE");
-    int tamanio_bloque = config_get_int_value(storage->superblock, "BLOCK_SIZE");
+    int tamanio_storage = storage->tamanio_filesystem;
+    int tamanio_bloque = storage->tamanio_bloque;
     int cantidad_bloques = tamanio_storage / tamanio_bloque;
 
     recrear_bmap(cantidad_bloques, path_bmap);
@@ -166,12 +166,10 @@ void formatear_fs(t_storage* storage){
 
 }
 
-
-
 bool inicializar_file_system(t_storage* storage){
     log_info(storage->logger, "Inicializando File System...");
 
-    PATH_BASE = config_get_string_value(storage->config, "PUNTO_MONTAJE");
+    PATH_BASE = storage->punto_montaje;
 
     if(storage->fresh_start){
         log_info(storage->logger, "FRESH_START=TRUE → Formateo inicial");

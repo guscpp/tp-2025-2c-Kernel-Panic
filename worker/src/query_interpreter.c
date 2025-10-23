@@ -275,7 +275,7 @@ char** aux_separar_file_tag(char* cadena){
 
 void executeCreate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     
-    /*
+    
     int tamanio = 0;
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_Create = crear_paquete(STORAGE_CREATE_FILE, buffer_generico);
@@ -283,7 +283,7 @@ void executeCreate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     agregar_a_paquete(paquete_Create, &tamanio, sizeof(int));
     enviar_paquete(paquete_Create, w->storage_socket, w->logger);
     eliminar_paquete(paquete_Create);
-    */
+
     
     log_info(w->logger, "Llegue a hacer create");
 }
