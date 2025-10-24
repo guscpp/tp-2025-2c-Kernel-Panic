@@ -38,40 +38,6 @@ void verificar_worker(t_worker* w)
 }
 
 
-//POr que esta dos veces? probar por cual de las dos recibe
-void procesar_asignacion_query(int master_socket, t_log* logger)
-{
-    while (1)
-    {
-        int codigo_operacion = recibir_operacion(master_socket);
-        
-        if (codigo_operacion == -1) {
-            log_error(logger, "Error en la conexión con el Master");
-            break;
-        }
-        
-        if (codigo_operacion == WORKER_ASSIGN_QUERY)
-        {
-            // Recibir información de la query
-            int size_path;
-            recv(master_socket, &size_path, sizeof(int), MSG_WAITALL);
-            
-            char* path_query = malloc(size_path);
-            recv(master_socket, path_query, size_path, MSG_WAITALL);
-            
-            int prioridad;
-            recv(master_socket, &prioridad, sizeof(int), MSG_WAITALL);
-            
-            log_info(logger, "Query asignada: %s (prioridad: %d)", path_query, prioridad);
-            
-            // TODO: Codigo para procesar la query
-            
-            free(path_query);
-            break;
-        }
-    }
-}
-
 void liberar_worker(t_worker* w)
 {
     if (w) {
@@ -102,7 +68,6 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
     {
 
         log_info(w->logger, "Llegue a recibir el paquete path_query de MAster");
-        int tamanio_valores = list_size(paquete_path); 
         if (paquete_path && list_size(paquete_path)>= 3) 
         {
             // Los valores vienen en el orden:
@@ -185,7 +150,7 @@ void* ejecutar_query(void* arg){
 //-------------------------------------------------------------------------------------------------
 
 
-void rtas_storage(int storage_socket, t_worker* w){
+void rtas_storage(int storage_socket, t_worker* w){     //cambiar
         t_list* valores = recibir_paquete(storage_socket);
         int* cod_op = list_get(valores, 0);
         log_info(w->logger, "llegue a recibir %d", *cod_op);
@@ -208,47 +173,53 @@ void rtas_storage(int storage_socket, t_worker* w){
 //------------------HILO DE ATENCION DE INTERRUPCIONES-----------------------
 void* hilo_atender_interrupcion(void* arg){ //Cuando me lleguen interrupciones, las guardo en el interpreter que tiene un booleano encargado de chquear eso. Y en el ciclo siempre revisamos ese bool
     
+    bool hay_interrupcion;
+
     t_ejecucion* dt_atender_master = (t_ejecucion*) arg; 
     log_info(dt_atender_master->w->logger, "ENtre a hilo de interrupciones");
-    //sleep(2);   
 
     dt_atender_master->w->interpreter->hay_interrupcion = false;
     
-    /*
-    while(recibir_interrupciones(dt_atender_master->master_socket, dt_atender_master->w)){//solo devuelve true si es cierto
-        dt_atender_master->w->interpreter->hay_interrupcion = true; //aca marcamos en true la interrupcion para verificarlo despues en el ciclo de instrucciones
+    while(1){
+    hay_interrupcion = recibir_interrupciones(dt_atender_master->master_socket, dt_atender_master->w);//solo devuelve true si es cierto
         
+        if (hay_interrupcion) {
+            dt_atender_master->w->interpreter->hay_interrupcion = true; //aca marcamos en true la interrupcion para verificarlo despues en el ciclo de instrucciones  
+            log_info(dt_atender_master->w->logger, "Me llego una interrupcion");
+        } else {
+            log_warning(dt_atender_master->w->logger, "Se desconectó del master o hubo error. Se rOmpio el hilo de interrupciones");
+            break;
+        }
+            
     }
-    */
+    return NULL;
 }
 //-------------------------------------------------------------------------------------------------
 
 bool recibir_interrupciones(int master_socket, t_worker* w){ //SOlo se encarga de devolver true en el caso de que llegue una interrupcion
 
-
     t_list* paquete_interrupcion = recibir_paquete(master_socket);
-    int* codigo_operacion =  list_get(paquete_interrupcion, 0);
 
-    if (*codigo_operacion == -1)
-    {
-        log_error(w->logger, "Error en la conexión con el Master");
+    int* codigo_operacion = list_get(paquete_interrupcion, 0);
+
+    if (codigo_operacion == NULL) {
+        log_error(w->logger, "Código de operación inválido en interrupción.");
+        list_destroy(paquete_interrupcion);
         return false;
     }
 
-    if (*codigo_operacion == WORKER_DESALOJO)
-    {
-        t_list* valores = recibir_paquete(master_socket);
-        log_info(w->logger, "Llegue a recibir el paquete interrupcion de MAster");
-
-        if (valores && list_size(valores) == 1)
-        {
-            
-            log_info(w->logger, "Me llego una interrupcion");
-            
-            list_destroy(valores);
-            return true;
-
-        }
+    if (*codigo_operacion == -1) {
+        log_error(w->logger, "Error en la conexión con el Master.");
+        list_destroy(paquete_interrupcion);
+        return false;
     }
-    return false;
+
+    if (*codigo_operacion == WORKER_DESALOJO) {
+        log_info(w->logger, "Llegó interrupción WORKER_DESALOJO del Master.");
+        list_destroy(paquete_interrupcion);
+        return true; 
+    }
+
+    list_destroy(paquete_interrupcion);
+    return false; 
 }

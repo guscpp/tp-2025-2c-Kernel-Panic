@@ -274,23 +274,21 @@ char** aux_separar_file_tag(char* cadena){
 
 
 void executeCreate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
-    
-    
-    int tamanio = 0;
+
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_Create = crear_paquete(STORAGE_CREATE_FILE, buffer_generico);
     agregar_a_paquete(paquete_Create, parametros->nombre_file, strlen(parametros->nombre_file) + 1); //parametros->nombre_file es un string por eso pasa sin &
-    agregar_a_paquete(paquete_Create, &tamanio, sizeof(int));
+    agregar_a_paquete(paquete_Create, parametros->tag, strlen(parametros->tag) + 1); 
     enviar_paquete(paquete_Create, w->storage_socket, w->logger);
     eliminar_paquete(paquete_Create);
-
+    
     
     log_info(w->logger, "Llegue a hacer create");
 }
 
 void executeTruncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 
-    /*
+    
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paqueteTruncate = crear_paquete(STORAGE_TRUNCATE, buffer_generico);
     agregar_a_paquete(paqueteTruncate, parametros->nombre_file, strlen(parametros->nombre_file)+1);
@@ -298,7 +296,7 @@ void executeTruncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     agregar_a_paquete(paqueteTruncate, &parametros->tamanio, sizeof(int));
     enviar_paquete(paqueteTruncate, w->storage_socket, w->logger);
     eliminar_paquete(paqueteTruncate);
-    */
+    
     log_info(w->logger, "Llegue a hacer truncate");
 }
 
@@ -378,7 +376,7 @@ void executeCommit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 
 void executeFlush(t_instr_param* parametros, t_worker* w, Pcb* pcb){ //ESto se hace previo a la ejecucion de un commit y de un desalojo de query
 
-    /*
+    /*  EN storage falta agregar la etiqueta del flush
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_flush = crear_paquete(STORAGE_FLUSH, buffer_generico);
     agregar_a_paquete(paquete_flush, parametros->nombre_file, strlen(parametros->nombre_file)+1);
