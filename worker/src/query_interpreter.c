@@ -349,7 +349,7 @@ void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 
 void executeTag(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 
-    /*
+    
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_nuevo_tag = crear_paquete(STORAGE_TAG, buffer_generico);
     agregar_a_paquete(paquete_nuevo_tag, parametros->nombre_file_org, strlen(parametros->nombre_file_org)+1);
@@ -358,13 +358,13 @@ void executeTag(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     agregar_a_paquete(paquete_nuevo_tag, parametros->tag_destino, strlen(parametros->tag_destino)+1);
     enviar_paquete(paquete_nuevo_tag, w->storage_socket, w->logger);
     eliminar_paquete(paquete_nuevo_tag);
-    */
+    
     log_info(w->logger, "Llegue a hacer tag");
 }
 
 void executeCommit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
-    /*
-    executeFlush(parametros, w); //executeFLush necesita el nombreDelFIle y el tag, y yo aca en commit tengo esos parametros
+    
+    executeFlush(parametros, w, pcb); //executeFLush necesita el nombreDelFIle y el tag, y yo aca en commit tengo esos parametros
     
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_commit = crear_paquete(STORAGE_COMMIT, buffer_generico);
@@ -372,7 +372,7 @@ void executeCommit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     agregar_a_paquete(paquete_commit, parametros->tag, strlen(parametros->tag)+1);
     enviar_paquete(paquete_commit, w->storage_socket, w->logger);
     eliminar_paquete(paquete_commit);
-    */
+    
     log_info(w->logger, "Llegue a hacer commit");
 }
 
@@ -390,7 +390,7 @@ void executeFlush(t_instr_param* parametros, t_worker* w, Pcb* pcb){ //ESto se h
 }
 
 void executeDelete(t_instr_param* parametros, t_worker* w, Pcb* pcb){
-    /*
+    
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_delete = crear_paquete(STORAGE_DELETE, buffer_generico);
     agregar_a_paquete(paquete_delete, parametros->nombre_file, strlen(parametros->nombre_file)+1);
@@ -399,7 +399,7 @@ void executeDelete(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     eliminar_paquete(paquete_delete);
     
     log_info(w->logger, "Llegue a hacer delete");
-    */
+    
 }
 
 void executeEnd(t_worker* w, Pcb* pcb){ //avisar a master de la finalizacion
