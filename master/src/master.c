@@ -144,7 +144,7 @@ void atender_Query(t_hacerConnect*  informacion){
     sem_post(&sem_queries);
 
 }
-void chequeador_desalojo(int prioridad){
+/*void chequeador_desalojo(int prioridad){
     pthread_mutex_lock(&mutexQueryEnWorker);
     if(list_is_empty(query_en_worker)){
         return;
@@ -155,9 +155,10 @@ void chequeador_desalojo(int prioridad){
 
         
     }
-     pthread_mutex_unlock(&mutexCantWorker);
+    pthread_mutex_unlock(&mutexCantWorker);
     pthread_mutex_unlock(&mutexQueryEnWorker);
 }
+*/
 
 void asignar_id_query(int* idAsignado){
    
@@ -272,13 +273,14 @@ void atender_Worker(t_hacerConnect* informacion){
 
             break;
         } 
-        case: {
+        /*case: {
             
-        }
+        //}
         default:{
             log_warning(informacion->logger, "Operacion desconocida");
             break;
-        } 
+        }
+        */ 
     }
 }
 void   enviar_read_a_query(t_query* queryRecivida, t_readQuery* readQuery,t_hacerConnect* informacion ){
