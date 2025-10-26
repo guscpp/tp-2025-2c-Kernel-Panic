@@ -46,7 +46,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
     // list_destroy_and_destroy_elements(paquete, free);
   
     log_info(storage->logger, "Hilo ejecucion listo para recibir operaciones de worker en [Socket %d]", socket_cliente);
-    t_list* parametros;
+    
 
     while(1)
     {
