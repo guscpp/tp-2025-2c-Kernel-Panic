@@ -123,11 +123,46 @@ void procesar_respuestas_master(t_query_control* qc)
             }
             case QUERY_RESPONSE_ERROR: {
                 
-                void* error = (char*)list_get(paqueteMaster, 1);
-                log_error(qc->logger, "## Query Finalizada - Error: %s", (char*)error);
+                log_error(qc->logger, "## Query Finalizada - Error: No Especificado");
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
             }
+
+            case QUERY_RESPONSE_ERROR_ARCHIVO_NO_ENCONTRADO: {
+
+                log_error(qc->logger, "## Query Finalizada - Error: Archivo No Encontrado");
+                list_destroy_and_destroy_elements(paqueteMaster, free);
+                return;
+            }
+
+            case QUERY_RESPONSE_ERROR_ERROR_EN_INSTRUCCION: {
+
+                log_error(qc->logger, "## Query Finalizada - Error: Error Al EJecutar Una Instruccion");
+                list_destroy_and_destroy_elements(paqueteMaster, free);
+                return;
+            }
+
+            case QUERY_RESPONSE_ERROR_LECTURA_INVALIDA: {
+
+                log_error(qc->logger, "## Query Finalizada - Error: Lectura Invalida");
+                list_destroy_and_destroy_elements(paqueteMaster, free);
+                return;
+            }
+
+            case QUERY_RESPONSE_ERROR_QUERY_DESCONECTADO: {
+
+                log_error(qc->logger, "## Query Finalizada - Error: Query Desconectado");
+                list_destroy_and_destroy_elements(paqueteMaster, free);
+                return;
+            }
+
+            case QUERY_RESPONSE_ERROR_WORKER_DESCONECTADO: {
+
+                log_error(qc->logger, "## Query Finalizada - Error: Worker Desconectado");
+                list_destroy_and_destroy_elements(paqueteMaster, free);
+                return;
+            }
+
             default:
                 log_warning(qc->logger, "Código de operación desconocido: %d", codigo_operacion);
                 list_destroy_and_destroy_elements(paqueteMaster, free);

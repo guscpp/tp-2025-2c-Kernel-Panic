@@ -273,11 +273,22 @@ char** aux_separar_file_tag(char* cadena){
 
 
 
+void executeCreate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 
+    t_buffer* buffer_generico = crear_buffer();
+    t_paquete* paquete_Create = crear_paquete(STORAGE_CREATE_FILE, buffer_generico);
+    agregar_a_paquete(paquete_Create, parametros->nombre_file, strlen(parametros->nombre_file) + 1); //parametros->nombre_file es un string por eso pasa sin &
+    agregar_a_paquete(paquete_Create, parametros->tag, strlen(parametros->tag) + 1); 
+    enviar_paquete(paquete_Create, w->storage_socket, w->logger);
+    eliminar_paquete(paquete_Create);
+    
+    
+    log_info(w->logger, "Llegue a hacer create");
+}
 
 void executeTruncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 
-    /*
+    
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paqueteTruncate = crear_paquete(STORAGE_TRUNCATE, buffer_generico);
     agregar_a_paquete(paqueteTruncate, parametros->nombre_file, strlen(parametros->nombre_file)+1);
@@ -285,7 +296,7 @@ void executeTruncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     agregar_a_paquete(paqueteTruncate, &parametros->tamanio, sizeof(int));
     enviar_paquete(paqueteTruncate, w->storage_socket, w->logger);
     eliminar_paquete(paqueteTruncate);
-    */
+    
     log_info(w->logger, "Llegue a hacer truncate");
 }
 
@@ -336,7 +347,7 @@ void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 
 void executeTag(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 
-    /*
+    
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_nuevo_tag = crear_paquete(STORAGE_TAG, buffer_generico);
     agregar_a_paquete(paquete_nuevo_tag, parametros->nombre_file_org, strlen(parametros->nombre_file_org)+1);
@@ -345,13 +356,13 @@ void executeTag(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     agregar_a_paquete(paquete_nuevo_tag, parametros->tag_destino, strlen(parametros->tag_destino)+1);
     enviar_paquete(paquete_nuevo_tag, w->storage_socket, w->logger);
     eliminar_paquete(paquete_nuevo_tag);
-    */
+    
     log_info(w->logger, "Llegue a hacer tag");
 }
 
 void executeCommit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
-    /*
-    executeFlush(parametros, w); //executeFLush necesita el nombreDelFIle y el tag, y yo aca en commit tengo esos parametros
+    
+    executeFlush(parametros, w, pcb); //executeFLush necesita el nombreDelFIle y el tag, y yo aca en commit tengo esos parametros
     
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_commit = crear_paquete(STORAGE_COMMIT, buffer_generico);
@@ -359,13 +370,13 @@ void executeCommit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     agregar_a_paquete(paquete_commit, parametros->tag, strlen(parametros->tag)+1);
     enviar_paquete(paquete_commit, w->storage_socket, w->logger);
     eliminar_paquete(paquete_commit);
-    */
+    
     log_info(w->logger, "Llegue a hacer commit");
 }
 
 void executeFlush(t_instr_param* parametros, t_worker* w, Pcb* pcb){ //ESto se hace previo a la ejecucion de un commit y de un desalojo de query
 
-    /*
+    /*  EN storage falta agregar la etiqueta del flush
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_flush = crear_paquete(STORAGE_FLUSH, buffer_generico);
     agregar_a_paquete(paquete_flush, parametros->nombre_file, strlen(parametros->nombre_file)+1);
@@ -377,7 +388,7 @@ void executeFlush(t_instr_param* parametros, t_worker* w, Pcb* pcb){ //ESto se h
 }
 
 void executeDelete(t_instr_param* parametros, t_worker* w, Pcb* pcb){
-    /*
+    
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_delete = crear_paquete(STORAGE_DELETE, buffer_generico);
     agregar_a_paquete(paquete_delete, parametros->nombre_file, strlen(parametros->nombre_file)+1);
@@ -386,7 +397,7 @@ void executeDelete(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     eliminar_paquete(paquete_delete);
     
     log_info(w->logger, "Llegue a hacer delete");
-    */
+    
 }
 
 void executeEnd(t_worker* w, Pcb* pcb){ //avisar a master de la finalizacion

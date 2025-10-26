@@ -51,9 +51,9 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
     while(1)
     {
         printf("Inicio del while(1)\n"); //debug        
-        // t_list* paquete = recibir_paquete(socket_cliente); // segundo recibe que hace es recibir la operacion
-        //if(!paquete) break;
-        // int codigo_operacion = *(int*) list_get(paquete, 0);
+        t_list* paquete = recibir_paquete(socket_cliente); // segundo recibe que hace es recibir la operacion
+        if(!paquete) break;
+        int codigo_operacion = *(int*) list_get(paquete, 0);
         //list_destroy_and_destroy_elements(paquete, free);
         printf("opcode: %i\n", codigo_operacion);
 
