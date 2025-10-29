@@ -121,8 +121,9 @@ void atender_Query(t_hacerConnect*  informacion){
    nuevaQuery->programCounter = 0 ;
    nuevaQuery->estado= READY;
    
-   log_info(informacion->logger, "Se conecta un Query Control para ejecutar la Query %s con prioridad %d - Id asignado: %d ", nuevaQuery->path, nuevaQuery->prioridad, nuevaQuery->id);
-
+   pthread_mutex_lock(&mutexCantWorkers);
+   log_info(informacion->logger, "## Se conecta un Query Control para ejecutar la Query %s con prioridad %d - Id asignado: %d . Nivel de multiprocesamiento %d", nuevaQuery->path, nuevaQuery->prioridad, nuevaQuery->id, cantidadWorkers);
+    pthread_mutex_unlock(&mutexCantWorkers);
 
    pthread_mutex_lock(&mutexColaQuery);
    list_add(cola_queries, nuevaQuery);
@@ -139,7 +140,7 @@ void atender_Query(t_hacerConnect*  informacion){
 
     //chequeador_desalojo(nuevaQuery->prioridad);
    
-    // close(informacion->socket_conexioatender_Queryn );
+    
     
     sem_post(&sem_queries);
 
@@ -214,7 +215,7 @@ void atender_Worker(t_hacerConnect* informacion){
             informacion->id = idWorker;
             pthread_mutex_lock(&mutexCantWorkers);
             cantidadWorkers ++;
-            log_info(informacion->logger, "Se ha conectado un worker  ID: %d  CANTIDAD TOTAL DE WORKERS: %d", idWorker , cantidadWorkers);
+            log_info(informacion->logger, "## Se conecta el worker ID: %d  CANTIDAD TOTAL DE WORKERS: %d", idWorker , cantidadWorkers);
             
             pthread_mutex_unlock(&mutexCantWorkers);
             list_destroy_and_destroy_elements(paqueteWorker, free);
@@ -307,7 +308,7 @@ void query_completado_con_exito(t_query* query,t_hacerConnect* informacion ){
     agregar_a_paquete(paquete,motivo,strlen(motivo) + 1);
 
     enviar_paquete( paquete,  query->socket ,  informacion->logger);
-    log_info(informacion->logger, "Query id: %d terminada con exito", query->id);
+    log_info(informacion->logger, "## Se termino la Query id: %d (prioridad: %d )  con exito en el worker %d", query->id, query->prioridad , query->idWorker);
     close(query->socket);
     log_info(informacion->logger, "Comunicacion Cerrada con Query");
     eliminar_paquete(paquete);
@@ -315,26 +316,35 @@ void query_completado_con_exito(t_query* query,t_hacerConnect* informacion ){
 
 }
 void comenzar_a_ejecutar(t_hacerConnect* informacion, int idWorker){
-    sem_wait(&sem_queries);
+    
+    sem_wait(&sem_queries); // ESPERO A QUE HAYA UNA QUERY
+    t_query* query;
     // MANDAR UN SEND DE COMO VOY A MANDARTE UNA QUERY PARA SABER SI ESTA VIVO
     pthread_mutex_lock(&mutexColaQuery);
 
-    t_query* query = obtener_menor_prioridad(cola_queries);
+    if(strcmp(algoritmo_planificacion, "FIFO") == 0){ // PLANIFICO SEGUN ALGORITMO
+        query = list_remove(cola_queries, 0);
+    }else{
+        query = obtener_menor_prioridad(cola_queries);
+    }
     
-      // SOLO PARA PRUEBASSS
+    
+// SOLO PARA PRUEBASSS
     char* idsEnCola = string_new(); // string_new() de commons, crea string vacío
-    query->estado= RUNNING;
+    
     for (int i = 0; i < list_size(cola_queries); i++) {
     t_query* q = list_get(cola_queries, i);
     string_append_with_format(&idsEnCola, "%d ", q->id);
-}
+    }
 // PRUEBAAAAA
+
     log_info(informacion->logger, "se quito query a la cola, cola actual:  %s", idsEnCola);
     pthread_mutex_unlock(&mutexColaQuery);
+    query->estado= RUNNING;
 
-    pthread_mutex_lock(&mutexQueryEnWorker);
+    pthread_mutex_lock(&mutexQueryEnWorker); 
     query->idWorker = idWorker;
-    list_add(query_en_worker, query);
+    list_add(query_en_worker, query); // AGREGO QUERY A LISTA DE RUNNING
     pthread_mutex_unlock(&mutexQueryEnWorker);
 
 

@@ -1,5 +1,8 @@
 #include "master.h"
 
+char* algoritmo_planificacion ;
+int tiempo_aging;
+
 int main(int argc, char* argv[]) {
     if (argc != 2)
     {
@@ -22,7 +25,9 @@ int main(int argc, char* argv[]) {
     logger = iniciar_logger("master.log","MASTER",true, LOG_LEVEL_INFO);
     config = iniciar_config(logger,argv[1]);
     puerto = config_get_string_value(config, "PUERTO_ESCUCHA");
-    
+    algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
+    tiempo_aging = config_get_int_value(config,"TIEMPO_AGING");
+
     int master_fd = iniciar_servidor(puerto);
     log_info(logger, "Servidor listo para recibir una conexion - FD: %i / puerto: %s", master_fd, puerto);
      

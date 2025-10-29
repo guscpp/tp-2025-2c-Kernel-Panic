@@ -33,6 +33,8 @@ enum estado{ // PARA MANEJAR ESTADOS
     RUNNING,
     EXIT
 };
+extern int tiempo_aging;
+extern char* algoritmo_planificacion;
 
 void* atender_conexion(void*);
 void atender_Query(t_hacerConnect* );
