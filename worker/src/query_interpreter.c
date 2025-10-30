@@ -311,8 +311,10 @@ void executeWrite(t_instr_param* parametros, t_worker* w, Pcb* pcb){
         tam,
         true // es escritura
     );
-    memcpy(dir, parametros->contenido, tam);
-    log_info(w->logger, "Llegue a hacer write");
+        if (dir) {
+        memcpy(dir, parametros->contenido, tam);
+    }
+    log_info(w->logger, "Query<%d>: Instrucción realizada: WRITE", pcb->query_id);
 }
 
 void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){
@@ -325,6 +327,12 @@ void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){
         parametros->tamanio,
         false // es lectura
     );
+    if (!dir) {
+        log_error(w->logger, "Query<%d>: Lectura fallida - File:%s - Tag:%s - Offset:%d",
+                  pcb->query_id, parametros->nombre_file, parametros->tag, parametros->direccion_base);
+        return;
+    }
+
     char* contenido = string_substring(dir, 0, parametros->tamanio);
     log_info(w->logger, "Contenido leído: %s", contenido);
 
@@ -341,7 +349,7 @@ void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     eliminar_paquete(paquete_read);
 
     free(contenido);
-    log_info(w->logger, "Llegue a hacer read");
+    log_info(w->logger, "Query<%d>: Instrucción realizada: READ", pcb->query_id);
     
 }
 

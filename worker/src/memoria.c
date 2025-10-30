@@ -1,152 +1,181 @@
-#include "../include/memoria.h"
+// worker/src/memoria.c
+#include "memoria.h"
 #include <commons/string.h>
+#include <string.h>
+#include <unistd.h>
+#include <time.h>
 
-// Helper: clave unica "file:tag"
 char* clave_file_tag(char* file, char* tag) {
     return string_from_format("%s:%s", file, tag);
 }
 
-// Busca una pagina en la tabla correspondiente
 t_entrada_pagina* buscar_pagina(t_memoria_interna* mem, char* file, char* tag, int num_pagina) {
+    if (!mem || !file || !tag) return NULL;
     char* clave = clave_file_tag(file, tag);
     t_list* tabla = dictionary_get(mem->tablas_paginas, clave);
     free(clave);
-    
     if (!tabla) return NULL;
 
     bool es_pagina(void* elem) {
         t_entrada_pagina* e = (t_entrada_pagina*) elem;
         return e->numero_pagina == num_pagina;
     }
-    
     t_entrada_pagina* encontrada = list_find(tabla, es_pagina);
-    
     if (encontrada) {
-        // Actualizar timestamp para LRU
         encontrada->ultimo_acceso = time(NULL);
-        encontrada->bit_referencia = true; // Para CLOCK-M
-        
-        // Actualizar en lista LRU si es necesario
+        encontrada->bit_referencia = true;
         if (mem->algoritmo_reemplazo == LRU) {
-            actualizar_referencia_lru(mem, encontrada);
+            list_remove_element(mem->lru_list, encontrada);
+            list_add(mem->lru_list, encontrada);
         }
     }
-    
     return encontrada;
 }
 
-// Actualizar referencia en LRU
-void actualizar_referencia_lru(t_memoria_interna* mem, t_entrada_pagina* entrada) {
-    // Remover de la lista si existe
-    list_remove_element(mem->lru_list, entrada);
-    // Agregar al final (mas reciente)
-    list_add(mem->lru_list, entrada);
-}
-
-// Encontrar marco libre
 int encontrar_marco_libre(t_memoria_interna* mem) {
     for (int i = 0; i < mem->cantidad_marcos; i++) {
-        if (mem->marcos[i]->libre) {
-            return i;
-        }
+        if (mem->marcos[i]->libre) return i;
     }
     return -1;
 }
 
-// Aplicar algoritmo LRU - VERSIÓN CORREGIDA
+// --- LRU ---
 int aplicar_lru(t_memoria_interna* mem, int query_id) {
-    if (list_is_empty(mem->lru_list)) {
-        log_warning(mem->logger, "LRU list vacía, usando marco 0");
-        return 0;
-    }
-    
-    // La primera entrada es la menos recientemente usada
+    if (list_is_empty(mem->lru_list)) return 0;
     t_entrada_pagina* victima = list_remove(mem->lru_list, 0);
-    
-    // Log de reemplazo
-    log_info(mem->logger, "## Query<%d>: Se reemplaza la pagina %s:%s/%d", 
+    int marco_victima = victima->marco;
+
+    log_info(mem->logger, "## Query<%d>: Se reemplaza la pagina %s:%s/%d por una nueva pagina",
              query_id, victima->file, victima->tag, victima->numero_pagina);
-    
-    // Si esta modificada, hacer flush
     if (victima->modificada) {
         log_info(mem->logger, "Query<%d>: Pagina modificada, deberia hacer FLUSH", query_id);
     }
-    
-    // Remover de la tabla de páginas - CORRECCIÓN APLICADA
+
+    // Eliminar de tabla
     char* clave = clave_file_tag(victima->file, victima->tag);
     t_list* tabla = dictionary_get(mem->tablas_paginas, clave);
-    
     if (tabla) {
-        bool misma_entrada(t_entrada_pagina* elem) {
-            return elem == victima;
-        }
-        list_remove_by_condition(tabla, (void*)misma_entrada);
-        
-        // Si la tabla queda vacía, removerla completamente
+        bool misma_entrada(void* e) { return e == victima; }
+        list_remove_by_condition(tabla, misma_entrada);
         if (list_is_empty(tabla)) {
-            // ✅ CORRECCIÓN: dictionary_remove_and_destroy ya libera la clave internamente
             dictionary_remove_and_destroy(mem->tablas_paginas, clave, (void*)list_destroy);
-            // NO hacer free(clave) aquí - ya se liberó internamente
         } else {
-            free(clave); // Liberar solo si no removemos del dictionary
+            free(clave);
         }
     } else {
-        free(clave); // Liberar si no había tabla
+        free(clave);
     }
-    
-    int marco_victima = victima->marco;
-    
-    // Liberar el marco
+
     mem->marcos[marco_victima]->libre = true;
     mem->marcos[marco_victima]->entrada_pagina = NULL;
-    
-    // Liberar entrada de pagina
     free(victima->file);
     free(victima->tag);
     free(victima);
-    
     return marco_victima;
 }
 
-// Aplicar algoritmo CLOCK-M (estructura preparada para implementacion futura)
+// --- CLOCK-M ---
 int aplicar_clock_m(t_memoria_interna* mem, int query_id) {
-    // Por ahora usamos LRU como fallback
-    // En CP3 se implementara CLOCK-M completo
-    log_info(mem->logger, "CLOCK-M no implementado aun, usando LRU");
-    return aplicar_lru(mem, query_id);
-}
+    t_clock_m* clock = mem->clock_m;
+    int inicio = clock->puntero;
+    int victima = -1;
 
-// Cargar una nueva pagina
-int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina) {
-    // Buscar marco libre
-    int marco = encontrar_marco_libre(mem);
-    
-    if (marco == -1) {
-        // No hay marcos libres, aplicar algoritmo de reemplazo
-        if (mem->algoritmo_reemplazo == LRU) {
-            marco = aplicar_lru(mem, query_id);
-        } else {
-            marco = aplicar_clock_m(mem, query_id);
+    // 1. Marco libre
+    for (int i = 0; i < clock->cantidad_marcos; i++) {
+        int idx = (inicio + i) % clock->cantidad_marcos;
+        if (mem->marcos[idx]->libre) {
+            clock->puntero = (idx + 1) % clock->cantidad_marcos;
+            return idx;
         }
     }
-    
-    // Marcar marco como ocupado
+
+    // 2. Buscar (R=0, M=0)
+    for (int i = 0; i < clock->cantidad_marcos; i++) {
+        int idx = (inicio + i) % clock->cantidad_marcos;
+        if (!clock->bits_referencia[idx] && !clock->bits_modificados[idx]) {
+            victima = idx; break;
+        }
+    }
+
+    // 3. Buscar (R=0, M=1)
+    if (victima == -1) {
+        for (int i = 0; i < clock->cantidad_marcos; i++) {
+            int idx = (inicio + i) % clock->cantidad_marcos;
+            if (!clock->bits_referencia[idx] && clock->bits_modificados[idx]) {
+                victima = idx; break;
+            }
+        }
+    }
+
+    // 4. Limpiar R y buscar (R=0, M=X)
+    if (victima == -1) {
+        for (int i = 0; i < clock->cantidad_marcos; i++) clock->bits_referencia[i] = false;
+        for (int i = 0; i < clock->cantidad_marcos; i++) {
+            int idx = (inicio + i) % clock->cantidad_marcos;
+            if (!clock->bits_referencia[idx]) {
+                victima = idx; break;
+            }
+        }
+    }
+
+    if (victima == -1) victima = clock->puntero;
+    clock->puntero = (victima + 1) % clock->cantidad_marcos;
+
+    t_entrada_pagina* entrada_victima = mem->marcos[victima]->entrada_pagina;
+    if (!entrada_victima) return victima;
+
+    log_info(mem->logger, "## Query<%d>: Se reemplaza la pagina %s:%s/%d por una nueva pagina",
+             query_id, entrada_victima->file, entrada_victima->tag, entrada_victima->numero_pagina);
+    if (entrada_victima->modificada) {
+        log_info(mem->logger, "Query<%d>: Pagina modificada, deberia hacer FLUSH", query_id);
+    }
+
+    // Eliminar de tabla
+    char* clave = clave_file_tag(entrada_victima->file, entrada_victima->tag);
+    t_list* tabla = dictionary_get(mem->tablas_paginas, clave);
+    if (tabla) {
+        bool misma_entrada(void* e) { return e == entrada_victima; }
+        list_remove_by_condition(tabla, misma_entrada);
+        if (list_is_empty(tabla)) {
+            dictionary_remove_and_destroy(mem->tablas_paginas, clave, (void*)list_destroy);
+        } else {
+            free(clave);
+        }
+    } else {
+        free(clave);
+    }
+
+    mem->marcos[victima]->libre = true;
+    mem->marcos[victima]->entrada_pagina = NULL;
+    free(entrada_victima->file);
+    free(entrada_victima->tag);
+    free(entrada_victima);
+    clock->bits_referencia[victima] = false;
+    clock->bits_modificados[victima] = false;
+    return victima;
+}
+
+int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina) {
+    int marco = encontrar_marco_libre(mem);
+    if (marco == -1) {
+        if (mem->algoritmo_reemplazo == LRU)
+            marco = aplicar_lru(mem, query_id);
+        else
+            marco = aplicar_clock_m(mem, query_id);
+    }
+
     mem->marcos[marco]->libre = false;
-    
-    // Crear nueva entrada de pagina
-    t_entrada_pagina* nueva_entrada = malloc(sizeof(t_entrada_pagina));
-    nueva_entrada->file = string_duplicate(file);
-    nueva_entrada->tag = string_duplicate(tag);
-    nueva_entrada->numero_pagina = num_pagina;
-    nueva_entrada->marco = marco;
-    nueva_entrada->modificada = false;
-    nueva_entrada->ultimo_acceso = time(NULL);
-    nueva_entrada->bit_referencia = true;
-    
-    // Asignar al marco
-    mem->marcos[marco]->entrada_pagina = nueva_entrada;
-    
-    // Registrar en tabla de paginas
+    t_entrada_pagina* nueva = malloc(sizeof(t_entrada_pagina));
+    nueva->file = string_duplicate(file);
+    nueva->tag = string_duplicate(tag);
+    nueva->numero_pagina = num_pagina;
+    nueva->marco = marco;
+    nueva->modificada = false;
+    nueva->ultimo_acceso = time(NULL);
+    nueva->bit_referencia = true;
+    mem->marcos[marco]->entrada_pagina = nueva;
+
+    // Registrar en tabla
     char* clave = clave_file_tag(file, tag);
     t_list* tabla = dictionary_get(mem->tablas_paginas, clave);
     if (!tabla) {
@@ -155,83 +184,102 @@ int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, i
     } else {
         free(clave);
     }
-    list_add(tabla, nueva_entrada);
-    
-    // Agregar a LRU si corresponde
+    list_add(tabla, nueva);
+
     if (mem->algoritmo_reemplazo == LRU) {
-        list_add(mem->lru_list, nueva_entrada);
+        list_add(mem->lru_list, nueva);
     }
-    
-    // Simular lectura del Storage (en CP2 es mock, en CP3 sera real)
-    void* dir_fisica = mem->memory_arena + marco * mem->tamanio_pagina;
-    memset(dir_fisica, 0, mem->tamanio_pagina); // Inicializar con ceros
-    
+    if (mem->algoritmo_reemplazo == CLOCK_M) {
+        mem->clock_m->bits_referencia[marco] = true;
+        mem->clock_m->bits_modificados[marco] = false;
+    }
+
     // Logs obligatorios
     log_info(mem->logger, "Query<%d>: - Memoria Add - File:%s - Tag:%s - Pagina:%d - Marco:%d",
              query_id, file, tag, num_pagina, marco);
     log_info(mem->logger, "Query<%d>: Se asigna el Marco:%d a la Pagina:%d perteneciente al - File:%s - Tag:%s",
              query_id, marco, num_pagina, file, tag);
-    
+
+    // Inicializar con ceros
+    void* dir = mem->memory_arena + marco * mem->tamanio_pagina;
+    memset(dir, 0, mem->tamanio_pagina);
     return marco;
 }
 
-// Acceso principal: READ o WRITE
 void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* tag, int offset, size_t tam, bool es_escritura) {
+    if (!mem || !file || !tag || tam == 0) return NULL;
     int num_pagina = offset / mem->tamanio_pagina;
     int despl = offset % mem->tamanio_pagina;
-    
-    // Verificar que el acceso no se sale de la pagina
     if (despl + tam > mem->tamanio_pagina) {
-        log_error(mem->logger, "Query<%d>: Acceso cruza limite de pagina", query_id);
+        log_error(mem->logger, "Query<%d>: Acceso cruza limite de pagina - Offset: %d, Tamaño: %zu", query_id, offset, tam);
         return NULL;
     }
-    
+
     t_entrada_pagina* entrada = buscar_pagina(mem, file, tag, num_pagina);
-    
     if (!entrada) {
-        // MISS - La pagina no esta en memoria
         log_info(mem->logger, "Query<%d>: - Memoria Miss - File:%s - Tag:%s - Pagina:%d",
                  query_id, file, tag, num_pagina);
-        
         int marco = cargar_pagina(mem, query_id, file, tag, num_pagina);
-        entrada = buscar_pagina(mem, file, tag, num_pagina); // Ahora deberia existir
+        entrada = buscar_pagina(mem, file, tag, num_pagina);
+        if (!entrada) return NULL;
     }
-    
-    // Simular retardo de memoria
-    usleep(mem->retardo_memoria * 1000);
-    
-    void* dir_fisica = mem->memory_arena + entrada->marco * mem->tamanio_pagina + despl;
-    
-    if (es_escritura) {
+
+    if (mem->algoritmo_reemplazo == CLOCK_M) {
+        int m = entrada->marco;
+        mem->clock_m->bits_referencia[m] = true;
+        if (es_escritura) {
+            mem->clock_m->bits_modificados[m] = true;
+            entrada->modificada = true;
+        }
+    } else if (es_escritura) {
         entrada->modificada = true;
-        log_info(mem->logger, "Query<%d>: Accion:ESCRIBIR - Direccion Fisica:%p", query_id, dir_fisica);
-    } else {
-        log_info(mem->logger, "Query<%d>: Accion:LEER - Direccion Fisica:%p", query_id, dir_fisica);
     }
-    
+
+    usleep(mem->retardo_memoria * 1000);
+    void* dir_fisica = mem->memory_arena + entrada->marco * mem->tamanio_pagina + despl;
+
+    // Logs obligatorios con valor
+    char* valor_str = string_substring(dir_fisica, 0, tam);
+    if (es_escritura) {
+        log_info(mem->logger, "Query<%d>: Accion:ESCRIBIR - Direccion Fisica:%p - Valor:%s",
+                 query_id, dir_fisica, valor_str);
+    } else {
+        log_info(mem->logger, "Query<%d>: Accion:LEER - Direccion Fisica:%p - Valor:%s",
+                 query_id, dir_fisica, valor_str);
+    }
+    free(valor_str);
     return dir_fisica;
 }
 
-// Inicializacion
+t_clock_m* crear_clock_m(int cantidad_marcos, t_marco** marcos) {
+    t_clock_m* c = malloc(sizeof(t_clock_m));
+    c->marcos = marcos;
+    c->puntero = 0;
+    c->cantidad_marcos = cantidad_marcos;
+    c->bits_referencia = calloc(cantidad_marcos, sizeof(bool));
+    c->bits_modificados = calloc(cantidad_marcos, sizeof(bool));
+    return c;
+}
+
+void destruir_clock_m(t_clock_m* c) {
+    if (!c) return;
+    free(c->bits_referencia);
+    free(c->bits_modificados);
+    free(c);
+}
+
 t_memoria_interna* crear_memoria(t_log* logger, int tam_memoria, int retardo_memoria, char* algoritmo_str, int block_size) {
-    t_memoria_interna* m = malloc(sizeof(t_memoria_interna));
+    t_memoria_interna* m = calloc(1, sizeof(t_memoria_interna));
     m->logger = logger;
     m->tamanio_memoria = tam_memoria;
     m->tamanio_pagina = block_size;
-    m->cantidad_marcos = m->tamanio_memoria / m->tamanio_pagina;
+    m->cantidad_marcos = tam_memoria / block_size;
     m->retardo_memoria = retardo_memoria;
-    
-    if (strcmp(algoritmo_str, "LRU") == 0) {
-        m->algoritmo_reemplazo = LRU;
-    } else {
-        m->algoritmo_reemplazo = CLOCK_M;
-    }
-    
-    // Reservar memoria principal
-    m->memory_arena = malloc(m->tamanio_memoria);
-    memset(m->memory_arena, 0, m->tamanio_memoria);
-    
-    // Inicializar marcos
+    m->algoritmo_reemplazo = (strcmp(algoritmo_str, "LRU") == 0) ? LRU : CLOCK_M;
+
+    m->memory_arena = malloc(tam_memoria);
+    memset(m->memory_arena, 0, tam_memoria);
+
     m->marcos = malloc(sizeof(t_marco*) * m->cantidad_marcos);
     for (int i = 0; i < m->cantidad_marcos; i++) {
         m->marcos[i] = malloc(sizeof(t_marco));
@@ -239,58 +287,29 @@ t_memoria_interna* crear_memoria(t_log* logger, int tam_memoria, int retardo_mem
         m->marcos[i]->libre = true;
         m->marcos[i]->entrada_pagina = NULL;
     }
-    
-    // Inicializar estructuras de algoritmos
-    m->lru_list = list_create();
-    m->clock_m = NULL; // Se inicializara en CP3 si se usa CLOCK-M
-    
-    // Inicializar tablas de paginas
+
+    m->lru_list = (m->algoritmo_reemplazo == LRU) ? list_create() : NULL;
+    m->clock_m = (m->algoritmo_reemplazo == CLOCK_M) ? crear_clock_m(m->cantidad_marcos, m->marcos) : NULL;
     m->tablas_paginas = dictionary_create();
-    
+
     log_info(logger, "Memoria Interna creada: %d bytes, %d marcos, pagina=%d bytes, algoritmo=%s",
              m->tamanio_memoria, m->cantidad_marcos, m->tamanio_pagina, algoritmo_str);
-    
     return m;
 }
 
-// Función para liberar una tabla de páginas de forma segura
-void liberar_tabla_segura(char* key, void* value) {
+static void _destruir_tabla(char* key, void* value) {
     t_list* tabla = (t_list*) value;
-    
-    // Liberar todas las entradas de esta tabla
-    for (int i = 0; i < list_size(tabla); i++) {
-        t_entrada_pagina* e = list_get(tabla, i);
-        if (e) {  // Verificar que no sea NULL
-            free(e->file);
-            free(e->tag);
-            free(e);
-        }
-    }
     list_destroy(tabla);
-    free(key);  // Liberar la clave
 }
 
-void destruir_memoria(t_memoria_interna* memoria) {
-    if (!memoria) return;
-    
-    free(memoria->memory_arena);
-    
-    for (int i = 0; i < memoria->cantidad_marcos; i++) {
-        free(memoria->marcos[i]);
-    }
-    free(memoria->marcos);
-    
-    // Liberar todo solo desde el dictionary
-    dictionary_iterator(memoria->tablas_paginas, liberar_tabla_segura);
-    dictionary_destroy(memoria->tablas_paginas);
-    
-    // Solo destruir la lista LRU, NO sus elementos (ya fueron liberados)
-    list_destroy(memoria->lru_list);
-    
-    if (memoria->clock_m) {
-        free(memoria->clock_m->marcos);
-        free(memoria->clock_m);
-    }
-    
-    free(memoria);
+void destruir_memoria(t_memoria_interna* m) {
+    if (!m) return;
+    free(m->memory_arena);
+    for (int i = 0; i < m->cantidad_marcos; i++) free(m->marcos[i]);
+    free(m->marcos);
+    if (m->lru_list) list_destroy(m->lru_list);
+    if (m->clock_m) destruir_clock_m(m->clock_m);
+    dictionary_iterator(m->tablas_paginas, (void*)_destruir_tabla);
+    dictionary_destroy(m->tablas_paginas);
+    free(m);
 }
