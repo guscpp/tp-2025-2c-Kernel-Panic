@@ -304,7 +304,7 @@ void executeWrite(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     size_t tam = strlen(parametros->contenido);
     void* dir = acceder_memoria(
         w->mem,
-        /* query_id */ 0, // en CP2 lo hardcodeo; en CP3 usar pcb->query_id
+        pcb->query_id,
         parametros->nombre_file,
         parametros->tag,
         parametros->direccion_base,
@@ -318,7 +318,7 @@ void executeWrite(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     void* dir = acceder_memoria(
         w->mem,
-        /* query_id */ 0,
+        pcb->query_id,
         parametros->nombre_file,
         parametros->tag,
         parametros->direccion_base,

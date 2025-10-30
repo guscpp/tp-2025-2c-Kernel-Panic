@@ -60,3 +60,4 @@ Module.symvers
 Mkfile.old
 dkms.conf
 worker/worker_pids.txt
+worker/debug_/
