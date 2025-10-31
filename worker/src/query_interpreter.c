@@ -41,14 +41,20 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
         //free(instruccion_decf->parametros);   revisar con valgrind
         
         //checkInterrupt
+        pthread_mutex_lock(&mutex_interrupt); 
         if(w->interpreter->hay_interrupcion){ //no entra aca porque al crear query_interpreter se le pone false al hay interrupcion y este cambia recien cuando le llega al hilo de interrupciones
-            interrupt_envio_a_master(pcb, w); //MAndo el PCB para poder actualizarlo con el PC del w (y mandarlo a master)
-            //hay_interrupcion = 1; //limpio registro de interrupcion
             w->interpreter->hay_interrupcion =false; 
+            pthread_mutex_unlock(&mutex_interrupt); 
+
+            interrupt_envio_a_master(pcb, w); //MAndo el PCB para poder actualizarlo con el PC del w (y mandarlo a master)
+            
             break;
         }
-    }
+         else {
+            pthread_mutex_unlock(&mutex_interrupt);
+        }
 
+    }
 }
 
 char* fetch(Pcb* pcb, t_worker* w){
@@ -345,7 +351,7 @@ void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     agregar_a_paquete(paquete_read, parametros->tag, strlen(parametros->tag)+1); //envio tag a master para loggear en querycontrol
     agregar_a_paquete(paquete_read, &(w->interpreter->pc), sizeof(int));  //envio el pc por las dudas
 
-    enviar_paquete(paquete_read, w->master_socket, w->logger);
+    enviar_paquete(paquete_read, w->master_socket_distpach, w->logger);
     eliminar_paquete(paquete_read);
 
     free(contenido);
@@ -414,12 +420,12 @@ void executeEnd(t_worker* w, Pcb* pcb){ //avisar a master de la finalizacion
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* aviso_end_query = crear_paquete(WORKER_QUERY_END, buffer_generico);
     agregar_a_paquete(aviso_end_query, &(pcb->query_id), sizeof(int)); //envio queryId
-    enviar_paquete(aviso_end_query, w->master_socket, w->logger);
+    enviar_paquete(aviso_end_query, w->master_socket_distpach, w->logger);
     eliminar_paquete(aviso_end_query);
     log_info(w->logger, "termine End");
 }
 
-void interrupt_envio_a_master(Pcb* pcb_dsp_de_interrupt, t_worker* w){
+void interrupt_envio_a_master(Pcb* pcb_dsp_de_interrupt, t_worker* w){  //Se envia al socket normal
     log_info(w->logger, "Llego una interrupcion, el proceso fue interrumpido. Espero uno nuevo");
     /*
     t_buffer* buffer_generico = crear_buffer();
@@ -430,7 +436,7 @@ void interrupt_envio_a_master(Pcb* pcb_dsp_de_interrupt, t_worker* w){
     //Estos dos si:
     agregar_a_paquete(devuelvo_pcb_master, pcb_dsp_de_interrupt->query_id, sizeof(int));
     agregar_a_paquete(devuelvo_pcb_master, pcb_dsp_de_interrupt->pc, sizeof(int));
-    enviar_paquete(devuelvo_pcb_master, w->master_socket, w->logger);
+    enviar_paquete(devuelvo_pcb_master, w->master_socket_distpach, w->logger);
     eliminar_paquete(devuelvo_pcb_master);
     */
 }

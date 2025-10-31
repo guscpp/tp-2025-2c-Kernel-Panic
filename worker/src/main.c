@@ -13,6 +13,8 @@ int main(int argc, char* argv[]) {
     t_query_interpreter*  query_interpreter =  query_interpreter_crear(w->logger); //tiene pc y un verificador de interrupciones
     w->interpreter = query_interpreter; 
 
+    pthread_mutex_init(&mutex_interrupt, NULL); 
+
     pthread_t ciclo_instrucciones; 
     pthread_t hilo_interrupciones;
     log_info(w->logger, "Verificar funcionamiento logger");
@@ -20,20 +22,30 @@ int main(int argc, char* argv[]) {
     //Solo logs de prueba: 
     verificar_worker(w);
  
-    //Master: crear la conexion
-    w->master_socket = crear_conexion(w->logger, w->ip_master, string_itoa(w->puerto_master)); 
+    //Master: crear la conexion para distpacher (primer connecy)
+    w->master_socket_distpach = crear_conexion(w->logger, w->ip_master, string_itoa(w->puerto_master)); 
     t_buffer* buffer1 = crear_buffer();
     t_paquete* packetHandshake = crear_paquete(WORKER_HANDSHAKE, buffer1);
-    enviar_paquete(packetHandshake, w->master_socket, w->logger);
+    enviar_paquete(packetHandshake, w->master_socket_distpach, w->logger);
     eliminar_paquete(packetHandshake);
 
     //Master: enviarle ID de este worker
     buffer1 = crear_buffer();
     t_paquete* packetID = crear_paquete(WORKER_ID, buffer1);
     agregar_a_paquete(packetID, &w->id_worker, sizeof(int));
-    enviar_paquete(packetID, w->master_socket, w->logger);
+    enviar_paquete(packetID, w->master_socket_distpach, w->logger);
     eliminar_paquete(packetID);
 
+    //MAster: crear la conexion para el interrupt (segundp connect)
+    w->master_socket_interrupt = crear_conexion(w->logger, w->ip_master, string_itoa(w->puerto_master));
+
+    //MAster: enviar id para el interrupt 
+    t_buffer* buffer5 = crear_buffer();
+    t_paquete* packetID_interrupt = crear_paquete(WORKER_ID_INTERRUPT, buffer5); //este es el hanshake del segundo connect
+    agregar_a_paquete(packetID_interrupt, &w->id_worker, sizeof(int));
+    enviar_paquete(packetID_interrupt, w->master_socket_interrupt, w->logger);
+    eliminar_paquete(packetID_interrupt);
+    
     //Storge: crear la conexion
     w->storage_socket = crear_conexion(w->logger, w->ip_storage, w->puerto_storage); //socket y connect
     t_buffer* buffer2 = crear_buffer();
@@ -67,9 +79,10 @@ int main(int argc, char* argv[]) {
     );
     w->mem = m;    
 
+    //MAster: escuchar querys
     t_ejecucion* datos_ejecucion = malloc(sizeof(t_ejecucion));
     datos_ejecucion->w = w;
-    datos_ejecucion->master_socket = w->master_socket;
+    datos_ejecucion->master_socket = w->master_socket_distpach; //el datos_ejecucion tiene el nombre de master_socket pero guarda el de dispatch, porque sino corria peligro de no cambiarlo en algun lugar
     int error_h1 = pthread_create(&ciclo_instrucciones, 
                             NULL, 
                             ejecutar_query,  //recibo el path del query y lo ejecuto
@@ -82,11 +95,10 @@ int main(int argc, char* argv[]) {
     log_info(w->logger, "Hilo creado correctamente");
     }
 
-    //pthread_join(ciclo_instrucciones, NULL); //Para que el hilo main no termine antes de que el hilo ciclo_instrucciones termine
 
     //Master: escuchar interrupciones
     t_ejecucion* recibir_interrupciones = malloc(sizeof(t_ejecucion));
-    recibir_interrupciones->master_socket = w->master_socket;
+    recibir_interrupciones->master_socket = w->master_socket_interrupt; //RECORDAR que recibir_interrupciones tiene master_socket pero se refiere al socket del interrupt
     recibir_interrupciones->w = w;
     int error_h2 = pthread_create(&hilo_interrupciones,
                             NULL,

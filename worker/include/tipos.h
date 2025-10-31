@@ -4,6 +4,7 @@
 #include "../../utils/include/utils.h"
 #include "memoria.h"  
 #include "query_interpreter.h"
+#include <semaphore.h>
 
 
 // Struct modelo: borrala, cambiala o lo que haga falta
@@ -11,7 +12,7 @@
 typedef struct {
     t_memoria_interna* memoria;
     int pc;
-    bool hay_interrupcion; //tal vez se saca
+    bool hay_interrupcion;
 } t_query_interpreter;
 //--------------------------------
 typedef struct
@@ -26,7 +27,8 @@ typedef struct
     char*                log_level;
     int                  id_worker;
     int                  storage_socket;
-    int                  master_socket;
+    int                  master_socket_distpach;
+    int                  master_socket_interrupt;
     pthread_t            thread_master; 
     pthread_t            thread_storage; 
     t_memoria_interna*   mem;
@@ -40,6 +42,8 @@ typedef struct {
     t_worker* w;
 
 } t_ejecucion;
+
+extern pthread_mutex_t mutex_interrupt;
 
 //EN QUERY INTERPRETER
 

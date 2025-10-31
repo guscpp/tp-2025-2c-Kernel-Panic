@@ -19,7 +19,8 @@ t_worker* inicializar_worker(int id_worker)
     w->path_scripts = config_get_string_value(w->config, "PATH_QUERIES");
     w->log_level = config_get_string_value(w->config, "LOG_LEVEL");
     w->id_worker = id_worker;
-    w->master_socket = -1;
+    w->master_socket_distpach= -1;
+    w->master_socket_interrupt = -1;
     w->storage_socket = -1;
 
     return w;
@@ -52,7 +53,7 @@ void liberar_worker(t_worker* w)
 
 Pcb* recibir_path_de_query(int master_socket, t_worker* w) 
 {
-    log_info(w->logger, "Por lo menos entre a recibir_path"); 
+    log_warning(w->logger, "Por lo menos entre a recibir_path"); 
     Pcb* dt_archivo = NULL;
 
     t_list* paquete_path = recibir_paquete(master_socket);
@@ -180,11 +181,13 @@ void* hilo_atender_interrupcion(void* arg){ //Cuando me lleguen interrupciones, 
 
     dt_atender_master->w->interpreter->hay_interrupcion = false;
     
-    while(1){
+    while(1){   //RECORDAR que recibir_interrupciones tiene master_socket pero se refiere al socket del interrupt (no al socket generico de antes)
     hay_interrupcion = recibir_interrupciones(dt_atender_master->master_socket, dt_atender_master->w);//solo devuelve true si es cierto
         
         if (hay_interrupcion) {
+            pthread_mutex_lock(&mutex_interrupt);
             dt_atender_master->w->interpreter->hay_interrupcion = true; //aca marcamos en true la interrupcion para verificarlo despues en el ciclo de instrucciones  
+            pthread_mutex_unlock(&mutex_interrupt);
             log_info(dt_atender_master->w->logger, "Me llego una interrupcion");
         } else {
             log_warning(dt_atender_master->w->logger, "Se desconectó del master o hubo error. Se rOmpio el hilo de interrupciones");
@@ -195,7 +198,7 @@ void* hilo_atender_interrupcion(void* arg){ //Cuando me lleguen interrupciones, 
     return NULL;
 }
 //-------------------------------------------------------------------------------------------------
-
+//este master_socket es el socket del interrupt
 bool recibir_interrupciones(int master_socket, t_worker* w){ //SOlo se encarga de devolver true en el caso de que llegue una interrupcion
 
     t_list* paquete_interrupcion = recibir_paquete(master_socket);

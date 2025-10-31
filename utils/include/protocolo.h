@@ -35,6 +35,7 @@ typedef enum
 
     WORKER_READ_RESULT,     // Resultado de lectura
     WORKER_QUERY_END,       // Query terminada en worker
+    WORKER_ID_INTERRUPT,
     
     // WORKER ↔ STORAGE
     STORAGE_GET_BLOCK_SIZE, // Solicitar tamaño de bloque
