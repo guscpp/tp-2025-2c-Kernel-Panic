@@ -9,6 +9,7 @@ typedef enum
     // HANDSHAKES
     QC_HANDSHAKE,           // Query Control se presenta
     WORKER_HANDSHAKE,       // Worker se presenta  
+    WORKER_INTERRUPTION_HANDSHAKE,
     STORAGE_HANDSHAKE,      // Storage se presenta
     
     // QUERY CONTROL → MASTER

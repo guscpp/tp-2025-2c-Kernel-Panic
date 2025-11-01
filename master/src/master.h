@@ -5,6 +5,9 @@
 #include <unistd.h>
 #include <semaphore.h>
 
+
+#define COLOR_VERDE "\033[32m"
+
 typedef struct{
     t_log* logger;
     int socket_conexion;
@@ -27,6 +30,13 @@ typedef struct {
     char* tag;  
     } t_readQuery;
 
+typedef struct{
+    int id;
+    int socket;
+    int socket_interrruption;
+    bool desconection; // PARA MANEJAR DESCONEXIONES
+    // semaforo
+}t_worker;
 
 enum estado{ // PARA MANEJAR ESTADOS
     READY,

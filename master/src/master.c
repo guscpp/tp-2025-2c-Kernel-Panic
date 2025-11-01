@@ -13,9 +13,10 @@ pthread_mutex_t mutexQueryEnWorker;
 
 // COLA Y SEMAFORO COLA
 sem_t sem_queries;
+sem_t sem_worker_cargado;
 t_list* cola_queries;
 t_list* query_en_worker;
-t_list* lista_workers;
+t_list* lista_workers; // MUTEX ALREDEDOR DE LA LISTA 
 
 
 void inicializar_semaforos(t_log* logger){
@@ -43,6 +44,11 @@ void inicializar_semaforos(t_log* logger){
         log_warning(logger, "Error al inicializar el semáforo de queries");
        
     }
+    if (sem_init(&sem_worker_cargado, 0, 0) != 0) {
+        log_warning(logger, "Error al inicializar el semáforo de workers");
+       
+    }
+
     lista_workers= list_create();
     if (lista_workers == NULL) {
         log_warning(logger, "Error al crear la lista lista_workers");
@@ -76,10 +82,12 @@ void* atender_conexion(void* arg){
         log_info(informacion->logger, "Se ha conectado un worker");
         list_destroy_and_destroy_elements(paqueteHandshake, free);
         atender_Worker(informacion);
-    
 
         break;
-        
+        case WORKER_INTERRUPTION_HANDSHAKE:
+        log_info(informacion->logger, "Se ha conectado un worker interruption");
+        // wait()
+        break;
         default:
         log_warning(informacion->logger,"Operacion desconocida");
         list_destroy_and_destroy_elements(paqueteHandshake, free);
@@ -122,21 +130,23 @@ void atender_Query(t_hacerConnect*  informacion){
    nuevaQuery->estado= READY;
    
    pthread_mutex_lock(&mutexCantWorkers);
-   log_info(informacion->logger, "## Se conecta un Query Control para ejecutar la Query %s con prioridad %d - Id asignado: %d . Nivel de multiprocesamiento %d", nuevaQuery->path, nuevaQuery->prioridad, nuevaQuery->id, cantidadWorkers);
+   log_info(informacion->logger, COLOR_VERDE "## Se conecta un Query Control para ejecutar la Query %s con prioridad %d - Id asignado: %d . Nivel de multiprocesamiento %d" COLOR_VERDE, nuevaQuery->path, nuevaQuery->prioridad, nuevaQuery->id, cantidadWorkers);
     pthread_mutex_unlock(&mutexCantWorkers);
 
    pthread_mutex_lock(&mutexColaQuery);
    list_add(cola_queries, nuevaQuery);
    pthread_mutex_unlock(&mutexColaQuery);
  // SOLO PARA PRUEBASSS
+ 
     char* idsEnCola = string_new(); // string_new() de commons, crea string vacío
 
     for (int i = 0; i < list_size(cola_queries); i++) {
         t_query* q = list_get(cola_queries, i);
         string_append_with_format(&idsEnCola, "%d ", q->id);
     }
+     
 // PRUEBAAAAA
-    log_info(informacion->logger, "se agrego query a la cola, cola actual:  %s", idsEnCola);
+log_info(informacion->logger, "se agrego query a la cola, cola actual:  %s", idsEnCola);
 
     //chequeador_desalojo(nuevaQuery->prioridad);
    
@@ -145,6 +155,7 @@ void atender_Query(t_hacerConnect*  informacion){
     sem_post(&sem_queries);
 
 }
+
 /*void chequeador_desalojo(int prioridad){
     pthread_mutex_lock(&mutexQueryEnWorker);
     if(list_is_empty(query_en_worker)){
@@ -168,6 +179,7 @@ void asignar_id_query(int* idAsignado){
     pthread_mutex_unlock(&mutexIdQuery);
     
 }
+
 void* _max_prioridad(void* a, void* b) {
     t_query* query_a = (t_query*) a;
     t_query* query_b = (t_query*) b;
@@ -199,7 +211,7 @@ void atender_Worker(t_hacerConnect* informacion){
     t_list* paqueteWorker = recibir_paquete(informacion->socket_conexion);
   
         if (paqueteWorker == NULL) {
-        log_warning(informacion->logger, "WORKER SE DESCONECTO ID: %d", informacion->id);
+        log_warning(informacion->logger,  "## WORKER SE DESCONECTO ID: %d", informacion->id);
         close(informacion->socket_conexion);
         free(informacion);
         return;
@@ -209,17 +221,23 @@ void atender_Worker(t_hacerConnect* informacion){
     switch (*codOperacion){
         case WORKER_ID:{
             
-            
             int* idWorkerLista = list_get(paqueteWorker, 1);
             int idWorker = *idWorkerLista ;
             informacion->id = idWorker;
+
             pthread_mutex_lock(&mutexCantWorkers);
+
             cantidadWorkers ++;
-            log_info(informacion->logger, "## Se conecta el worker ID: %d  CANTIDAD TOTAL DE WORKERS: %d", idWorker , cantidadWorkers);
+            log_info(informacion->logger, COLOR_VERDE "## Se conecta el worker ID: %d  CANTIDAD TOTAL DE WORKERS: %d" COLOR_VERDE, idWorker , cantidadWorkers);
             
             pthread_mutex_unlock(&mutexCantWorkers);
+
             list_destroy_and_destroy_elements(paqueteWorker, free);
-             
+
+            //agreggar a lista
+            
+            // signal(worker cargado en lista) 
+
             comenzar_a_ejecutar(informacion,idWorker);
            
             break;
@@ -308,7 +326,7 @@ void query_completado_con_exito(t_query* query,t_hacerConnect* informacion ){
     agregar_a_paquete(paquete,motivo,strlen(motivo) + 1);
 
     enviar_paquete( paquete,  query->socket ,  informacion->logger);
-    log_info(informacion->logger, "## Se termino la Query id: %d (prioridad: %d )  con exito en el worker %d", query->id, query->prioridad , query->idWorker);
+    log_info(informacion->logger, COLOR_VERDE "## Se termino la Query id: %d (prioridad: %d )  con exito en el worker %d" COLOR_VERDE, query->id, query->prioridad , query->idWorker);
     close(query->socket);
     log_info(informacion->logger, "Comunicacion Cerrada con Query");
     eliminar_paquete(paquete);
