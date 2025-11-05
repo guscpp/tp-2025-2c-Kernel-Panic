@@ -75,6 +75,7 @@ void crear_archivos(char* ruta, char* modo) {
 }
 
 // Dada una ruta absoluta va creando cada dir individualmente
+// Funcion pensada para usarse dentro de void crear_directorios(char* ruta_rel)
 void mkdir_recursivo(const char* ruta_abs) {
     char* ruta = strdup(ruta_abs);
     if (!ruta) return;

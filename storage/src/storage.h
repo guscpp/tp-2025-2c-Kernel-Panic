@@ -36,4 +36,8 @@ void enviar_tamanio_paquete_aworker(int worker_fd, t_storage* storage);
 void rutina_recepcion(t_storage* storage, int storage_fd);
 void* rutina_operaciones(void* args);
 
+char* obtener_ruta_absoluta(char* ruta_rel);
+void crear_directorios(char* ruta_rel);
+void mkdir_recursivo(const char* ruta_abs);
+
 #endif
