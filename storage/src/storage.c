@@ -1,4 +1,5 @@
 #include "storage.h"
+#include <commons/bitarray.h>
 #include <errno.h>
 
 char* PATH_BASE;
@@ -102,15 +103,19 @@ void crear_directorios(char* ruta_rel) {
 
 
 void recrear_bmap(int cantidad_bloques, char* path_bmap){
-    FILE* archivo_bmap = fopen(path_bmap, "w");
-    if(archivo_bmap != NULL){   
-        int bytes = cantidad_bloques / 8;
-        void* bitmap_data = calloc(1, bytes); // calloc inicializa alocando memoria en 0, apunta al principio del array de memoria
-        fwrite(bitmap_data, 1, bytes, archivo_bmap);
+    FILE* archivo_bmap = fopen(path_bmap, "wb");     // Modo binario
+    if(archivo_bmap == NULL){
+        printf("No se pudo crear el archivo bitmap: %s", path_bmap);
+    } else {   
+        int bytes = (cantidad_bloques + 7) / 8;      // Redondeo hacia arriba
+        void* bitmap_data = calloc(1, bytes);        // Crear buffer de ceros para el bitmap
+        
+        fwrite(bitmap_data, 1, bytes, archivo_bmap); // Escribir el bitmap al archivo
         fclose(archivo_bmap);
         free(bitmap_data);
+        
+        printf("Bitmap recreado: %d bloques, %d bytes", cantidad_bloques, bytes);
     }
-    free(path_bmap);
 }
 
 void recrear_hash(char* path_hash){
@@ -164,7 +169,7 @@ void crear_initial_file(t_storage* storage){
 
 void formatear_fs(t_storage* storage){
     char* path_hash = obtener_ruta_absoluta("blocks_hash_index.config");
-    char* path_bmap = obtener_ruta_absoluta("bitmap.bit");
+    char* path_bmap = obtener_ruta_absoluta("bitmap.bin");
     char* path_files = obtener_ruta_absoluta("files");
     char* path_phblck = obtener_ruta_absoluta("physical_blocks");
 
@@ -173,9 +178,9 @@ void formatear_fs(t_storage* storage){
     rm_rf(path_files);
     rm_rf(path_phblck);
 
-    int tamanio_storage = storage->tamanio_filesystem;
+    int tamanio_filesystem = storage->tamanio_filesystem;
     int tamanio_bloque = storage->tamanio_bloque;
-    int cantidad_bloques = tamanio_storage / tamanio_bloque;
+    int cantidad_bloques = tamanio_filesystem / tamanio_bloque;
 
     recrear_bmap(cantidad_bloques, path_bmap);
 
@@ -185,7 +190,6 @@ void formatear_fs(t_storage* storage){
     free(path_files);
     crear_directorios("physical_blocks");
     free(path_phblck);
-
 
     crear_initial_file(storage);
 
