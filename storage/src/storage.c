@@ -101,21 +101,26 @@ void crear_directorios(char* ruta_rel) {
     free(ruta_abs);
 }
 
+#include <commons/bitarray.h>
 
-void recrear_bmap(int cantidad_bloques, char* path_bmap){
-    FILE* archivo_bmap = fopen(path_bmap, "wb");     // Modo binario
-    if(archivo_bmap == NULL){
-        printf("No se pudo crear el archivo bitmap: %s", path_bmap);
-    } else {   
-        int bytes = (cantidad_bloques + 7) / 8;      // Redondeo hacia arriba
-        void* bitmap_data = calloc(1, bytes);        // Crear buffer de ceros para el bitmap
-        
-        fwrite(bitmap_data, 1, bytes, archivo_bmap); // Escribir el bitmap al archivo
-        fclose(archivo_bmap);
-        free(bitmap_data);
-        
-        printf("Bitmap recreado: %d bloques, %d bytes", cantidad_bloques, bytes);
+void recrear_bmap(int cantidad_bloques, char* path_bmap) {
+    FILE* archivo_bmap = fopen(path_bmap, "w");
+    if (archivo_bmap == NULL) {
+        perror("No se pudo crear bitmap.bin");
+        free(path_bmap);
+        return;
     }
+
+    int bytes = (cantidad_bloques + 7) / 8;   // +7 redondea hacia arriba)
+
+    char* bitmap_data = calloc(1, bytes); // crear buffer, todos sus bits = 0
+    t_bitarray* bitmap = bitarray_create(bitmap_data, cantidad_bloques);  // usar el buffer
+    fwrite(bitmap_data, 1, bytes, archivo_bmap);  // escribir el buffer a disco
+
+    bitarray_destroy(bitmap); // esto no libera bitmap_data?
+    free(bitmap_data);
+    fclose(archivo_bmap);
+    free(path_bmap);
 }
 
 void recrear_hash(char* path_hash){
@@ -124,7 +129,6 @@ void recrear_hash(char* path_hash){
         fclose(archivo_hash);
     }
     free(path_hash);
-
 }
 
 void crear_initial_file(t_storage* storage){
