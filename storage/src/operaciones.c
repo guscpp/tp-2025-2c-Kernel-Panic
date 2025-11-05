@@ -62,3 +62,9 @@ bool crear_file(t_storage* storage, t_list* parametros)
     free(ruta_abs_tag);
     return true;
 }
+
+// probar si el path es correcto en la que se esta pasando con varios logs 
+
+// o usar string_strim por si hay un salto de linea o espacio al final
+
+// falta crear logical blocks 

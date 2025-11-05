@@ -1,6 +1,8 @@
 #include "storage.h"
 #include "operaciones.h"
 
+bool crear_file(t_storage* storage, t_list* parametros); // prototipo para test
+
 int main(int argc, char* argv[]) {
     
         if (argc != 2)

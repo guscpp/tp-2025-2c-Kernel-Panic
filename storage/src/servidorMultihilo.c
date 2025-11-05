@@ -60,13 +60,12 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
         switch (codigo_operacion)
         {
         case STORAGE_GET_BLOCK_SIZE:
-            // implementar logica de creacion de file
+            
             log_info(storage->logger, "Operacion STORAGE_GET_BLOCK_SIZE");
             enviar_tamanio_paquete_aworker(socket_cliente, storage);
             break;
             
         case STORAGE_CREATE_FILE:
-            // implementar logica de creacion de file
             if(crear_file(storage, paquete)){
                 log_info(storage->logger, "File creado exitosamente");
                 t_buffer* respuesta_buffer = crear_buffer();
