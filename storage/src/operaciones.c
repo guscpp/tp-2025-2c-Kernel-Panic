@@ -1,5 +1,9 @@
 #include "storage.h"
 
+void marcar_bloque_libre(t_storage* storage, const char* path_fisico){
+    return;
+}
+
 bool crear_file(t_storage* storage, t_list* parametros)
 {
     if (!parametros || list_size(parametros) < 4) {
@@ -63,7 +67,7 @@ bool crear_file(t_storage* storage, t_list* parametros)
     return true;
 }
 
-void truncar_file(t_storage* storage, t_list* parametros)
+bool truncar_file(t_storage* storage, t_list* parametros)
 {
     if (!parametros || list_size(parametros) < 4) {
         log_error(storage->logger, "Parametros invalidos para truncar_file");
@@ -93,11 +97,11 @@ void truncar_file(t_storage* storage, t_list* parametros)
     }
 
     int tamanio_actual = config_get_int_value(metadata_config, "TAMANIO");
-    char** bloques = config_get_array_value(metadata_config, "BLOQUES");
+    // char** bloques = config_get_array_value(metadata_config, "BLOQUES");
 
     int tamanio_bloque = storage->tamanio_bloque;
-    int bloques_actuales = (int) ceil((double)tamanio_actual / tamanio_bloque);
-    int bloques_nuevos = (int) ceil((double)nuevo_tamanio / tamanio_bloque);
+    int bloques_actuales = tamanio_actual / tamanio_bloque;
+    int bloques_nuevos = nuevo_tamanio / tamanio_bloque;
 
     log_info(storage->logger, "Truncando file %s tag %s de %d a %d bytes", nombre_file, tag, tamanio_actual, nuevo_tamanio);
 
@@ -146,9 +150,12 @@ void truncar_file(t_storage* storage, t_list* parametros)
             free(path_logico);
         }
     }
-
-    // falta actualizar metada y implementar marcar_bloque_libre
+    return true;
 }
+ // falta actualizar metada y implementar marcar_bloque_libre
+
+
+
 
 
 
