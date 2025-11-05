@@ -104,8 +104,7 @@ void truncar_file(t_storage* storage, t_list* parametros)
     if(bloques_nuevos > bloques_actuales) { // Aumentar tamaño
         for(int i = bloques_actuales; i < bloques_nuevos; i++) {
             char* path_logico = string_from_format("%s/files/%s/%s/logical_blocks/block%06d.dat", storage->punto_montaje, nombre_file, tag, i);
-            char* path_fisico = obtener_ruta_absoluta("%s/physical_blocks/block0000.dat", storage->punto_montaje); 
-
+            char* path_fisico = string_from_format("%s/physical_blocks/block0000.dat", storage->punto_montaje); 
             if(link(path_fisico, path_logico) != 0) {
                 log_error(storage->logger, "Error al crear link para el %s -> %s", path_logico, path_fisico);
                 free(path_logico);
@@ -115,15 +114,15 @@ void truncar_file(t_storage* storage, t_list* parametros)
                 free(ruta_metadata);
                 return false;
             }
-
             log_info(storage->logger, "Bloque logico %d creado y linkeado con el bloque fisico 0", i);
             free(path_logico);
             free(path_fisico);
+            }
         }
-    }
+
 
     else if(bloques_nuevos < bloques_actuales) { // Disminuir tamaño
-        for(int i = bloques_nuevos - 1; i >= bloques_nuevos; i--) {
+        for(int i = bloques_nuevos - 1; i >= bloques_nuevos; i--){
             char* path_logico = string_from_format("%s/files/%s/%s/logical_blocks/block%06d.dat", storage->punto_montaje, nombre_file, tag, i);
 
             if(access(path_logico, F_OK) == 0) {
@@ -137,20 +136,21 @@ void truncar_file(t_storage* storage, t_list* parametros)
                     struct stat stat_buf;
                     if (stat(path_fisico, &stat_buf) == 0) { // checkea los stats del path fisico, en este caso nos interesa las cantidades de links
                         if (stat_buf.st_nlink == 1) {
+                            marcar_bloque_libre(storage, path_fisico);
+                            log_info(storage->logger, "Bloque fisico %s liberado", path_fisico);
+                        }
 
-
+                    }
                 }
-                log_info(storage->logger, "Bloque logico %d eliminado", i);
             }
+            free(path_logico);
         }
     }
+
+    // falta actualizar metada y implementar marcar_bloque_libre
 }
-    }
 
 
-
-
-}
 
 // probar si el path es correcto en la que se esta pasando con varios logs 
 

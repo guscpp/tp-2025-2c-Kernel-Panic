@@ -62,7 +62,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
         case STORAGE_GET_BLOCK_SIZE:
             
             log_info(storage->logger, "Operacion STORAGE_GET_BLOCK_SIZE");
-            enviar_tamanio_paquete_aworker(socket_cliente, storage);
+            enviar_tamanio_paquete_aworker(storage, socket_cliente);
             break;
             
         case STORAGE_CREATE_FILE:
