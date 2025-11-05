@@ -23,7 +23,8 @@ t_storage* iniciar_storage(){
 
     storage->bitmap = NULL;
 
-
+    pthread_mutex_init(&storage->mutex_bitmap, NULL);
+    
     log_info(storage->logger, "El storage se inicializo correctamente");
 
     

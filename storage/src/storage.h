@@ -9,6 +9,7 @@
 #include <commons/bitarray.h>
 #include <errno.h>
 
+
 typedef struct {
     t_log* logger;
     t_config* config;          // storage.config
@@ -22,6 +23,7 @@ typedef struct {
     int tamanio_bloque;
     int tamanio_filesystem;
     t_bitarray* bitmap;
+    pthread_mutex_t mutex_bitmap;
 } t_storage;
 
 typedef struct{
