@@ -185,9 +185,9 @@ void* hilo_atender_interrupcion(void* arg){ //Cuando me lleguen interrupciones, 
     hay_interrupcion = recibir_interrupciones(dt_atender_master->master_socket, dt_atender_master->w);//solo devuelve true si es cierto
         
         if (hay_interrupcion) {
-            pthread_mutex_lock(&mutex_interrupt);
+            //comento-mutex pthread_mutex_lock(&mutex_interrupt);
             dt_atender_master->w->interpreter->hay_interrupcion = true; //aca marcamos en true la interrupcion para verificarlo despues en el ciclo de instrucciones  
-            pthread_mutex_unlock(&mutex_interrupt);
+            //comento-mutex pthread_mutex_unlock(&mutex_interrupt);
             log_info(dt_atender_master->w->logger, "Me llego una interrupcion");
         } else {
             log_warning(dt_atender_master->w->logger, "Se desconectó del master o hubo error. Se rOmpio el hilo de interrupciones");

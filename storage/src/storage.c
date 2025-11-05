@@ -1,4 +1,6 @@
 #include "storage.h"
+#include <commons/bitarray.h>
+#include <errno.h>
 
 char* PATH_BASE;
 
@@ -6,12 +8,13 @@ t_storage* iniciar_storage(){
     t_storage* storage = malloc(sizeof(t_storage));
 
     storage->logger = iniciar_logger("storage.log", "STORAGE", 1, LOG_LEVEL_INFO);
-
     storage->config = iniciar_config(storage->logger, "storage.config");
     storage->superblock = iniciar_config(storage->logger, "superblock.config");
-
     storage->puerto_escucha = config_get_string_value(storage->config, "PUERTO_ESCUCHA");
-    storage->fresh_start = config_get_int_value(storage->config, "FRESH_START");
+
+    char* fresh_start_str = config_get_string_value(storage->config, "FRESH_START");
+    storage->fresh_start = (strcmp(fresh_start_str, "TRUE") == 0) ? 1 : 0;
+
     storage->punto_montaje = config_get_string_value(storage->config, "PUNTO_MONTAJE");
     storage->retardo_operacion = config_get_int_value(storage->config, "RETARDO_OPERACION");
     storage->retardo_acceso_bloque = config_get_int_value(storage->config, "RETARDO_ACCESO_BLOQUE");
@@ -60,31 +63,63 @@ char* obtener_ruta_absoluta(char* ruta_rel){
     return aux;
 }
 
-void crear_archivos(char* ruta, char* modo){
+void crear_archivos(char* ruta, char* modo) {
     char* ruta_abs = obtener_ruta_absoluta(ruta);
     FILE* archivo = fopen(ruta_abs, modo);
-    if(archivo != NULL){
+    if (archivo == NULL) {
         perror("No se pudo abrir el archivo");
+    } else {
+        fclose(archivo);
     }
     free(ruta_abs);
 }
 
-void crear_directorios(char* ruta_rel){
+// Dada una ruta absoluta va creando cada dir individualmente
+void mkdir_recursivo(const char* ruta_abs) {
+    char* ruta = strdup(ruta_abs);
+    if (!ruta) return;
+
+    char* p = ruta;
+    if (*p == '/') p++; // Saltar raíz
+
+    for (int i=0; *p; p++, i++) {
+        if (*p == '/') {
+            *p = '\0';
+            if (mkdir(ruta, 0777) != 0 && errno != EEXIST) {
+                printf("mkdir fallo el paso: %d", i);
+            }
+            *p = '/';
+        }
+    }
+    if (mkdir(ruta, 0777) != 0 && errno != EEXIST) {
+        perror("mkdir falló en último nivel");
+    }
+    free(ruta);
+}
+
+void crear_directorios(char* ruta_rel) {
     char* ruta_abs = obtener_ruta_absoluta(ruta_rel);
-    mkdir(ruta_abs, 0777);
+    mkdir_recursivo(ruta_abs);
     free(ruta_abs);
 }
 
-
-void recrear_bmap(int cantidad_bloques, char* path_bmap){
+void recrear_bmap(int cantidad_bloques, char* path_bmap) {
     FILE* archivo_bmap = fopen(path_bmap, "w");
-    if(archivo_bmap != NULL){   
-        int bytes = cantidad_bloques / 8;
-        void* bitmap_data = calloc(1, bytes); // calloc inicializa alocando memoria en 0, apunta al principio del array de memoria
-        fwrite(bitmap_data, 1, bytes, archivo_bmap);
-        fclose(archivo_bmap);
-        free(bitmap_data);
+    if (archivo_bmap == NULL) {
+        perror("No se pudo crear bitmap.bin");
+        free(path_bmap);
+        return;
     }
+
+    int bytes = (cantidad_bloques + 7) / 8;   // +7 redondea hacia arriba)
+
+    char* bitmap_data = calloc(1, bytes); // crear buffer, todos sus bits = 0
+    t_bitarray* bitmap = bitarray_create(bitmap_data, cantidad_bloques);  // usar el buffer
+    fwrite(bitmap_data, 1, bytes, archivo_bmap);  // escribir el buffer a disco
+
+    bitarray_destroy(bitmap); // esto no libera bitmap_data?
+    free(bitmap_data);
+    fclose(archivo_bmap);
     free(path_bmap);
 }
 
@@ -94,7 +129,6 @@ void recrear_hash(char* path_hash){
         fclose(archivo_hash);
     }
     free(path_hash);
-
 }
 
 void crear_initial_file(t_storage* storage){
@@ -139,7 +173,7 @@ void crear_initial_file(t_storage* storage){
 
 void formatear_fs(t_storage* storage){
     char* path_hash = obtener_ruta_absoluta("blocks_hash_index.config");
-    char* path_bmap = obtener_ruta_absoluta("bitmap.bit");
+    char* path_bmap = obtener_ruta_absoluta("bitmap.bin");
     char* path_files = obtener_ruta_absoluta("files");
     char* path_phblck = obtener_ruta_absoluta("physical_blocks");
 
@@ -148,9 +182,9 @@ void formatear_fs(t_storage* storage){
     rm_rf(path_files);
     rm_rf(path_phblck);
 
-    int tamanio_storage = storage->tamanio_filesystem;
+    int tamanio_filesystem = storage->tamanio_filesystem;
     int tamanio_bloque = storage->tamanio_bloque;
-    int cantidad_bloques = tamanio_storage / tamanio_bloque;
+    int cantidad_bloques = tamanio_filesystem / tamanio_bloque;
 
     recrear_bmap(cantidad_bloques, path_bmap);
 
@@ -160,7 +194,6 @@ void formatear_fs(t_storage* storage){
     free(path_files);
     crear_directorios("physical_blocks");
     free(path_phblck);
-
 
     crear_initial_file(storage);
 

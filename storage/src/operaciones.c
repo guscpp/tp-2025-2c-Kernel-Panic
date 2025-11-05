@@ -43,10 +43,12 @@ bool crear_file(t_storage* storage, t_list* parametros)
         return false;
     }
 
-    fprintf(metadata_file, "TAMANIO = 0\n");
-    fprintf(metadata_file, "ESTADO = WORK_IN_PROGRESS\n");
-    fprintf(metadata_file, "BLOQUES = []\n");
+    fprintf(metadata_file, "TAMANIO=0\n");
+    fprintf(metadata_file, "ESTADO=WORK_IN_PROGRESS\n");
+    fprintf(metadata_file, "BLOQUES=[]\n");
     fclose(metadata_file);
+
+    usleep(storage->retardo_operacion * 1000);   //retardo requerido por el enunciado
 
     free(ruta_tag);
     free(ruta_file);

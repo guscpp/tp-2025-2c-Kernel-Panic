@@ -41,17 +41,17 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
         //free(instruccion_decf->parametros);   revisar con valgrind
         
         //checkInterrupt
-        pthread_mutex_lock(&mutex_interrupt); 
+        //comento-mutex pthread_mutex_lock(&mutex_interrupt); 
         if(w->interpreter->hay_interrupcion){ //no entra aca porque al crear query_interpreter se le pone false al hay interrupcion y este cambia recien cuando le llega al hilo de interrupciones
             w->interpreter->hay_interrupcion =false; 
-            pthread_mutex_unlock(&mutex_interrupt); 
+            //comento-mutex pthread_mutex_unlock(&mutex_interrupt); 
 
             interrupt_envio_a_master(pcb, w); //MAndo el PCB para poder actualizarlo con el PC del w (y mandarlo a master)
             
             break;
         }
          else {
-            pthread_mutex_unlock(&mutex_interrupt);
+            //comento-mutex pthread_mutex_unlock(&mutex_interrupt);
         }
 
     }

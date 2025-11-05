@@ -11,19 +11,8 @@ int main(int argc, char* argv[]) {
         }
     
     t_storage* storage = iniciar_storage(); // obtiene los configs y los logs
-
+    //verificar_storage(storage);
     inicializar_file_system(storage); // crea el FS si es fresh start
-    
-    t_list* parametros = list_create();
-    list_add(parametros, "mi_file");
-    list_add(parametros, "mi_file");
-    list_add(parametros, "tag_inicial");
-
-    crear_file(storage,parametros);
-
-
-
-    // verificar_storage(storage);
     
     int storage_fd = iniciar_servidor(storage->puerto_escucha);  //socket, bind, listen    inicia el servidor 
     log_info(storage->logger, "Servidor listo");
