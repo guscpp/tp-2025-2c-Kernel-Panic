@@ -1,6 +1,5 @@
 #include "storage.h"
-#include <commons/bitarray.h>
-#include <errno.h>
+
 
 char* PATH_BASE;
 
@@ -21,6 +20,9 @@ t_storage* iniciar_storage(){
     storage->log_level = config_get_string_value(storage->config, "LOG_LEVEL");
     storage->tamanio_bloque = config_get_int_value(storage->superblock, "BLOCK_SIZE");
     storage->tamanio_filesystem = config_get_int_value(storage->superblock, "FS_SIZE");
+
+    storage->bitmap = NULL;
+
 
     log_info(storage->logger, "El storage se inicializo correctamente");
 
@@ -103,7 +105,7 @@ void crear_directorios(char* ruta_rel) {
     free(ruta_abs);
 }
 
-void recrear_bmap(int cantidad_bloques, char* path_bmap) {
+void recrear_bmap(t_storage* storage, int cantidad_bloques, char* path_bmap) {
     FILE* archivo_bmap = fopen(path_bmap, "w");
     if (archivo_bmap == NULL) {
         perror("No se pudo crear bitmap.bin");
@@ -114,7 +116,8 @@ void recrear_bmap(int cantidad_bloques, char* path_bmap) {
     int bytes = (cantidad_bloques + 7) / 8;   // +7 redondea hacia arriba)
 
     char* bitmap_data = calloc(1, bytes); // crear buffer, todos sus bits = 0
-    t_bitarray* bitmap = bitarray_create(bitmap_data, cantidad_bloques);  // usar el buffer
+    t_bitarray* bitmap = bitarray_create_with_mode(bitmap_data, cantidad_bloques, LSB_FIRST);
+    storage->bitmap = bitmap;  // usar el buffer, LSB completa los bytes priorizando el bit menos significativo
     fwrite(bitmap_data, 1, bytes, archivo_bmap);  // escribir el buffer a disco
 
     bitarray_destroy(bitmap); // esto no libera bitmap_data?
@@ -134,7 +137,7 @@ void recrear_hash(char* path_hash){
 void crear_initial_file(t_storage* storage){
     crear_directorios("files/initial_file");
     crear_directorios("files/initial_file/BASE");
-    crear_directorios("files/initial_file/logical_blocks");
+    crear_directorios("files/initial_file/BASE/logical_blocks");
 
     char* path_block0 = obtener_ruta_absoluta("physical_blocks/block0000.dat");
     FILE* block0 = fopen(path_block0, "w");
@@ -149,7 +152,7 @@ void crear_initial_file(t_storage* storage){
         log_error(storage->logger, "No se pudo crear el bloque inicial");
     }
 
-    char* path_logico0 = obtener_ruta_absoluta("files/initial_file/logical_blocks/block000000.dat");
+    char* path_logico0 = obtener_ruta_absoluta("files/initial_file/BASE/logical_blocks/block000000.dat");
     if(link(path_block0, path_logico0) == 0){
         log_info(storage->logger, "Se creo el link del bloque inicial con el bloque fisico correctamente");
     }else{
@@ -186,7 +189,7 @@ void formatear_fs(t_storage* storage){
     int tamanio_bloque = storage->tamanio_bloque;
     int cantidad_bloques = tamanio_filesystem / tamanio_bloque;
 
-    recrear_bmap(cantidad_bloques, path_bmap);
+    recrear_bmap(storage, cantidad_bloques, path_bmap);
 
     recrear_hash(path_hash);
 
@@ -213,7 +216,7 @@ bool inicializar_file_system(t_storage* storage){
     return true;
 }
 
-void enviar_tamanio_paquete_aworker(int worker_fd, t_storage* storage)
+void enviar_tamanio_paquete_aworker(t_storage* storage, int worker_fd)
 {
     t_buffer* buffer = crear_buffer();
     t_paquete* paquete = crear_paquete(STORAGE_SEND_BLOCK_SIZE, buffer);

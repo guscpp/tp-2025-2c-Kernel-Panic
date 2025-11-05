@@ -6,6 +6,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <commons/bitarray.h>
+#include <errno.h>
 
 typedef struct {
     t_log* logger;
@@ -19,6 +21,7 @@ typedef struct {
     char* log_level;   
     int tamanio_bloque;
     int tamanio_filesystem;
+    t_bitarray* bitmap;
 } t_storage;
 
 typedef struct{
@@ -31,7 +34,7 @@ t_storage* iniciar_storage();
 bool inicializar_file_system(t_storage* storage);
 void verificar_storage(t_storage* s);
 void liberar_storage (t_storage* storage);
-void enviar_tamanio_paquete_aworker(int worker_fd, t_storage* storage);
+void enviar_tamanio_paquete_aworker(t_storage* storage, int worker_fd);
 
 void rutina_recepcion(t_storage* storage, int storage_fd);
 void* rutina_operaciones(void* args);
