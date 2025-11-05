@@ -1,4 +1,5 @@
 #include "storage.h"
+#include <errno.h>
 
 char* PATH_BASE;
 
@@ -6,12 +7,13 @@ t_storage* iniciar_storage(){
     t_storage* storage = malloc(sizeof(t_storage));
 
     storage->logger = iniciar_logger("storage.log", "STORAGE", 1, LOG_LEVEL_INFO);
-
     storage->config = iniciar_config(storage->logger, "storage.config");
     storage->superblock = iniciar_config(storage->logger, "superblock.config");
-
     storage->puerto_escucha = config_get_string_value(storage->config, "PUERTO_ESCUCHA");
-    storage->fresh_start = config_get_int_value(storage->config, "FRESH_START");
+
+    char* fresh_start_str = config_get_string_value(storage->config, "FRESH_START");
+    storage->fresh_start = (strcmp(fresh_start_str, "TRUE") == 0) ? 1 : 0;
+
     storage->punto_montaje = config_get_string_value(storage->config, "PUNTO_MONTAJE");
     storage->retardo_operacion = config_get_int_value(storage->config, "RETARDO_OPERACION");
     storage->retardo_acceso_bloque = config_get_int_value(storage->config, "RETARDO_ACCESO_BLOQUE");
@@ -69,9 +71,32 @@ void crear_archivos(char* ruta, char* modo){
     free(ruta_abs);
 }
 
-void crear_directorios(char* ruta_rel){
+// Dada una ruta absoluta va creando cada dir individualmente
+void mkdir_recursivo(const char* ruta_abs) {
+    char* ruta = strdup(ruta_abs);
+    if (!ruta) return;
+
+    char* p = ruta;
+    if (*p == '/') p++; // Saltar raíz
+
+    for (int i=0; *p; p++, i++) {
+        if (*p == '/') {
+            *p = '\0';
+            if (mkdir(ruta, 0777) != 0 && errno != EEXIST) {
+                printf("mkdir fallo el paso: %d", i);
+            }
+            *p = '/';
+        }
+    }
+    if (mkdir(ruta, 0777) != 0 && errno != EEXIST) {
+        perror("mkdir falló en último nivel");
+    }
+    free(ruta);
+}
+
+void crear_directorios(char* ruta_rel) {
     char* ruta_abs = obtener_ruta_absoluta(ruta_rel);
-    mkdir(ruta_abs, 0777);
+    mkdir_recursivo(ruta_abs);
     free(ruta_abs);
 }
 
