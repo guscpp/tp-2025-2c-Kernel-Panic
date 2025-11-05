@@ -13,7 +13,7 @@ int main(int argc, char* argv[]) {
     t_query_interpreter*  query_interpreter =  query_interpreter_crear(w->logger); //tiene pc y un verificador de interrupciones
     w->interpreter = query_interpreter; 
 
-    pthread_mutex_init(&mutex_interrupt, NULL); 
+    //comento-mutex pthread_mutex_init(&mutex_interrupt, NULL); 
 
     pthread_t ciclo_instrucciones; 
     pthread_t hilo_interrupciones;

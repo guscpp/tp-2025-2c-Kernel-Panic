@@ -63,11 +63,13 @@ char* obtener_ruta_absoluta(char* ruta_rel){
     return aux;
 }
 
-void crear_archivos(char* ruta, char* modo){
+void crear_archivos(char* ruta, char* modo) {
     char* ruta_abs = obtener_ruta_absoluta(ruta);
     FILE* archivo = fopen(ruta_abs, modo);
-    if(archivo != NULL){
+    if (archivo == NULL) {
         perror("No se pudo abrir el archivo");
+    } else {
+        fclose(archivo);
     }
     free(ruta_abs);
 }
@@ -100,8 +102,6 @@ void crear_directorios(char* ruta_rel) {
     mkdir_recursivo(ruta_abs);
     free(ruta_abs);
 }
-
-#include <commons/bitarray.h>
 
 void recrear_bmap(int cantidad_bloques, char* path_bmap) {
     FILE* archivo_bmap = fopen(path_bmap, "w");
