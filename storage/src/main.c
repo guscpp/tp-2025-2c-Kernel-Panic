@@ -14,7 +14,35 @@ int main(int argc, char* argv[]) {
     t_storage* storage = iniciar_storage(); // obtiene los configs y los logs
     //verificar_storage(storage);
     inicializar_file_system(storage); // crea el FS si es fresh start
-   
+
+// ========== PRUEBA AISLADA DE LEER_BLOQUE ==========
+printf("\n🧪 Probando LEER_BLOQUE de forma aislada...\n");
+t_list* paquete_read = list_create();
+int opcode = STORAGE_READ_BLOCK;
+int query_id = 999;
+char* file = "initial_file";
+char* tag = "BASE";
+int bloque = 0;
+list_add(paquete_read, &opcode);
+list_add(paquete_read, &query_id);
+list_add(paquete_read, file);
+list_add(paquete_read, tag);
+list_add(paquete_read, &bloque);
+
+void* contenido = NULL;
+int tam_bloque = 0;
+printf("Ingresando a leer_bloque() ... \n");
+if (leer_bloque(storage, paquete_read, &contenido, &tam_bloque)) {
+    printf("✅ Lectura exitosa. Contenido (primeros 20 bytes): '");
+    fwrite(contenido, 1, tam_bloque > 20 ? 20 : tam_bloque, stdout);
+    printf("'\n");
+    free(contenido);
+} else {
+    printf("❌ Falló leer_bloque\n");
+}
+list_destroy(paquete_read);
+// ========== FIN PRUEBA ==========
+
     int storage_fd = iniciar_servidor(storage->puerto_escucha);  //socket, bind, listen    inicia el servidor 
     log_info(storage->logger, "Servidor listo");
 

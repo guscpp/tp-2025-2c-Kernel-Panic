@@ -164,3 +164,85 @@ bool truncar_file(t_storage* storage, t_list* parametros)
 // o usar string_strim por si hay un salto de linea o espacio al final
 
 // falta crear logical blocks 
+
+
+bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* tamanio_bloque) {
+    if (!parametros || list_size(parametros) < 5) {
+        log_error(storage->logger, "Parámetros insuficientes para STORAGE_READ_BLOCK");
+        return false;
+    }
+
+    int query_id = *(int*)list_get(parametros, 1);
+    char* nombre_file = list_get(parametros, 2);
+    char* tag = list_get(parametros, 3);
+    int bloque_logico = *(int*)list_get(parametros, 4);
+
+    if (!nombre_file || !tag || strlen(nombre_file) == 0 || strlen(tag) == 0) {
+        log_error(storage->logger, "Nombre de File o Tag inválido");
+        return false;
+    }
+
+    char* ruta_tag = string_from_format("%s/files/%s/%s", storage->punto_montaje, nombre_file, tag);
+    if (access(ruta_tag, F_OK) != 0) {
+        log_error(storage->logger, "File:Tag inexistente: %s:%s", nombre_file, tag);
+        free(ruta_tag);
+        return false;
+    }
+    free(ruta_tag);
+
+    char* metadata_path = string_from_format("%s/files/%s/%s/metadata.config",
+                                            storage->punto_montaje, nombre_file, tag);
+    t_config* metadata = config_create(metadata_path);
+    if (!metadata) {
+        log_error(storage->logger, "No se pudo cargar metadata de %s:%s", nombre_file, tag);
+        free(metadata_path);
+        return false;
+    }
+
+    int tam_archivo = config_get_int_value(metadata, "TAMANIO");
+    int bloques_logicos_totales = (tam_archivo + storage->tamanio_bloque - 1) / storage->tamanio_bloque;
+
+    if (bloque_logico < 0 || bloque_logico >= bloques_logicos_totales) {
+        log_error(storage->logger, "Lectura fuera de límite: bloque lógico %d en archivo de %d bytes",
+                  bloque_logico, tam_archivo);
+        config_destroy(metadata);
+        free(metadata_path);
+        return false;
+    }
+
+    config_destroy(metadata);
+    free(metadata_path);
+
+    char* nombre_bloque = string_from_format("%06d.dat", bloque_logico);
+    char* ruta_bloque_logico = string_from_format("%s/files/%s/%s/logical_blocks/%s",
+                                                 storage->punto_montaje, nombre_file, tag, nombre_bloque);
+    free(nombre_bloque);
+
+    FILE* f_bloque = fopen(ruta_bloque_logico, "r");
+    if (!f_bloque) {
+        log_error(storage->logger, "No se encontró el bloque lógico: %s", ruta_bloque_logico);
+        free(ruta_bloque_logico);
+        return false;
+    }
+
+    *contenido = malloc(storage->tamanio_bloque);
+    size_t leido = fread(*contenido, 1, storage->tamanio_bloque, f_bloque);
+    fclose(f_bloque);
+    free(ruta_bloque_logico);
+
+    if (leido < storage->tamanio_bloque) {
+        memset((char*)(*contenido) + leido, 0, storage->tamanio_bloque - leido);
+    }
+
+    *tamanio_bloque = storage->tamanio_bloque;
+
+    // Aplicar retardos
+    usleep(storage->retardo_operacion * 1000);
+    usleep(storage->retardo_acceso_bloque * 1000);
+
+    // Log obligatorio
+    log_info(storage->logger, "##%d- Bloque Lógico Leído %s:%s - Número de Bloque: %d",
+             query_id, nombre_file, tag, bloque_logico);
+
+    return true;
+}

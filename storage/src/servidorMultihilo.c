@@ -102,9 +102,23 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             break;
 
         case STORAGE_READ_BLOCK:
-            // implementar logica de estructura de bloque
-            
-            log_info(storage->logger, "Operacion STORAGE_READ_BLOCK");
+            {
+                void* contenido_bloque = NULL;
+                int tamanio_bloque = 0;
+                if (leer_bloque(storage, paquete, &contenido_bloque, &tamanio_bloque)) {
+                    t_buffer* buffer_resp = crear_buffer();
+                    t_paquete* paquete_resp = crear_paquete(STORAGE_SEND_OK, buffer_resp);
+                    agregar_a_paquete(paquete_resp, contenido_bloque, tamanio_bloque);
+                    enviar_paquete(paquete_resp, socket_cliente, storage->logger);
+                    eliminar_paquete(paquete_resp);
+                    free(contenido_bloque);
+                } else {
+                    t_buffer* buf_err = crear_buffer();
+                    t_paquete* pkt_err = crear_paquete(STORAGE_SEND_ERROR, buf_err);
+                    enviar_paquete(pkt_err, socket_cliente, storage->logger);
+                    eliminar_paquete(pkt_err);
+                }
+            }
             break;
 
         case STORAGE_WRITE_BLOCK:
