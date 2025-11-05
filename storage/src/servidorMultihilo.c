@@ -128,9 +128,31 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             break;
 
         case STORAGE_DELETE:
-            // implementar logica de eliminar un tag
+        
             
-            log_info(storage->logger, "Operacion STORAGE_DELETE");
+            int query_id = *(int*)list_get(paquete, 1);
+            char* file   = (char*)list_get(paquete, 2);
+            char* tag    = (char*)list_get(paquete, 3);
+
+            log_info(storage->logger, "##%d - Solicitud de eliminación recibida: %s:%s",
+                    query_id, file, tag);
+
+            
+            bool exito = eliminar_file_tag(storage, query_id, file, tag);
+
+        
+            t_buffer* buffer_respuesta = crear_buffer();
+            t_paquete* paquete_respuesta = crear_paquete(
+                exito ? STORAGE_SEND_OK : STORAGE_SEND_ERROR, 
+                buffer_respuesta
+            );
+
+            char* msg = exito ? "Eliminación exitosa" : "Error al eliminar el archivo";
+            agregar_a_paquete(paquete_respuesta, msg, strlen(msg) + 1);
+            enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
+            eliminar_paquete(paquete_respuesta);
+            list_destroy_and_destroy_elements(paquete, free);
+
             break;
         
         default:
@@ -147,11 +169,6 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
 
 
 }
-
-
-
-
-
 
 
 

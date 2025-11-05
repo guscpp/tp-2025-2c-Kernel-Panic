@@ -1,8 +1,35 @@
 #include "storage.h"
+int rm_rf(const char* path);
 
-void marcar_bloque_libre(t_storage* storage, const char* path_fisico){
-    return;
+void marcar_bloque_libre(t_storage* storage, int numero_bloque) {
+    int cantidad_bloques = storage->tamanio_filesystem / storage->tamanio_bloque;
+
+    if (numero_bloque < 0 || numero_bloque >= cantidad_bloques) {
+        log_warning(storage->logger, "Intento de liberar bloque inválido: %d", numero_bloque);
+        return;
+    }
+
+    if (!bitarray_test_bit(storage->bitmap, numero_bloque)) {
+        log_warning(storage->logger, "Bloque %d ya estaba libre", numero_bloque);
+        return;
+    }
+
+    bitarray_clean_bit(storage->bitmap, numero_bloque);
+    log_info(storage->logger, "Bloque físico %d marcado como libre", numero_bloque);
 }
+
+// MarcarBloqueLibre Papu
+/* 
+    char* nombre_archivo = strrchr(path_fisico, '/');
+    if (!nombre_archivo) return;
+
+    int nro_bloque = atoi(nombre_archivo + 6); // saltea los primeros 6 caracteres "/block" dejando 0005.dat por ejemplo
+    bitarray_clean_bit(storage->bitmap, nro_bloque);
+    log_info(storage->logger, "Bloque físico %d marcado como libre en el bitmap", nro_bloque);
+
+    msync(storage->bitmap->bitarray, storage->bitmap->size, MS_SYNC); // sincronizo el bitmap con los cambios
+
+*/
 
 bool crear_file(t_storage* storage, t_list* parametros)
 {
@@ -150,6 +177,23 @@ bool truncar_file(t_storage* storage, t_list* parametros)
             free(path_logico);
         }
     }
+
+    //Codigo Papu
+    /*
+        config_set_value(metadata_config, "TAMANIO", string_itoa(nuevo_tamanio));
+
+    char* bloques_string = string_new();
+    string_append(&bloques_string, "[");
+    for(int i = 0; i < bloques_nuevos; i++) {
+        char* num = string_from_format("%d", bloques_string[i]);
+    }
+    nuevos_bloques[bloques_nuevos] = NULL;
+
+    config_set_value(metadata_config, "BLOQUES", nuevos_bloques);
+    config_save(metadata_config);
+    config_destroy(metadata_config);
+    */
+
     return true;
 }
  // falta actualizar metada y implementar marcar_bloque_libre
@@ -243,6 +287,73 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
     // Log obligatorio
     log_info(storage->logger, "##%d- Bloque Lógico Leído %s:%s - Número de Bloque: %d",
              query_id, nombre_file, tag, bloque_logico);
+
+    return true;
+}
+
+bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const char* tag) {
+    // 1️⃣ Armar rutas
+    char* path_tag = string_from_format("%s/files/%s/%s", storage->punto_montaje, file, tag);
+    char* path_metadata = string_from_format("%s/metadata.config", path_tag);
+    char* path_bitmap = string_from_format("%s/bitmap.bin", storage->punto_montaje);
+
+    // 2️⃣ Verificar existencia
+    if (access(path_tag, F_OK) != 0) {
+        log_warning(storage->logger, "Intento de eliminar File:Tag inexistente %s:%s", file, tag);
+        free(path_tag);
+        free(path_metadata);
+        free(path_bitmap);
+        return false;
+    }
+
+    // 3️⃣ Abrir metadata
+    t_config* metadata = config_create(path_metadata);
+    if (metadata == NULL) {
+        log_error(storage->logger, "No se pudo abrir metadata de %s:%s", file, tag);
+        free(path_tag);
+        free(path_metadata);
+        free(path_bitmap);
+        return false;
+    }
+
+    // 4️⃣ Obtener bloques
+    char** bloques = config_get_array_value(metadata, "BLOCKS");
+
+    // 5️⃣ Liberar bloques físicos
+    for (int i = 0; bloques != NULL && bloques[i] != NULL; i++) {
+        int num_bloque = atoi(bloques[i]);
+        marcar_bloque_libre(storage, num_bloque);
+    }
+
+    // 6️⃣ Guardar bitmap actualizado en disco
+    FILE* f = fopen(path_bitmap, "wb");
+    if (f) {
+        fwrite(storage->bitmap->bitarray, storage->bitmap->size, 1, f);
+        fclose(f);
+    } else {
+        log_error(storage->logger, "No se pudo abrir %s para persistir bitmap", path_bitmap);
+    }
+
+    // 7️⃣ Destruir metadata
+    config_destroy(metadata);
+
+    // 8️⃣ Borrar carpeta física del tag
+    int rm_ok = rm_rf(path_tag);
+    if (rm_ok != 0) {
+        log_error(storage->logger, "No se pudo borrar %s (codigo %d)", path_tag, rm_ok);
+        free(path_tag);
+        free(path_metadata);
+        free(path_bitmap);
+        return false;
+    }
+
+    // 9️⃣ Log final de éxito
+    log_info(storage->logger, "##%d- File Eliminado %s:%s", query_id, file, tag);
+
+    // 🔟 Liberar memoria temporal
+    free(path_tag);
+    free(path_metadata);
+    free(path_bitmap);
 
     return true;
 }
