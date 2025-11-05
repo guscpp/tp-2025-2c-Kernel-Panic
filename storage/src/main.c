@@ -1,5 +1,7 @@
 #include "storage.h"
 
+bool crear_file(t_storage* storage, t_list* parametros); // prototipo para test
+
 int main(int argc, char* argv[]) {
     
         if (argc != 2)
@@ -11,6 +13,15 @@ int main(int argc, char* argv[]) {
     t_storage* storage = iniciar_storage(); // obtiene los configs y los logs
 
     inicializar_file_system(storage); // crea el FS si es fresh start
+    
+    t_list* parametros = list_create();
+    list_add(parametros, "mi_file");
+    list_add(parametros, "mi_file");
+    list_add(parametros, "tag_inicial");
+
+    crear_file(storage,parametros);
+
+
 
     // verificar_storage(storage);
     

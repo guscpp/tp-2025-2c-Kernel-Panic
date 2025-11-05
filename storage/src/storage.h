@@ -36,4 +36,5 @@ void enviar_tamanio_paquete_aworker(int worker_fd, t_storage* storage);
 void rutina_recepcion(t_storage* storage, int storage_fd);
 void* rutina_operaciones(void* args);
 
+
 #endif
