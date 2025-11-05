@@ -150,20 +150,21 @@ bool truncar_file(t_storage* storage, t_list* parametros)
             free(path_logico);
         }
     }
+
+    config_set_value(metadata_config, "TAMANIO", string_itoa(nuevo_tamanio));
+
+    char* bloques_string = string_new();
+    string_append(&bloques_string, "[");
+    for(int i = 0; i < bloques_nuevos; i++) {
+        char* num = string_from_format("%d", bloques_string[i]);
+    }
+    nuevos_bloques[bloques_nuevos] = NULL;
+
+    config_set_value(metadata_config, "BLOQUES", nuevos_bloques);
+    config_save(metadata_config);
+    config_destroy(metadata_config);
     return true;
-}
- // falta actualizar metada y implementar marcar_bloque_libre
-
-
-
-
-
-
-// probar si el path es correcto en la que se esta pasando con varios logs 
-
-// o usar string_strim por si hay un salto de linea o espacio al final
-
-// falta crear logical blocks 
+} 
 
 
 bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* tamanio_bloque) {
