@@ -406,6 +406,7 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
     return true;
 }
 
+//*****************************************************************************
 bool escribir_bloque(t_storage* storage, t_list* parametros) {
     if (!parametros || list_size(parametros) < 6) { 
         // 0:cod_op, 1:query_id, 2:file, 3:tag, 4:bloque_logico, 5:contenido
@@ -666,37 +667,41 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     // 5. Log obligatorio
     log_info(storage->logger, "##%d- Bloque Lógico Escrito %s:%s - Número de Bloque: %d",
              query_id, nombre_file, tag, bloque_logico);
+    
+    return true;
 }
-//*****************************************************************************
 
+//*****************************************************************************
 // Calcula el hash MD5 de un archivo y lo devuelve como string hexadecimal
 char* calcular_md5_de_archivo(const char* path) {
-    unsigned char c[MD5_DIGEST_LENGTH];
-    int i;
-    FILE *inFile = fopen(path, "rb");
-    MD5_CTX mdContext;
-    int bytes;
-    unsigned char data[1024];
-
-    if (inFile == NULL) {
-        perror(path);
+    FILE* file = fopen(path, "rb");
+    if (!file) {
+        printf("No se pudo abrir el archivo para calcular MD5: %s\n", path);
         return NULL;
     }
 
-    MD5_Init(&mdContext);
-    while ((bytes = fread(data, 1, 1024, inFile)) != 0)
-        MD5_Update(&mdContext, data, bytes);
-    MD5_Final(c, &mdContext);
-    fclose(inFile);
+    //Leer todo el contenido del archivo
+    fseek(file, 0, SEEK_END);
+    long size = ftell(file);
+    rewind(file);
 
-    char* md5_string = malloc(33);
-    for (i = 0; i < 16; i++)
-        sprintf(&md5_string[i * 2], "%02x", c[i]);
-    md5_string[32] = '\0';
+    if (size <= 0) {
+        fclose(file);
+        return strdup("d41d8cd98f00b204e9800998ecf8427e");  // MD5 de archivo vacío
+    }
+
+    char* buffer = malloc(size);
+    fread(buffer, 1, size, file);
+    fclose(file);
+
+    // Calcular el hash MD5
+    char* md5_string = crypto_md5(buffer, size);
+
+    free(buffer);
     return md5_string;
 }
-//*****************************************************************************
 
+//*****************************************************************************
 // Guarda el estado actual del bitmap en disco
 void persistir_bitmap(t_storage* storage) {
     FILE* f = fopen(storage->path_bitmap, "wb");

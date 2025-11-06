@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <commons/bitarray.h>
 #include <errno.h>
-#include <openssl/md5.h>
+#include <commons/crypto.h>
 
 
 
