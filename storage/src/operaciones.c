@@ -94,6 +94,54 @@ bool crear_file(t_storage* storage, t_list* parametros)
     free(ruta_abs_tag);
     return true;
 }
+static char* path_logico_para_truncate(const char* punto_montaje, const char* nombre_file, const char* tag, int i) {
+    return string_from_format("%s/files/%s/%s/logical_blocks/block%06d.dat",
+                              punto_montaje, nombre_file, tag, i);
+}
+
+static char* path_fisico_para_truncate(const char* punto_montaje, int bloque_fisico_id) {
+    return string_from_format("%s/physical_blocks/block%04d.dat", punto_montaje, bloque_fisico_id);
+}
+
+static int* leer_bloques_actuales(t_config* metadata_config, int* cantidad_bloques_fisico) { // devuelve un puntero a un array de int con los bloques fisicos actuales y cambia la variable cantidad_bloques_fisico
+    *cantidad_bloques_fisico = 0;
+    char** array = config_get_array_value(metadata_config, "BLOCKS");
+    if( !array ) {
+        return NULL;
+    }
+
+    int n = 0;
+    while(array[n] != NULL) {
+        n++;
+    }
+
+    if(n == 0) {
+        return NULL;
+    }
+    
+    int* array_bloques = malloc(sizeof(int) * n);
+    for(int i = 0; i < n; i++) {
+        array_bloques[i] = atoi(array[i]);
+    }
+    *cantidad_bloques_fisico = n;
+    return array_bloques;
+}
+
+static char* serializar_bloques(const int* bloques, int cantidad_bloques) {
+    char* resultado = string_new();
+    string_append(&resultado, "[");
+    for(int i = 0; i < cantidad_bloques; i++) {
+        char* num = string_from_format("%d", bloques[i]);
+        string_append(&resultado, num);
+        free(num);
+        if(i < cantidad_bloques - 1) {
+            string_append(&resultado, ",");
+        }
+    }
+    string_append(&resultado, "]");
+    return resultado;
+
+}
 
 bool truncar_file(t_storage* storage, t_list* parametros)
 {
@@ -126,19 +174,26 @@ bool truncar_file(t_storage* storage, t_list* parametros)
     }
 
     int tamanio_actual = config_get_int_value(metadata_config, "TAMANIO");
-    // char** bloques = config_get_array_value(metadata_config, "BLOQUES");
-
     int tamanio_bloque = storage->tamanio_bloque;
     int bloques_actuales = tamanio_actual / tamanio_bloque;
     int bloques_nuevos = nuevo_tamanio / tamanio_bloque;
 
     log_info(storage->logger, "Truncando file %s tag %s de %d a %d bytes", nombre_file, tag, tamanio_actual, nuevo_tamanio);
 
+    int cantidad_bloques_fisico = 0;
+    int* array_bloques_fisico = leer_bloques_actuales(metadata_config, &cantidad_bloques_fisico); // obtiene un puntero de int al array de bloques fisicos actuales
+
+
+    log_info(storage->logger, "Truncar %s:%s de %d→%d bytes (%d→%d bloques)",
+             nombre_file, tag, tamanio_actual, nuevo_tamanio, bloques_actuales, bloques_nuevos);
+
+
+
     if(bloques_nuevos > bloques_actuales) { // Aumentar tamaño
         for(int i = bloques_actuales; i < bloques_nuevos; i++) {
-            char* path_logico = string_from_format("%s/files/%s/%s/logical_blocks/block%06d.dat", storage->punto_montaje, nombre_file, tag, i);
-            char* path_fisico = string_from_format("%s/physical_blocks/block0000.dat", storage->punto_montaje); 
-            if(link(path_fisico, path_logico) != 0) {
+            char* path_logico = path_logico_para_truncate(storage->punto_montaje, nombre_file, tag, i);
+            char* path_fisico = path_fisico_para_truncate(storage->punto_montaje, 0); 
+            if(link(path_fisico, path_logico) != 0) { // linkea los bloques logicos nuevos con el bloque fisico 0
                 log_error(storage->logger, "Error al crear link para el %s -> %s", path_logico, path_fisico);
                 free(path_logico);
                 free(path_fisico);
@@ -154,58 +209,71 @@ bool truncar_file(t_storage* storage, t_list* parametros)
         }
 
 
-    else if(bloques_nuevos < bloques_actuales) { // Disminuir tamaño
-        for(int i = bloques_nuevos - 1; i >= bloques_nuevos; i--){
+    if(bloques_nuevos < bloques_actuales) { // Disminuir tamaño
+        for(int i = bloques_actuales - 1; i >= bloques_nuevos; i--){ // va desde el ultimo bloque logico hasta el nuevo tamanio
             char* path_logico = string_from_format("%s/files/%s/%s/logical_blocks/block%06d.dat", storage->punto_montaje, nombre_file, tag, i);
 
+            int array_fisico_id = 0;
+            if(array_bloques_fisico && i < cantidad_bloques_fisico) { // asegurar que no se salga del array
+                array_fisico_id = array_bloques_fisico[i]; // copia el id del bloque fisico asociado
+            }
             if(access(path_logico, F_OK) == 0) {
-                char path_fisico[512];
-                ssize_t len = readlink(path_logico, path_fisico, sizeof(path_fisico) - 1);
-                if (len != -1) {
-                    path_fisico[len] = '\0'; // esto para usar path_fisico como string y usar stat
-
-                    remove(path_logico); // Eliminar link logico
-
-                    struct stat stat_buf;
-                    if (stat(path_fisico, &stat_buf) == 0) {
-                        if (stat_buf.st_nlink == 1) {
-                            //extraer el numero de bloque fisico del nombre del archivo
-                            char* nombre_bloque = strrchr(path_fisico, '/');
-                            if (nombre_bloque == NULL) nombre_bloque = path_fisico;
-                            else nombre_bloque++; // saltar '/'
-
-                            //saltar "block" -> nombre_bloque = "0005.dat"
-                            if (strncmp(nombre_bloque, "block", 5) == 0) {
-                                int num_bloque = atoi(nombre_bloque + 5); // "0005.dat" -> 5
-                                pthread_mutex_lock(&storage->mutex_bitmap);
-                                marcar_bloque_libre(storage, query_id, num_bloque);
-                                pthread_mutex_unlock(&storage->mutex_bitmap);
-                                log_info(storage->logger, "##%d- Bloque Físico Liberado - Número de Bloque: %d",
-                                        query_id, num_bloque);
-                            }
-                        }
-                    }
+                if(unlink(path_logico) != 0) { // elimina el link del bloque logico
+                    log_error(storage->logger, "Error al eliminar el bloque logico %s", path_logico);
+                    free(path_logico);
+                    config_destroy(metadata_config);
+                    free(ruta_tag);
+                    free(ruta_metadata);
+                    return false;
                 }
             }
             free(path_logico);
+
+            char* path_fisico = path_fisico_para_truncate(storage->punto_montaje, array_fisico_id); // crea el path fisico con la posicion asociada
+            struct stat st;
+            if (stat(path_fisico, &st) == 0) {
+                if(st.st_nlink == 1) { // si el link count es 1, nadie mas lo esta usando
+                    marcar_bloque_libre(storage, query_id, array_fisico_id);
+                    log_info(storage->logger, "Bloque fisico %d liberado", array_fisico_id);
+                
+                }
+            }
+            free(path_fisico);
         }
     }
 
-    //Codigo Papu
-    /*
-        config_set_value(metadata_config, "TAMANIO", string_itoa(nuevo_tamanio));
+    // reconstruye el bloque para actualizar la metadata config
+    int cantidad_bloques_fisico_nueva = bloques_nuevos;
+    int* bloque_fisico_final = NULL;
+    if(cantidad_bloques_fisico_nueva > 0) {
+        bloque_fisico_final = malloc(sizeof(int) * cantidad_bloques_fisico_nueva);
+        int copiar = (bloque_fisico_final ? (cantidad_bloques_fisico < cantidad_bloques_fisico_nueva ? cantidad_bloques_fisico : cantidad_bloques_fisico_nueva) : 0); // si necesita achicar copia hasta el tamanio achicado 
+        for(int i = 0; i < copiar; i++) {
+            bloque_fisico_final[i] = array_bloques_fisico[i];
+        }
+        for(int i = copiar; i < cantidad_bloques_fisico_nueva; i++) { // si necesita agrandar, los nuevos bloques se setean en 0
+            bloque_fisico_final[i] = 0;
+        }
 
-    char* bloques_string = string_new();
-    string_append(&bloques_string, "[");
-    for(int i = 0; i < bloques_nuevos; i++) {
-        char* num = string_from_format("%d", bloques_string[i]);
     }
-    nuevos_bloques[bloques_nuevos] = NULL;
 
-    config_set_value(metadata_config, "BLOQUES", nuevos_bloques);
+    char* tamanio_final = string_from_format("%d", nuevo_tamanio);
+    config_set_value(metadata_config, "TAMANIO", tamanio_final);
+    free(tamanio_final);
+
+
+    char* bloques = serializar_bloques(bloque_fisico_final, cantidad_bloques_fisico_nueva);
+    config_set_value(metadata_config, "BLOCKS", bloques);
     config_save(metadata_config);
+
+    free(bloques);
+    if(bloque_fisico_final) free(bloque_fisico_final);
+    if(array_bloques_fisico) free(array_bloques_fisico);
     config_destroy(metadata_config);
-    */
+    free(ruta_tag);
+    free(ruta_metadata);
+    
+
 
     return true;
 } 
