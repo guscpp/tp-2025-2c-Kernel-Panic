@@ -51,7 +51,7 @@ void liberar_storage (t_storage* storage){
 
 }
 
-int rm_rf (char* path){
+int rm_rf (const char* path){
     char* comando = string_from_format("rm -rf %s", path);
     int aux = system(comando);
     free(comando);

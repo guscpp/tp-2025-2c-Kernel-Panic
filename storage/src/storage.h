@@ -32,17 +32,27 @@ typedef struct{
 } args_hilo_worker;
 
 
-t_storage* iniciar_storage();
+// === Funciones de inicialización ===
+t_storage* iniciar_storage(void);
 bool inicializar_file_system(t_storage* storage);
 void verificar_storage(t_storage* s);
-void liberar_storage (t_storage* storage);
-void enviar_tamanio_paquete_aworker(t_storage* storage, int worker_fd);
+void liberar_storage(t_storage* storage);
 
+// === Funciones de servidor ===
 void rutina_recepcion(t_storage* storage, int storage_fd);
 void* rutina_operaciones(void* args);
+void enviar_tamanio_paquete_aworker(t_storage* storage, int worker_fd);
 
+// === Utilidades FS ===
 char* obtener_ruta_absoluta(char* ruta_rel);
 void crear_directorios(char* ruta_rel);
 void mkdir_recursivo(const char* ruta_abs);
+int rm_rf(const char* path);
+
+// === Inicialización interna (usadas en storage.c) ===
+void formatear_fs(t_storage* storage);
+void crear_initial_file(t_storage* storage);
+void recrear_bmap(t_storage* storage, int cantidad_bloques, char* path_bmap);
+void recrear_hash(char* path_hash);
 
 #endif

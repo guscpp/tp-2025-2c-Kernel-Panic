@@ -104,7 +104,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
         case STORAGE_READ_BLOCK:
             {
                 void* contenido_bloque = NULL;
-                int tamanio_bloque = 0;
+                int tamanio_bloque = storage->tamanio_bloque;
                 if (leer_bloque(storage, paquete, &contenido_bloque, &tamanio_bloque)) {
                     t_buffer* buffer_resp = crear_buffer();
                     t_paquete* paquete_resp = crear_paquete(STORAGE_SEND_OK, buffer_resp);
@@ -128,18 +128,14 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             break;
 
         case STORAGE_DELETE:
-        
-            
             int query_id = *(int*)list_get(paquete, 1);
             char* file   = (char*)list_get(paquete, 2);
             char* tag    = (char*)list_get(paquete, 3);
 
             log_info(storage->logger, "##%d - Solicitud de eliminación recibida: %s:%s",
                     query_id, file, tag);
-
             
             bool exito = eliminar_file_tag(storage, query_id, file, tag);
-
         
             t_buffer* buffer_respuesta = crear_buffer();
             t_paquete* paquete_respuesta = crear_paquete(
@@ -157,7 +153,6 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
         
         default:
             log_error(storage->logger, "Operacion desconocida %d recibida del worker en [Socket %d]", codigo_operacion, socket_cliente);
-
         }
 
         list_destroy_and_destroy_elements(paquete, free);

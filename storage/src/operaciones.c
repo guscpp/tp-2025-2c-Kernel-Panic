@@ -1,7 +1,8 @@
 #include "storage.h"
-int rm_rf(const char* path);
 
-void marcar_bloque_libre(t_storage* storage, int numero_bloque) {
+int rm_rf(const char* path); //para debug, eliminalo eventualmente
+
+void marcar_bloque_libre(t_storage* storage, int query_id, int numero_bloque) {
     int cantidad_bloques = storage->tamanio_filesystem / storage->tamanio_bloque;
 
     if (numero_bloque < 0 || numero_bloque >= cantidad_bloques) {
@@ -96,14 +97,15 @@ bool crear_file(t_storage* storage, t_list* parametros)
 
 bool truncar_file(t_storage* storage, t_list* parametros)
 {
-    if (!parametros || list_size(parametros) < 4) {
+    if (!parametros || list_size(parametros) < 5) {
         log_error(storage->logger, "Parametros invalidos para truncar_file");
         return false;
     }
 
-    char* nombre_file = list_get(parametros, 1);
-    char* tag = list_get(parametros, 2);
-    int nuevo_tamanio = *(int*) list_get(parametros, 3);
+    int query_id = *(int*)list_get(parametros, 1);
+    char* nombre_file = list_get(parametros, 2);
+    char* tag = list_get(parametros, 3);
+    int nuevo_tamanio = *(int*) list_get(parametros, 4);
 
     char* ruta_tag = string_from_format("%s/files/%s/%s/metadata.config", storage->punto_montaje, nombre_file, tag);
     char* ruta_metadata = string_from_format("%s/metadata.config", ruta_tag);
@@ -165,12 +167,23 @@ bool truncar_file(t_storage* storage, t_list* parametros)
                     remove(path_logico); // Eliminar link logico
 
                     struct stat stat_buf;
-                    if (stat(path_fisico, &stat_buf) == 0) { // checkea los stats del path fisico, en este caso nos interesa las cantidades de links
+                    if (stat(path_fisico, &stat_buf) == 0) {
                         if (stat_buf.st_nlink == 1) {
-                            marcar_bloque_libre(storage, path_fisico);
-                            log_info(storage->logger, "Bloque fisico %s liberado", path_fisico);
-                        }
+                            //extraer el numero de bloque fisico del nombre del archivo
+                            char* nombre_bloque = strrchr(path_fisico, '/');
+                            if (nombre_bloque == NULL) nombre_bloque = path_fisico;
+                            else nombre_bloque++; // saltar '/'
 
+                            //saltar "block" -> nombre_bloque = "0005.dat"
+                            if (strncmp(nombre_bloque, "block", 5) == 0) {
+                                int num_bloque = atoi(nombre_bloque + 5); // "0005.dat" -> 5
+                                pthread_mutex_lock(&storage->mutex_bitmap);
+                                marcar_bloque_libre(storage, query_id, num_bloque);
+                                pthread_mutex_unlock(&storage->mutex_bitmap);
+                                log_info(storage->logger, "##%d- Bloque Físico Liberado - Número de Bloque: %d",
+                                        query_id, num_bloque);
+                            }
+                        }
                     }
                 }
             }
@@ -196,7 +209,6 @@ bool truncar_file(t_storage* storage, t_list* parametros)
 
     return true;
 } 
-
 
 bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* tamanio_bloque) {
     if (!parametros || list_size(parametros) < 5) {
@@ -310,7 +322,7 @@ bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const
     // 5️⃣ Liberar bloques físicos
     for (int i = 0; bloques != NULL && bloques[i] != NULL; i++) {
         int num_bloque = atoi(bloques[i]);
-        marcar_bloque_libre(storage, num_bloque);
+        marcar_bloque_libre(storage, query_id, num_bloque);
     }
 
     // 6️⃣ Guardar bitmap actualizado en disco
