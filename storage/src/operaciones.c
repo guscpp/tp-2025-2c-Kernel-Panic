@@ -3,6 +3,17 @@
 int rm_rf(const char* path); //para debug esta ok. eliminalo eventualmente, Nacho :D
 
 // ****************************************************************************
+// Obtener la longitud de un array de strings
+static int get_array_length(char** array) {
+    if (!array) return 0;
+    int length = 0;
+    while (array[length] != NULL) {
+        length++;
+    }
+    return length;
+}
+
+// ****************************************************************************
 void marcar_bloque_libre(t_storage* storage, int query_id, int numero_bloque) {
     int cantidad_bloques = storage->tamanio_filesystem / storage->tamanio_bloque;
 
@@ -392,6 +403,270 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
     //log obligatorio
     log_info(storage->logger, "##%d- Bloque Lógico Leído %s:%s - Número de Bloque: %d",
              query_id, nombre_file, tag, bloque_logico);
+    return true;
+}
+
+bool escribir_bloque(t_storage* storage, t_list* parametros) {
+    if (!parametros || list_size(parametros) < 6) { 
+        // 0:cod_op, 1:query_id, 2:file, 3:tag, 4:bloque_logico, 5:contenido
+        log_error(storage->logger, "Parámetros insuficientes para STORAGE_WRITE_BLOCK");
+        return false;
+    }
+
+    int query_id = *(int*)list_get(parametros, 1);
+    char* nombre_file = list_get(parametros, 2);
+    char* tag = list_get(parametros, 3);
+    int bloque_logico = *(int*)list_get(parametros, 4);
+    char* contenido = list_get(parametros, 5); //decidir en Worker si el contenido es un string
+    int tamanio_contenido = strlen(contenido);
+
+    if (!nombre_file || !tag || strlen(nombre_file) == 0 || strlen(tag) == 0) {
+        log_error(storage->logger, "Nombre de File o Tag inválido");
+        return false;
+    }
+
+    // 1. Verificar existencia del File:Tag
+    char* ruta_tag = string_from_format("%s/files/%s/%s", storage->punto_montaje, nombre_file, tag);
+    if (access(ruta_tag, F_OK) != 0) {
+        log_error(storage->logger, "Intento de escritura en File:Tag inexistente: %s:%s", nombre_file, tag);
+        free(ruta_tag);
+        return false;
+    }
+    free(ruta_tag);
+
+    // 2. Cargar metadata
+    char* metadata_path = string_from_format("%s/files/%s/%s/metadata.config",
+                                            storage->punto_montaje, nombre_file, tag);
+    t_config* metadata = config_create(metadata_path);
+    if (!metadata) {
+        log_error(storage->logger, "No se pudo cargar metadata de %s:%s", nombre_file, tag);
+        free(metadata_path);
+        return false;
+    }
+
+    char* estado_str = config_get_string_value(metadata, "ESTADO");
+    if (strcmp(estado_str, "COMMITED") == 0) {
+        log_error(storage->logger, "Intento de escritura en File:Tag COMMITED: %s:%s", nombre_file, tag);
+        config_destroy(metadata);
+        free(metadata_path);
+        return false;
+    }
+
+    int tam_archivo = config_get_int_value(metadata, "TAMANIO");
+    int bloques_logicos_totales = (tam_archivo + storage->tamanio_bloque - 1) / storage->tamanio_bloque;
+
+    if (bloque_logico < 0 || bloque_logico >= bloques_logicos_totales) {
+        log_error(storage->logger, "Escritura fuera de límite: bloque lógico %d en archivo de %d bytes",
+                  bloque_logico, tam_archivo);
+        config_destroy(metadata);
+        free(metadata_path);
+        return false;
+    }
+
+    // Obtener lista de bloques fisicos actuales
+    char** bloques_fisicos_array = config_get_array_value(metadata, "BLOCKS");
+    if (!bloques_fisicos_array || !bloques_fisicos_array[0]) { 
+        // Verificar si la lista está vacia o es NULL
+        log_error(storage->logger, "Metadata de %s:%s no tiene bloques físicos asignados", nombre_file, tag);
+        config_destroy(metadata);
+        if (bloques_fisicos_array) free(bloques_fisicos_array); //liberar el array de strings
+        free(metadata_path);
+        return false;
+    }
+
+    // Verificar que el bloque_logico este dentro del rango del array de bloques
+    int cantidad_bloques_metadata = get_array_length(bloques_fisicos_array);
+    if (bloque_logico >= cantidad_bloques_metadata) {
+        log_error(storage->logger, "Índice de bloque lógico %d fuera de rango para la lista de bloques físicos (longitud: %d)", bloque_logico, cantidad_bloques_metadata);
+        config_destroy(metadata);
+        if (bloques_fisicos_array) {
+            for (int i = 0; bloques_fisicos_array[i] != NULL; i++) free(bloques_fisicos_array[i]);
+            free(bloques_fisicos_array);
+        }
+        free(metadata_path);
+        return false;
+    }
+
+    int bloque_fisico_actual = atoi(bloques_fisicos_array[bloque_logico]);
+
+    config_destroy(metadata);
+    if (bloques_fisicos_array) {
+        for (int i = 0; bloques_fisicos_array[i] != NULL; i++) free(bloques_fisicos_array[i]);
+        free(bloques_fisicos_array);
+    }
+    free(metadata_path);
+
+    // 3. Verificar hard links (si es unico, escribir directamente. Si no, obtener uno nuevo y copiar).
+    char* nombre_bloque_logico = string_from_format("block%06d.dat", bloque_logico);
+    char* ruta_bloque_logico = string_from_format("%s/files/%s/%s/logical_blocks/%s",
+                                                 storage->punto_montaje, nombre_file, tag, nombre_bloque_logico);
+    free(nombre_bloque_logico);
+
+    struct stat st;
+    if (stat(ruta_bloque_logico, &st) != 0) {
+        log_error(storage->logger, "No se pudo obtener info del bloque lógico %s", ruta_bloque_logico);
+        free(ruta_bloque_logico);
+        return false;
+    }
+
+    bool es_unico_hardlink = (st.st_nlink == 1);
+    free(ruta_bloque_logico);
+
+    int bloque_fisico_final = bloque_fisico_actual;
+
+    if (!es_unico_hardlink) {
+        // a. Buscar un nuevo bloque fisico libre
+        int nuevo_bloque_fisico = -1;
+        int cantidad_bloques = storage->tamanio_filesystem / storage->tamanio_bloque;
+        for (int i = 1; i < cantidad_bloques; i++) { 
+            //empieza en 1, el 0 es initial_file
+            if (!bitarray_test_bit(storage->bitmap, i)) {
+                nuevo_bloque_fisico = i;
+                break;
+            }
+        }
+        if (nuevo_bloque_fisico == -1) {
+            log_error(storage->logger, "Espacio Insuficiente - No hay bloques físicos libres para escritura diferenciada");
+            return false;
+        }
+
+        // b. Marcar nuevo bloque como ocupado temporalmente (en caso de error, revertir)
+        bitarray_set_bit(storage->bitmap, nuevo_bloque_fisico);
+        log_info(storage->logger, "Bloque físico %d reservado para escritura diferenciada", nuevo_bloque_fisico);
+
+        // c. Obtener rutas de los bloques fisico origen y destino
+        char* ruta_fisico_actual = string_from_format("%s/physical_blocks/block%04d.dat", storage->punto_montaje, bloque_fisico_actual);
+        char* ruta_fisico_nuevo = string_from_format("%s/physical_blocks/block%04d.dat", storage->punto_montaje, nuevo_bloque_fisico);
+
+        // d. Copiar contenido del bloque fisico actual al nuevo
+        FILE* f_origen = fopen(ruta_fisico_actual, "rb");
+        FILE* f_destino = fopen(ruta_fisico_nuevo, "wb");
+        if (!f_origen || !f_destino) {
+            log_error(storage->logger, "Error al abrir bloques físicos para copia en escritura diferenciada");
+            if (f_origen) fclose(f_origen);
+            if (f_destino) fclose(f_destino);
+            // Revertir: marcar nuevo bloque como libre
+            bitarray_clean_bit(storage->bitmap, nuevo_bloque_fisico);
+            free(ruta_fisico_actual);
+            free(ruta_fisico_nuevo);
+            return false;
+        }
+        //suponiendo tamanio fijo de bloque, pq no cambia en tiempo de ejecucion
+        void* buffer_copia = malloc(storage->tamanio_bloque);
+        if (fread(buffer_copia, 1, storage->tamanio_bloque, f_origen) > 0) {
+            fwrite(buffer_copia, 1, storage->tamanio_bloque, f_destino);
+        }
+        free(buffer_copia);
+        fclose(f_origen);
+        fclose(f_destino);
+
+        // e. Eliminar el hard link viejo del bloque logico
+        char* nombre_bloque_logico_upd = string_from_format("block%06d.dat", bloque_logico);
+        char* ruta_bloque_logico_upd = string_from_format("%s/files/%s/%s/logical_blocks/%s",
+                                                         storage->punto_montaje, nombre_file, tag, nombre_bloque_logico_upd);
+        free(nombre_bloque_logico_upd);
+
+        if (unlink(ruta_bloque_logico_upd) != 0) {
+            log_error(storage->logger, "Error al eliminar hard link viejo en escritura diferenciada");
+            //revertir cambios
+            bitarray_clean_bit(storage->bitmap, nuevo_bloque_fisico);
+            free(ruta_fisico_actual);
+            free(ruta_fisico_nuevo);
+            free(ruta_bloque_logico_upd);
+            return false;
+        }
+        log_info(storage->logger, "##%d-%s:%s Se eliminó el hard link del bloque lógico %d al bloque físico %d",
+                 query_id, nombre_file, tag, bloque_logico, bloque_fisico_actual);
+
+        // f. Crear nuevo hard link del bloque logico al nuevo bloque físico
+        if (link(ruta_fisico_nuevo, ruta_bloque_logico_upd) != 0) {
+             log_error(storage->logger, "Error al crear nuevo hard link en escritura diferenciada");
+             // Revertir cambios
+             bitarray_clean_bit(storage->bitmap, nuevo_bloque_fisico);
+             // Intentar recrear el link viejo (no es perfecto, pero se intenta)
+             link(ruta_fisico_actual, ruta_bloque_logico_upd);
+             free(ruta_fisico_actual);
+             free(ruta_fisico_nuevo);
+             free(ruta_bloque_logico_upd);
+             return false;
+        }
+        log_info(storage->logger, "##%d-%s:%s Se agregó el hard link del bloque lógico %d al bloque físico %d",
+                 query_id, nombre_file, tag, bloque_logico, nuevo_bloque_fisico);
+
+        free(ruta_bloque_logico_upd);
+        free(ruta_fisico_actual);
+        free(ruta_fisico_nuevo);
+
+        bloque_fisico_final = nuevo_bloque_fisico;
+
+        // g. Actualizar metadata.config con el nuevo bloque fisico
+        metadata_path = string_from_format("%s/files/%s/%s/metadata.config",
+                                          storage->punto_montaje, nombre_file, tag);
+        metadata = config_create(metadata_path);
+        if (!metadata) {
+            log_error(storage->logger, "No se pudo recargar metadata para actualizar bloque en escritura diferenciada");
+            free(metadata_path);
+            return false; 
+        }
+
+        char** bloques_actuales = config_get_array_value(metadata, "BLOCKS");
+        int len = get_array_length(bloques_actuales);
+        if (bloques_actuales && bloque_logico < len) {
+            // Actualizar el indice correspondiente
+            free(bloques_actuales[bloque_logico]); //liberar string anterior
+            bloques_actuales[bloque_logico] = string_itoa(bloque_fisico_final); // Asignar nuevo valor
+            // Serializar de nuevo la lista completa
+            char* bloques_serializados = string_new();
+            string_append(&bloques_serializados, "[");
+            for (int i = 0; i < len; i++) {
+                string_append(&bloques_serializados, bloques_actuales[i]);
+                if (i < len - 1) string_append(&bloques_serializados, ",");
+            }
+            string_append(&bloques_serializados, "]");
+            config_set_value(metadata, "BLOCKS", bloques_serializados);
+            config_save(metadata);
+            free(bloques_serializados);
+        }
+        config_destroy(metadata);
+        if (bloques_actuales) {
+            for (int i = 0; bloques_actuales[i] != NULL; i++) free(bloques_actuales[i]);
+            free(bloques_actuales);
+        }
+        free(metadata_path);
+
+    } // Fin del bloque para escritura diferenciada
+
+
+    // 4. Escribir el contenido en el bloque fisico final (ya sea el original o el nuevo)
+    char* ruta_fisico_final = string_from_format("%s/physical_blocks/block%04d.dat", storage->punto_montaje, bloque_fisico_final);
+    FILE* f_bloque_final = fopen(ruta_fisico_final, "r+b"); // r+ para leer/escribir, b para binario
+    if (!f_bloque_final) {
+        log_error(storage->logger, "No se pudo abrir el bloque físico %d para escritura", bloque_fisico_final);
+        free(ruta_fisico_final);
+        return false;
+    }
+
+    // Aplicar retardos
+    usleep(storage->retardo_operacion * 10);
+    usleep(storage->retardo_acceso_bloque * 10);
+
+    // Escribir el nuevo contenido
+    fseek(f_bloque_final, 0, SEEK_SET); // Ir al inicio del bloque
+    fwrite(contenido, 1, tamanio_contenido, f_bloque_final);
+    // Rellenar el resto con ceros si es necesario
+    if (tamanio_contenido < storage->tamanio_bloque) {
+        char cero = 0;
+        for (int i = tamanio_contenido; i < storage->tamanio_bloque; i++) {
+            fwrite(&cero, 1, 1, f_bloque_final);
+        }
+    }
+    fclose(f_bloque_final);
+    free(ruta_fisico_final);
+
+    // 5. Log obligatorio
+    log_info(storage->logger, "##%d- Bloque Lógico Escrito %s:%s - Número de Bloque: %d",
+             query_id, nombre_file, tag, bloque_logico);
+
     return true;
 }
 

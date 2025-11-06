@@ -10,4 +10,5 @@
 void rutina_recepcion(t_storage* storage, int storage_fd);
 void* rutina_operaciones(void* args);
 extern pthread_mutex_t mutex_fs;
+
 #endif
