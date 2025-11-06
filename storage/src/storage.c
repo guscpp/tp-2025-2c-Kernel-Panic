@@ -108,24 +108,40 @@ void crear_directorios(char* ruta_rel) {
 }
 
 void recrear_bmap(t_storage* storage, int cantidad_bloques, char* path_bmap) {
-    FILE* archivo_bmap = fopen(path_bmap, "w");
-    if (archivo_bmap == NULL) {
-        perror("No se pudo crear bitmap.bin");
-        free(path_bmap);
+    // Si existía uno anterior, lo destruimos
+    if (storage->bitmap != NULL) {
+        bitarray_destroy(storage->bitmap);
+        storage->bitmap = NULL;
+    }
+
+    int bytes_necesarios = (cantidad_bloques / 8) + ((cantidad_bloques % 8 != 0) ? 1 : 0);
+    void* bitmap_data = calloc(bytes_necesarios, 1); // Inicializado en 0
+
+    if (bitmap_data == NULL) {
+        log_error(storage->logger, "No se pudo allocar memoria para el bitmap en recrear_bmap");
+        return; //
+    }
+
+    // Crear el nuevo bitmap
+    storage->bitmap = bitarray_create_with_mode(bitmap_data, bytes_necesarios, LSB_FIRST);
+
+    if (storage->bitmap == NULL) {
+        log_error(storage->logger, "No se pudo crear la estructura t_bitarray en recrear_bmap");
+        free(bitmap_data); // <-- Liberar el data si la creación falla
         return;
     }
 
-    int bytes = (cantidad_bloques + 7) / 8;   // +7 redondea hacia arriba)
+    // Marcar el bloque 0 como ocupado (por initial_file)
+    bitarray_set_bit(storage->bitmap, 0);
 
-    char* bitmap_data = calloc(1, bytes); // crear buffer, todos sus bits = 0
-    t_bitarray* bitmap = bitarray_create_with_mode(bitmap_data, cantidad_bloques, LSB_FIRST);
-    storage->bitmap = bitmap;  // usar el buffer, LSB completa los bytes priorizando el bit menos significativo
-    fwrite(bitmap_data, 1, bytes, archivo_bmap);  // escribir el buffer a disco
-
-    bitarray_destroy(bitmap); // esto no libera bitmap_data?
-    free(bitmap_data);
-    fclose(archivo_bmap);
-    free(path_bmap);
+    // Guardar el bitmap en disco
+    FILE* f = fopen(path_bmap, "wb");
+    if (f) {
+        fwrite(bitmap_data, 1, bytes_necesarios, f);
+        fclose(f);
+    } else {
+        log_error(storage->logger, "No se pudo abrir %s para persistir bitmap", path_bmap);
+    }
 }
 
 void recrear_hash(char* path_hash){
@@ -167,7 +183,7 @@ void crear_initial_file(t_storage* storage){
     if(archivo_metadata){
         fprintf(archivo_metadata, "TAMANIO=%d\n", storage->tamanio_bloque);
         fprintf(archivo_metadata, "ESTADO=WORK_IN_PROGRESS\n");
-        fprintf(archivo_metadata, "BLOQUES=[0]\n");
+        fprintf(archivo_metadata, "BLOCKS=[0]\n");
         fclose(archivo_metadata);
     }
 
