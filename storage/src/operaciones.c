@@ -1,6 +1,6 @@
 #include "storage.h"
 
-int rm_rf(const char* path); //para debug esta ok. eliminalo eventualmente, Nacho :D
+
 
 // ****************************************************************************
 // Obtener la longitud de un array de strings

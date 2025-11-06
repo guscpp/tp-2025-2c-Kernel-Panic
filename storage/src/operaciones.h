@@ -12,5 +12,6 @@ bool realizar_commit(t_storage* storage, t_list* parametros);
 
 // === Funciones auxiliares internas ===
 void marcar_bloque_libre(t_storage* storage, int numero_bloque);
+int rm_rf (const char* path);
 
 #endif 
