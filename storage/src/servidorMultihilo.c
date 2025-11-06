@@ -84,11 +84,21 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             break;
 
         case STORAGE_TRUNCATE:
-            // implementar logica de truncado de archivo
-            
-            log_info(storage->logger, "Operacion STORAGE_TRUNCATE");
+            if(truncar_file(storage, paquete)){
+                log_info(storage->logger, "File truncado exitosamente");
+                t_buffer* respuesta_buffer = crear_buffer();
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK, respuesta_buffer);
+                enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
+                eliminar_paquete(paquete_respuesta);
+            }else{
+                log_error(storage->logger, "Error al truncar el file");
+                t_buffer* respuesta_buffer = crear_buffer();
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR, respuesta_buffer);
+                enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
+                eliminar_paquete(paquete_respuesta);
+            }
             break;
-
+            
         case STORAGE_TAG:
             // implementar logica de tag de file
             
@@ -122,9 +132,19 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             break;
 
         case STORAGE_WRITE_BLOCK:
-            // implementar logica de lectura de bloque
-            
-            log_info(storage->logger, "Operacion STORAGE_WRITE_BLOCK");
+            if(escribir_bloque(storage, paquete)){
+                log_info(storage->logger, "Bloque escrito exitosamente");
+                t_buffer* respuesta_buffer = crear_buffer();
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK, respuesta_buffer);
+                enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
+                eliminar_paquete(paquete_respuesta);
+            }else{
+                log_error(storage->logger, "Error al escribir el bloque");
+                t_buffer* respuesta_buffer = crear_buffer();
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR, respuesta_buffer);
+                enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
+                eliminar_paquete(paquete_respuesta);
+            }
             break;
 
         case STORAGE_DELETE:
