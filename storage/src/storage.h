@@ -8,6 +8,8 @@
 #include <unistd.h>
 #include <commons/bitarray.h>
 #include <errno.h>
+#include <openssl/md5.h>
+
 
 
 typedef struct {
@@ -24,6 +26,7 @@ typedef struct {
     int tamanio_filesystem;
     t_bitarray* bitmap;
     pthread_mutex_t mutex_bitmap;
+    char* path_bitmap;
 } t_storage;
 
 typedef struct{

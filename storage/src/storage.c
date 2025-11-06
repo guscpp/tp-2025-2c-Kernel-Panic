@@ -22,6 +22,7 @@ t_storage* iniciar_storage(){
     storage->tamanio_filesystem = config_get_int_value(storage->superblock, "FS_SIZE");
 
     storage->bitmap = NULL;
+    storage->path_bitmap = string_from_format("%s/bitmap.dat", storage->punto_montaje);
 
     pthread_mutex_init(&storage->mutex_bitmap, NULL);
     

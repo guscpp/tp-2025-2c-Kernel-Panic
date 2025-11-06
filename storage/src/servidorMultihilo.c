@@ -106,9 +106,25 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             break;
 
         case STORAGE_COMMIT:
-            // implementar logica de commit de un tag
+            
+            if (realizar_commit(storage, paquete)) {
 
-            log_info(storage->logger, "Operacion STORAGE_COMMIT");
+                log_info(storage->logger, "Commit realizado exitosamente");
+                t_buffer* respuesta_buffer = crear_buffer();
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK, respuesta_buffer);
+                enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
+                eliminar_paquete(paquete_respuesta);
+                
+            } else {
+
+                log_error(storage->logger, "Error al realizar commit");
+                t_buffer* respuesta_buffer = crear_buffer();
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR, respuesta_buffer);
+                enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
+                eliminar_paquete(paquete_respuesta);
+            }
+
+            list_destroy_and_destroy_elements(paquete, free);
             break;
 
         case STORAGE_READ_BLOCK:

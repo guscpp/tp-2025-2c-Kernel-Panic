@@ -666,7 +666,88 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     // 5. Log obligatorio
     log_info(storage->logger, "##%d- Bloque Lógico Escrito %s:%s - Número de Bloque: %d",
              query_id, nombre_file, tag, bloque_logico);
+}
+//*****************************************************************************
 
+// Calcula el hash MD5 de un archivo y lo devuelve como string hexadecimal
+char* calcular_md5_de_archivo(const char* path) {
+    unsigned char c[MD5_DIGEST_LENGTH];
+    int i;
+    FILE *inFile = fopen(path, "rb");
+    MD5_CTX mdContext;
+    int bytes;
+    unsigned char data[1024];
+
+    if (inFile == NULL) {
+        perror(path);
+        return NULL;
+    }
+
+    MD5_Init(&mdContext);
+    while ((bytes = fread(data, 1, 1024, inFile)) != 0)
+        MD5_Update(&mdContext, data, bytes);
+    MD5_Final(c, &mdContext);
+    fclose(inFile);
+
+    char* md5_string = malloc(33);
+    for (i = 0; i < 16; i++)
+        sprintf(&md5_string[i * 2], "%02x", c[i]);
+    md5_string[32] = '\0';
+    return md5_string;
+}
+//*****************************************************************************
+
+// Guarda el estado actual del bitmap en disco
+void persistir_bitmap(t_storage* storage) {
+    FILE* f = fopen(storage->path_bitmap, "wb");
+    if (!f) {
+        log_error(storage->logger, "No se pudo abrir el bitmap para persistir");
+        return;
+    }
+    fwrite(storage->bitmap->bitarray, 1, storage->bitmap->size, f);
+    fclose(f);
+    log_info(storage->logger, "Bitmap persistido correctamente");
+}
+
+//*****************************************************************************
+bool realizar_commit(t_storage* storage, t_list* parametros) {
+
+    // Obtener ruta del archivo desde los parámetros recibidos
+    char* path_rel = (char*)list_get(parametros, 1);
+    char* path_abs = obtener_ruta_absoluta(path_rel);
+
+    // Calcular el MD5 del archivo real
+    char* md5 = calcular_md5_de_archivo(path_abs);
+    if (!md5) {
+        log_error(storage->logger, "Error al calcular MD5 de %s", path_rel);
+        free(path_abs);
+        return false;
+    }
+
+    // Crear o abrir el archivo .cfg correspondiente
+    char* path_cfg = string_from_format("%s.cfg", path_abs);
+    t_config* cfg = config_create(path_cfg);
+    if (!cfg) {
+        log_error(storage->logger, "No se pudo abrir archivo de configuración: %s", path_cfg);
+        free(md5);
+        free(path_cfg);
+        free(path_abs);
+        return false;
+    }
+
+    // Actualizar valores del config
+    config_set_value(cfg, "MD5", md5);
+    config_set_value(cfg, "STATUS", "COMMITED");
+    config_save(cfg);
+
+    // Persistir bitmap y cerrar config
+    persistir_bitmap(storage);
+    config_destroy(cfg);
+
+    log_info(storage->logger, "Commit completado para %s (MD5: %s)", path_rel, md5);
+    free(md5);
+    free(path_cfg);
+    free(path_abs);
     return true;
 }
 
