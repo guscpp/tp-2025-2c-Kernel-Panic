@@ -100,9 +100,19 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             break;
             
         case STORAGE_TAG:
-            // implementar logica de tag de file
-            
-            log_info(storage->logger, "Operacion STORAGE_TAG");
+            if(tag_file(storage, paquete)){
+                log_info(storage->logger, "Tag creado exitosamente");
+                t_buffer* respuesta_buffer = crear_buffer();
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK, respuesta_buffer);
+                enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
+                eliminar_paquete(paquete_respuesta);
+            }else{
+                log_error(storage->logger, "Error al crear el tag");
+                t_buffer* respuesta_buffer = crear_buffer();
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR, respuesta_buffer);
+                enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
+                eliminar_paquete(paquete_respuesta);
+            }
             break;
 
         case STORAGE_COMMIT:

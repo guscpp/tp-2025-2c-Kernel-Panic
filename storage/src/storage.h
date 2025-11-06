@@ -1,6 +1,7 @@
 #ifndef STORAGE_H
 #define STORAGE_H
 
+#define _GNU_SOURCE // agregue esto para usar DT_REG
 #include "../../utils/include/utils.h"
 #include <commons/string.h>
 #include <sys/stat.h>
@@ -9,6 +10,7 @@
 #include <commons/bitarray.h>
 #include <errno.h>
 #include <commons/crypto.h>
+#include <dirent.h> // agregue esto para usar funciones sobre directorios
 
 
 
