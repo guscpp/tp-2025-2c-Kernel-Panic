@@ -73,6 +73,7 @@ typedef struct{
     bool fin; //true -> es el END
     t_instr_param* parametros;
     void (*ejecuta_instruccion)(t_instr_param*, t_worker*, Pcb*);
+    bool instruccion_malformada; 
 }t_decode; //solo para que haya execute
 
 #endif

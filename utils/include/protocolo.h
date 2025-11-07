@@ -28,15 +28,17 @@ typedef enum
     // MASTER → WORKER
     WORKER_ASSIGN_QUERY,    // Asignar query a worker
     WORKER_DESALOJO,        // Pedir desalojo de query
+    RETENER_WORKER,
     
     // WORKER → MASTER
 
     WORKER_ID,              // Enviar ID
     WORKER_PC_UPDATE,       //Envio nuevo PC, el queryID del que pertenece y el nombreDelQuery (informo el nuevo pc tras una interrupcion)
-
     WORKER_READ_RESULT,     // Resultado de lectura
     WORKER_QUERY_END,       // Query terminada en worker
-    WORKER_ID_INTERRUPT,
+    WORKER_ID_INTERRUPT,    //Handshake del segundo connect
+    WORKER_ERROR_ARCHIVO,
+    WORKER_INSTRUCCION_MALFORMADA,
     
     // WORKER ↔ STORAGE
     STORAGE_GET_BLOCK_SIZE, // Solicitar tamaño de bloque

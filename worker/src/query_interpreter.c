@@ -31,9 +31,14 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
 
         instruccion_decf = decode(instruccion, w);
 
-        if(instruccion_decf->fin == true){ //NO lo hago en el fetch porque ahi todavia no se que instruccion es. REcien en decode, despues de parsear se que se trata de un END.
+        if(instruccion_decf->fin){ //NO lo hago en el fetch porque ahi todavia no se que instruccion es. REcien en decode, despues de parsear se que se trata de un END.
             executeEnd(w, pcb);                  //puse el == true para no debugear otra vez 
             break;
+        }
+
+        if(instruccion_decf->instruccion_malformada){
+                avisar_error_generico(w, WORKER_INSTRUCCION_MALFORMADA);
+                break;
         }
 
         execute(instruccion_decf->parametros, instruccion_decf->ejecuta_instruccion, w, pcb);
@@ -127,6 +132,7 @@ t_decode* decode(char* instruccion, t_worker* w){
         paquete_decode->parametros->tag = create_param[1];
         paquete_decode->ejecuta_instruccion = executeCreate;
         paquete_decode->fin = false;  //para poner que al principio es falso que sea "fin". Porque yo intente ponerle el false afuera del ciclo (asi lo tenia que poner una vez sola y aca adentro no lo modificaba). Pero al devolver esto (osea, cuando retornaba decode en el ciclo), pisaba todo el struct de instruccion_decf, incluyendo el false y lo cambiaba a otro numero. POr eso decidi que si lo va pisar, que lo pise con el false
+        paquete_decode->instruccion_malformada = false;
         return paquete_decode;
     }
      
@@ -144,7 +150,7 @@ t_decode* decode(char* instruccion, t_worker* w){
         paquete_decode->ejecuta_instruccion = executeTruncate;
 
         paquete_decode->fin = false;  //para poner que al principio es falso que sea fin
-
+        paquete_decode->instruccion_malformada = false;
         return paquete_decode;
     }
 
@@ -164,7 +170,7 @@ t_decode* decode(char* instruccion, t_worker* w){
         paquete_decode->ejecuta_instruccion = executeWrite;
 
         paquete_decode->fin = false;  //para poner que al principio es falso que sea fin
-
+        paquete_decode->instruccion_malformada = false;
         return paquete_decode;
     }
     
@@ -183,7 +189,7 @@ t_decode* decode(char* instruccion, t_worker* w){
         paquete_decode->ejecuta_instruccion = executeRead;
 
         paquete_decode->fin = false;  //para poner que al principio es falso que sea fin
-
+        paquete_decode->instruccion_malformada = false;
         return paquete_decode;
     }
     if(string_equals_ignore_case(parametros[0], "TAG")){
@@ -204,7 +210,7 @@ t_decode* decode(char* instruccion, t_worker* w){
         paquete_decode->ejecuta_instruccion = executeTag;
 
         paquete_decode->fin = false;  //para poner que al principio es falso que sea fin
-
+        paquete_decode->instruccion_malformada = false;
         return paquete_decode;
     }   
     if(string_equals_ignore_case(parametros[0], "COMMIT")){
@@ -218,7 +224,7 @@ t_decode* decode(char* instruccion, t_worker* w){
         paquete_decode->ejecuta_instruccion = executeCommit;
         
         paquete_decode->fin = false;  //para poner que al principio es falso que sea fin
-
+        paquete_decode->instruccion_malformada = false;
         return paquete_decode;
     }
     if(string_equals_ignore_case(parametros[0], "FLUSH")){
@@ -232,7 +238,7 @@ t_decode* decode(char* instruccion, t_worker* w){
         paquete_decode->ejecuta_instruccion = executeFlush;
         
         paquete_decode->fin = false;  //para poner que al principio es falso que sea fin
-
+        paquete_decode->instruccion_malformada = false;
         return paquete_decode;
     }
     if(string_equals_ignore_case(parametros[0], "DELETE")){
@@ -246,7 +252,7 @@ t_decode* decode(char* instruccion, t_worker* w){
         paquete_decode->ejecuta_instruccion = executeDelete;
 
         paquete_decode->fin = false;  //para poner que al principio es falso que sea fin
-
+        paquete_decode->instruccion_malformada = false;
         return paquete_decode;
     }
 
@@ -258,7 +264,8 @@ t_decode* decode(char* instruccion, t_worker* w){
     // CASO POR DEFECTO para instrucción desconocida
     // lo agrego mayormente porque no quiero ver el warning del compilador
     log_warning(w->logger, "Instrucción desconocida: %s", parametros[0]);
-    paquete_decode->fin = true;
+    paquete_decode->fin = false;
+    paquete_decode->instruccion_malformada = true;
     free(parametros[0]);
     if (parametros[1]) free(parametros[1]);
     free(parametros);
@@ -283,6 +290,7 @@ void executeCreate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_Create = crear_paquete(STORAGE_CREATE_FILE, buffer_generico);
+    agregar_a_paquete(paquete_Create, &(pcb->query_id), sizeof(pcb->query_id));
     agregar_a_paquete(paquete_Create, parametros->nombre_file, strlen(parametros->nombre_file) + 1); //parametros->nombre_file es un string por eso pasa sin &
     agregar_a_paquete(paquete_Create, parametros->tag, strlen(parametros->tag) + 1); 
     enviar_paquete(paquete_Create, w->storage_socket, w->logger);
@@ -297,6 +305,7 @@ void executeTruncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paqueteTruncate = crear_paquete(STORAGE_TRUNCATE, buffer_generico);
+    agregar_a_paquete(paqueteTruncate, &(pcb->query_id), sizeof(pcb->query_id));
     agregar_a_paquete(paqueteTruncate, parametros->nombre_file, strlen(parametros->nombre_file)+1);
     agregar_a_paquete(paqueteTruncate, parametros->tag, strlen(parametros->tag +1));
     agregar_a_paquete(paqueteTruncate, &parametros->tamanio, sizeof(int));
@@ -364,6 +373,7 @@ void executeTag(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_nuevo_tag = crear_paquete(STORAGE_TAG, buffer_generico);
+    agregar_a_paquete(paquete_nuevo_tag, &(pcb->query_id), sizeof(pcb->query_id));
     agregar_a_paquete(paquete_nuevo_tag, parametros->nombre_file_org, strlen(parametros->nombre_file_org)+1);
     agregar_a_paquete(paquete_nuevo_tag, parametros->tag_origen, strlen(parametros->tag_origen)+1);
     agregar_a_paquete(paquete_nuevo_tag, parametros->nombre_file_destino, strlen(parametros->nombre_file_destino)+1);
@@ -380,6 +390,7 @@ void executeCommit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_commit = crear_paquete(STORAGE_COMMIT, buffer_generico);
+    agregar_a_paquete(paquete_commit, &(pcb->query_id), sizeof(pcb->query_id));
     agregar_a_paquete(paquete_commit, parametros->nombre_file, strlen(parametros->nombre_file)+1);
     agregar_a_paquete(paquete_commit, parametros->tag, strlen(parametros->tag)+1);
     enviar_paquete(paquete_commit, w->storage_socket, w->logger);
@@ -393,6 +404,7 @@ void executeFlush(t_instr_param* parametros, t_worker* w, Pcb* pcb){ //ESto se h
     /*  EN storage falta agregar la etiqueta del flush
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_flush = crear_paquete(STORAGE_FLUSH, buffer_generico);
+    agregar_a_paquete(paquete_flush, &(pcb->query_id), sizeof(pcb->query_id));
     agregar_a_paquete(paquete_flush, parametros->nombre_file, strlen(parametros->nombre_file)+1);
     agregar_a_paquete(paquete_flush, parametros->tag, strlen(parametros->tag)+1);
     enviar_paquete(paquete_flush, w->storage_socket, w->logger);
@@ -405,6 +417,7 @@ void executeDelete(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_delete = crear_paquete(STORAGE_DELETE, buffer_generico);
+    agregar_a_paquete(paquete_delete, &(pcb->query_id), sizeof(pcb->query_id));
     agregar_a_paquete(paquete_delete, parametros->nombre_file, strlen(parametros->nombre_file)+1);
     agregar_a_paquete(paquete_delete, parametros->tag, strlen(parametros->tag)+1);
     enviar_paquete(paquete_delete, w->storage_socket, w->logger);

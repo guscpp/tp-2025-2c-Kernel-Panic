@@ -1,13 +1,15 @@
 #include "../include/worker.h"
 
 int main(int argc, char* argv[]) {
+    /* Lo comente para poder hacer debug de lo ultimo que agregue
     if (argc != 3)
     {
         printf("Uso: ./bin/worker [archivo_config] [ID Worker]\n");
         return EXIT_FAILURE;
     }
-
-    int id_worker = atoi(argv[2]);
+    */
+    //int id_worker = atoi(argv[2]);
+    int id_worker = 2;
     t_worker* w = inicializar_worker(id_worker);
     
     t_query_interpreter*  query_interpreter =  query_interpreter_crear(w->logger); //tiene pc y un verificador de interrupciones
@@ -35,6 +37,8 @@ int main(int argc, char* argv[]) {
     agregar_a_paquete(packetID, &w->id_worker, sizeof(int));
     enviar_paquete(packetID, w->master_socket_distpach, w->logger);
     eliminar_paquete(packetID);
+
+    //retener_worker(w); 
 
     //MAster: crear la conexion para el interrupt (segundp connect)
     w->master_socket_interrupt = crear_conexion(w->logger, w->ip_master, string_itoa(w->puerto_master));

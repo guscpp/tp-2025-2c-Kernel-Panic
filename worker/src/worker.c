@@ -53,7 +53,7 @@ void liberar_worker(t_worker* w)
 
 Pcb* recibir_path_de_query(int master_socket, t_worker* w) 
 {
-    log_warning(w->logger, "Por lo menos entre a recibir_path"); 
+    log_warning(w->logger, "ESpero recibir un path"); 
     Pcb* dt_archivo = NULL;
 
     t_list* paquete_path = recibir_paquete(master_socket);
@@ -72,12 +72,13 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
         if (paquete_path && list_size(paquete_path)>= 3) 
         {
             // Los valores vienen en el orden:
-            // query_id, path_query, prioridad
+            // query_id, path_query, prioridad, pc
 
             //Por el error de utils lo comento y hardcodeo valores
             int query_id = *(int*)list_get(paquete_path, 1);
             char* path_query = (char*)list_get(paquete_path, 2);
             int prioridad = *(int*)list_get(paquete_path, 3); //(*)
+            //int pc = *(int*)list_get(paquete_path, 4);  el PC va venir cuarto
 
             int pc = 0; //pongo este porque en el codigo master todavia no me manda el pc
             
@@ -87,23 +88,27 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
             if(pc > 0){
                 log_info(w->logger, "Es un proceso que fue interrumpido antes");
             }
-            
             dt_archivo = malloc(sizeof(Pcb));
-            dt_archivo->nombre_archivo = path_query;
-            dt_archivo->query_id = query_id;
-            dt_archivo->archivo = retornar_archivo(path_query, w->path_scripts, w->logger);
-            dt_archivo->pc = pc;
-           
-            // Liberar la lista (pero no los elementos)
-            
-            list_destroy(paquete_path);
-            return dt_archivo;
+            if(dt_archivo->archivo = retornar_archivo(path_query, w->path_scripts, w->logger)){
 
-            
+                dt_archivo->nombre_archivo = path_query;
+                dt_archivo->query_id = query_id;
+                dt_archivo->pc = pc;
+
+                list_destroy(paquete_path);
+                return dt_archivo;
+            }
+
+            list_destroy(paquete_path);
+            avisar_error_generico(w, WORKER_ERROR_ARCHIVO);
+
+            return NULL;
             //free(path_query); //?
         }
+    
     }
-    return dt_archivo;
+    
+    return NULL;
 }
 
 
@@ -138,14 +143,17 @@ void* ejecutar_query(void* arg){
         //retorna el pcb con los datos del proceso a ejecutar
 
         log_info(datos_ejecucion->w->logger, "Llego el path_query: %s", dt_archivo->nombre_archivo);
+        /* creo que ya no va, pero quiero probar mas cosas dsp
         if(dt_archivo == NULL){
             log_info(datos_ejecucion->w->logger, "Error al abrir query, estoy en worker.c");
+            query_interpreter_ciclo(dt_archivo, datos_ejecucion->w); 
             return NULL;
         }
+        */
         query_interpreter_ciclo(dt_archivo, datos_ejecucion->w); 
     
     }
-
+    ejecutar_query(arg);
     return NULL;
 }
 //-------------------------------------------------------------------------------------------------
@@ -225,4 +233,57 @@ bool recibir_interrupciones(int master_socket, t_worker* w){ //SOlo se encarga d
 
     list_destroy(paquete_interrupcion);
     return false; 
+}
+
+void retener_worker(t_worker* w){
+    
+    log_warning(w->logger, "Retengo al worker antes de crear el interrupt"); //tiene warning solo para que se diferencie
+
+    t_list* paquete;
+    while(paquete = recibir_paquete(w->master_socket_distpach)){
+    int* cod_op =  list_get(paquete, 0);
+
+    if (*cod_op == -1)
+    {
+        log_error(w->logger, "Error en la conexion con MAster");
+        return NULL;
+    }
+
+    if (*cod_op == RETENER_WORKER)
+    log_info(w->logger, "Pude pasar de retener worker");
+    return NULL;
+
+    }
+    
+}
+
+void avisar_error_generico(t_worker* w, op_code etiqueta){ //solo porque son paquetes vacios 
+
+    loggerError(w,etiqueta);
+    /*
+    t_buffer* buffer1 = crear_buffer();
+    t_paquete* paqueteError = crear_paquete(etiqueta, buffer1);
+    enviar_paquete(paqueteError, w->master_socket_distpach, w->logger);
+    eliminar_paquete(paqueteError);
+    */
+
+}
+
+//SOlo para ver si anda bien el envio 
+void loggerError(t_worker* w, op_code etiqueta){
+    switch (etiqueta)
+    {
+    case WORKER_ERROR_ARCHIVO:
+        log_info(w->logger, "Envie a master el WORKER_ERROR_ARCHIVO");
+        break;
+    
+    case WORKER_INSTRUCCION_MALFORMADA:
+        log_info(w->logger, "Envie a master el WORKER_INSTRUCCION_MALFORMADA");
+        break;
+    
+
+    default:
+    log_info(w->logger, "default");
+        break;
+    }
 }
