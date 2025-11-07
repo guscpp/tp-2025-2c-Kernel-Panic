@@ -22,12 +22,10 @@ t_storage* iniciar_storage(){
     storage->tamanio_filesystem = config_get_int_value(storage->superblock, "FS_SIZE");
 
     storage->bitmap = NULL;
-    storage->path_bitmap = string_from_format("%s/bitmap.dat", storage->punto_montaje);
-
+    storage->path_bitmap = string_from_format("%s/bitmap.bin", storage->punto_montaje);
     pthread_mutex_init(&storage->mutex_bitmap, NULL);
     
     log_info(storage->logger, "El storage se inicializo correctamente");
-
     
     return storage;
 }
@@ -45,11 +43,15 @@ void verificar_storage(t_storage* s)
 
 void liberar_storage (t_storage* storage){
     if(storage != NULL){
+        if(storage->bitmap != NULL){
+            bitarray_destroy(storage->bitmap);
+        }
+        pthread_mutex_destroy(&storage->mutex_bitmap);
         log_destroy(storage->logger);
         config_destroy(storage->config);
+        free(storage->path_bitmap);
         free(storage);
     }
-
 }
 
 int rm_rf (const char* path){
@@ -109,7 +111,9 @@ void crear_directorios(char* ruta_rel) {
 }
 
 void recrear_bmap(t_storage* storage, int cantidad_bloques, char* path_bmap) {
-    // Si existía uno anterior, lo destruimos
+    
+    pthread_mutex_lock(&storage->mutex_bitmap);
+    // Si existía un bitmap anterior lo destruimos
     if (storage->bitmap != NULL) {
         bitarray_destroy(storage->bitmap);
         storage->bitmap = NULL;
@@ -143,6 +147,7 @@ void recrear_bmap(t_storage* storage, int cantidad_bloques, char* path_bmap) {
     } else {
         log_error(storage->logger, "No se pudo abrir %s para persistir bitmap", path_bmap);
     }
+    pthread_mutex_unlock(&storage->mutex_bitmap);
 }
 
 void recrear_hash(char* path_hash){

@@ -1,5 +1,6 @@
 #include "storage.h"
-
+#include <sys/stat.h>       // Para stat()
+#include <commons/string.h> // Para string_*, get_array_length
 
 
 // ****************************************************************************
@@ -22,12 +23,19 @@ void marcar_bloque_libre(t_storage* storage, int query_id, int numero_bloque) {
         return;
     }
 
+    pthread_mutex_lock(&storage->mutex_bitmap);
+
     if (!bitarray_test_bit(storage->bitmap, numero_bloque)) {
         log_warning(storage->logger, "Bloque %d ya estaba libre", numero_bloque);
+
+        //se desbloquea antes de retornar, y tambien fuera del if
+        pthread_mutex_unlock(&storage->mutex_bitmap);
+
         return;
     }
 
     bitarray_clean_bit(storage->bitmap, numero_bloque);
+    pthread_mutex_unlock(&storage->mutex_bitmap);
     log_info(storage->logger, "Bloque físico %d marcado como libre", numero_bloque);
 }
 
@@ -519,6 +527,9 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
         // a. Buscar un nuevo bloque fisico libre
         int nuevo_bloque_fisico = -1;
         int cantidad_bloques = storage->tamanio_filesystem / storage->tamanio_bloque;
+
+        pthread_mutex_lock(&storage->mutex_bitmap);
+        
         for (int i = 1; i < cantidad_bloques; i++) { 
             //empieza en 1, el 0 es initial_file
             if (!bitarray_test_bit(storage->bitmap, i)) {
@@ -528,11 +539,15 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
         }
         if (nuevo_bloque_fisico == -1) {
             log_error(storage->logger, "Espacio Insuficiente - No hay bloques físicos libres para escritura diferenciada");
+            pthread_mutex_unlock(&storage->mutex_bitmap);
             return false;
         }
 
         // b. Marcar nuevo bloque como ocupado temporalmente (en caso de error, revertir)
         bitarray_set_bit(storage->bitmap, nuevo_bloque_fisico);
+
+        pthread_mutex_unlock(&storage->mutex_bitmap);
+
         log_info(storage->logger, "Bloque físico %d reservado para escritura diferenciada", nuevo_bloque_fisico);
 
         // c. Obtener rutas de los bloques fisico origen y destino
@@ -704,6 +719,9 @@ char* calcular_md5_de_archivo(const char* path) {
 //*****************************************************************************
 // Guarda el estado actual del bitmap en disco
 void persistir_bitmap(t_storage* storage) {
+    
+    pthread_mutex_lock(&storage->mutex_bitmap);
+    
     FILE* f = fopen(storage->path_bitmap, "wb");
     if (!f) {
         log_error(storage->logger, "No se pudo abrir el bitmap para persistir");
@@ -712,6 +730,8 @@ void persistir_bitmap(t_storage* storage) {
     fwrite(storage->bitmap->bitarray, 1, storage->bitmap->size, f);
     fclose(f);
     log_info(storage->logger, "Bitmap persistido correctamente");
+
+    pthread_mutex_unlock(&storage->mutex_bitmap);
 }
 
 //*****************************************************************************
