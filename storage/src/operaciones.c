@@ -859,26 +859,26 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag)
         storage->punto_montaje);
 
     // 2️⃣ Cargar configs
-    t_config* file_cfg = config_create(path_file_cfg);
-    t_config* index_cfg = config_create(path_index);
+    t_config* metadata_cfg = config_create(path_file_cfg);
+    t_config* blocks_hash_index_cfg = config_create(path_index);
 
-    if (!file_cfg || !index_cfg) {
+    if (!metadata_cfg || !blocks_hash_index_cfg) {
         log_error(storage->logger, "Error abriendo cfgs para evitar duplicidad en %s:%s", file, tag);
 
-        if (file_cfg) config_destroy(file_cfg);
-        if (index_cfg) config_destroy(index_cfg);
+        if (metadata_cfg) config_destroy(metadata_cfg);
+        if (blocks_hash_index_cfg) config_destroy(blocks_hash_index_cfg);
         free(path_file_cfg);
         free(path_index);
         return;
     }
 
     // 3️⃣ Obtener los bloques virtuales del archivo
-    char** bloques_str = config_get_array_value(file_cfg, "BLOCKS");
+    char** bloques_str = config_get_array_value(metadata_cfg, "BLOCKS");
     if (!bloques_str) {
         log_warning(storage->logger, "Archivo %s:%s no tiene bloques definidos", file, tag);
 
-        config_destroy(file_cfg);
-        config_destroy(index_cfg);
+        config_destroy(metadata_cfg);
+        config_destroy(blocks_hash_index_cfg);
         free(path_file_cfg);
         free(path_index);
         return;
@@ -887,7 +887,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag)
     // 4️⃣ Iterar sobre cada bloque
     for (int i = 0; bloques_str[i] != NULL; i++) {
         int bloque_virtual = atoi(bloques_str[i]);
-        char* path_bloque = string_from_format("%s/BLOCKS/%d.bin",
+        char* path_bloque = string_from_format("%s/physical_blocks/block%04d.dat",
             storage->punto_montaje, bloque_virtual);
 
         // Calcular hash MD5 del bloque
@@ -899,16 +899,20 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag)
         }
 
         // 5️⃣ Verificar si el hash ya existe en blocks_hash_index.config
-        if (config_has_property(index_cfg, hash)) {
-            int bloque_original = config_get_int_value(index_cfg, hash);
+        if (config_has_property(blocks_hash_index_cfg, hash)) {
+            char* bloque_original = config_get_string_value(blocks_hash_index_cfg, hash);
 
             log_info(storage->logger,
-                "Bloque duplicado: %s:%s → bloque %d referenciado a %d",
+                "Bloque duplicado: %s:%s → bloque %d referenciado a %s",
                 file, tag, bloque_virtual, bloque_original);
 
             // Actualizar el array del archivo para que apunte al bloque original
             free(bloques_str[i]);
-            bloques_str[i] = string_itoa(bloque_original);
+
+            int bloque_aux = atoi(bloque_original);
+            char* bloque_aux_str = string_itoa(bloque_aux);
+
+            bloques_str[i] = bloque_aux_str;
 
             // Marcar el bloque duplicado como libre en el bitmap
             pthread_mutex_lock(&storage->mutex_bitmap);
@@ -916,12 +920,14 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag)
             pthread_mutex_unlock(&storage->mutex_bitmap);
         } else {
             // Si no existe, lo agregamos al índice global
-            char* valor = string_itoa(bloque_virtual);
-            config_set_value(index_cfg, hash, valor);
+            
+            char* valor = string_from_format("block%06i" , bloque_virtual);
+            config_set_value(blocks_hash_index_cfg, hash, valor);
             log_info(storage->logger,
                 "Bloque nuevo agregado al índice global (hash=%s bloque=%d)",
                 hash, bloque_virtual);
             free(valor);
+            
         }
 
         free(hash);
@@ -935,18 +941,18 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag)
             bloques_str[i + 1] ? "," : "");
     }
 
-    config_set_value(file_cfg, "BLOCKS", joined_blocks);
+    config_set_value(metadata_cfg, "BLOCKS", joined_blocks);
     free(joined_blocks);
 
     // 7️⃣ Guardar los cambios y liberar recursos
-    config_save(file_cfg);
-    config_save(index_cfg);
+    config_save(metadata_cfg);
+    config_save(blocks_hash_index_cfg);
 
     log_info(storage->logger, "Verificación de duplicidad completada para %s:%s", file, tag);
 
     string_array_destroy(bloques_str);
-    config_destroy(file_cfg);
-    config_destroy(index_cfg);
+    config_destroy(metadata_cfg);
+    config_destroy(blocks_hash_index_cfg);
     free(path_file_cfg);
     free(path_index);
 }
