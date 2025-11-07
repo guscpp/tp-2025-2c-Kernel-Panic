@@ -48,7 +48,7 @@ void marcar_bloque_libre(t_storage* storage, int query_id, int numero_bloque) {
     bitarray_clean_bit(storage->bitmap, nro_bloque);
     log_info(storage->logger, "Bloque físico %d marcado como libre en el bitmap", nro_bloque);
 
-    msync(storage->bitmap->bitarray, storage->bitmap->size, MS_SYNC); // sincronizo el bitmap con los cambios
+    msync(storage->bitmap->bitarray, storage->bitmap->size, MS_SYNC); // sincronizo el bitmap con los cambios
 
 */
 
@@ -820,34 +820,137 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
 }
 
 //*****************************************************************************
-// Calcula el hash MD5 de un archivo y lo devuelve como string hexadecimal
-char* calcular_md5_de_archivo(const char* path) {
-    FILE* file = fopen(path, "rb");
+// Calcula el MD5 de un bloque físico individual (.bin)
+char* calcular_md5_por_bloque(const char* path_bloque, int tamanio_bloque)
+{
+    FILE* file = fopen(path_bloque, "rb");
     if (!file) {
-        printf("No se pudo abrir el archivo para calcular MD5: %s\n", path);
+        printf("No se pudo abrir el bloque para calcular MD5: %s\n", path_bloque);
         return NULL;
     }
 
-    //Leer todo el contenido del archivo
-    fseek(file, 0, SEEK_END);
-    long size = ftell(file);
-    rewind(file);
-
-    if (size <= 0) {
+    // Leer el contenido completo del bloque
+    unsigned char* buffer = malloc(tamanio_bloque);
+    if (!buffer) {
         fclose(file);
-        return strdup("d41d8cd98f00b204e9800998ecf8427e");  // MD5 de archivo vacío
+        return NULL;
     }
 
-    char* buffer = malloc(size);
-    fread(buffer, 1, size, file);
+    size_t bytes_leidos = fread(buffer, 1, tamanio_bloque, file);
     fclose(file);
 
-    // Calcular el hash MD5
-    char* md5_string = crypto_md5(buffer, size);
+    // Calcular hash con la función provista por utils
+    char* md5_bloque = crypto_md5((char*)buffer, bytes_leidos);
 
     free(buffer);
-    return md5_string;
+    return md5_bloque; // el caller libera
 }
+
+//*****************************************************************************
+// Evita duplicidad de bloques al commitear un file:tag.
+// Compara hashes de cada bloque contra blocks_hash_index.config
+void evitar_duplicidad(t_storage* storage, char* file, char* tag)
+{
+    // 1️⃣ Construir paths relevantes
+    char* path_file_cfg = string_from_format("%s/FILES/%s/%s.cfg",
+        storage->punto_montaje, file, tag);
+
+    char* path_index = string_from_format("%s/blocks_hash_index.config",
+        storage->punto_montaje);
+
+    // 2️⃣ Cargar configs
+    t_config* file_cfg = config_create(path_file_cfg);
+    t_config* index_cfg = config_create(path_index);
+
+    if (!file_cfg || !index_cfg) {
+        log_error(storage->logger, "Error abriendo cfgs para evitar duplicidad en %s:%s", file, tag);
+
+        if (file_cfg) config_destroy(file_cfg);
+        if (index_cfg) config_destroy(index_cfg);
+        free(path_file_cfg);
+        free(path_index);
+        return;
+    }
+
+    // 3️⃣ Obtener los bloques virtuales del archivo
+    char** bloques_str = config_get_array_value(file_cfg, "BLOCKS");
+    if (!bloques_str) {
+        log_warning(storage->logger, "Archivo %s:%s no tiene bloques definidos", file, tag);
+
+        config_destroy(file_cfg);
+        config_destroy(index_cfg);
+        free(path_file_cfg);
+        free(path_index);
+        return;
+    }
+
+    // 4️⃣ Iterar sobre cada bloque
+    for (int i = 0; bloques_str[i] != NULL; i++) {
+        int bloque_virtual = atoi(bloques_str[i]);
+        char* path_bloque = string_from_format("%s/BLOCKS/%d.bin",
+            storage->punto_montaje, bloque_virtual);
+
+        // Calcular hash MD5 del bloque
+        char* hash = calcular_md5_por_bloque(path_bloque, storage->tamanio_bloque);
+        if (!hash) {
+            log_error(storage->logger, "No se pudo calcular hash del bloque %d", bloque_virtual);
+            free(path_bloque);
+            continue;
+        }
+
+        // 5️⃣ Verificar si el hash ya existe en blocks_hash_index.config
+        if (config_has_property(index_cfg, hash)) {
+            int bloque_original = config_get_int_value(index_cfg, hash);
+
+            log_info(storage->logger,
+                "Bloque duplicado: %s:%s → bloque %d referenciado a %d",
+                file, tag, bloque_virtual, bloque_original);
+
+            // Actualizar el array del archivo para que apunte al bloque original
+            free(bloques_str[i]);
+            bloques_str[i] = string_itoa(bloque_original);
+
+            // Marcar el bloque duplicado como libre en el bitmap
+            pthread_mutex_lock(&storage->mutex_bitmap);
+            bitarray_clean_bit(storage->bitmap, bloque_virtual);
+            pthread_mutex_unlock(&storage->mutex_bitmap);
+        } else {
+            // Si no existe, lo agregamos al índice global
+            char* valor = string_itoa(bloque_virtual);
+            config_set_value(index_cfg, hash, valor);
+            log_info(storage->logger,
+                "Bloque nuevo agregado al índice global (hash=%s bloque=%d)",
+                hash, bloque_virtual);
+            free(valor);
+        }
+
+        free(hash);
+        free(path_bloque);
+    }
+
+    // 6️⃣ Guardar los cambios en el archivo de bloques
+    char* joined_blocks = string_new();
+    for (int i = 0; bloques_str[i] != NULL; i++) {
+        string_append_with_format(&joined_blocks, "%s%s", bloques_str[i],
+            bloques_str[i + 1] ? "," : "");
+    }
+
+    config_set_value(file_cfg, "BLOCKS", joined_blocks);
+    free(joined_blocks);
+
+    // 7️⃣ Guardar los cambios y liberar recursos
+    config_save(file_cfg);
+    config_save(index_cfg);
+
+    log_info(storage->logger, "Verificación de duplicidad completada para %s:%s", file, tag);
+
+    string_array_destroy(bloques_str);
+    config_destroy(file_cfg);
+    config_destroy(index_cfg);
+    free(path_file_cfg);
+    free(path_index);
+}
+
 
 //*****************************************************************************
 // Guarda el estado actual del bitmap en disco
@@ -868,46 +971,78 @@ void persistir_bitmap(t_storage* storage) {
 }
 
 //*****************************************************************************
-bool realizar_commit(t_storage* storage, t_list* parametros) {
+//Verifica si un archivo/tag tiene estado COMMITED en su archivo .cfg
+bool verificar_commit(t_storage* storage, const char* file, const char* tag) {
+    // 1️⃣ Armar la ruta del archivo .cfg del file:tag
+    char* path_cfg = string_from_format("%s/Files/%s/%s.cfg",
+                                        storage->punto_montaje, file, tag);
 
-    // Obtener ruta del archivo desde los parámetros recibidos
-    char* path_rel = (char*)list_get(parametros, 1);
-    char* path_abs = obtener_ruta_absoluta(path_rel);
-
-    // Calcular el MD5 del archivo real
-    char* md5 = calcular_md5_de_archivo(path_abs);
-    if (!md5) {
-        log_error(storage->logger, "Error al calcular MD5 de %s", path_rel);
-        free(path_abs);
-        return false;
+    // 2️⃣ Intentar abrir el archivo de configuración
+    t_config* cfg = config_create(path_cfg);
+    if (!cfg) {
+        log_warning(storage->logger,
+                    "No se pudo abrir el archivo de configuración para verificar commit: %s",
+                    path_cfg);
+        free(path_cfg);
+        return false; // No está committeado si no existe
     }
 
-    // Crear o abrir el archivo .cfg correspondiente
-    char* path_cfg = string_from_format("%s.cfg", path_abs);
+    // 3️⃣ Leer el campo STATUS del .cfg
+    const char* status = config_get_string_value(cfg, "STATUS");
+    bool esta_commited = false;
+
+    if (status != NULL && string_equals_ignore_case((char*)status, "COMMITED")) {
+        esta_commited = true;
+        log_warning(storage->logger,
+                    "El archivo %s:%s está COMMITED. Operación no permitida.",
+                    file, tag);
+    }
+
+    // 4️⃣ Liberar recursos
+    config_destroy(cfg);
+    free(path_cfg);
+
+    return esta_commited;
+}
+
+//*****************************************************************************
+bool realizar_commit(t_storage* storage, t_list* parametros) {
+    // Obtener parámetros desde la lista
+    // Supongamos que la lista viene así: [op_code, file, tag]
+    char* file = (char*) list_get(parametros, 1);
+    char* tag  = (char*) list_get(parametros, 2);
+
+    log_info(storage->logger, "Iniciando commit para %s:%s", file, tag);
+
+    // Llamamos a la función de deduplicación
+    evitar_duplicidad(storage, file, tag);
+
+    // Obtener el path del archivo de configuración (.cfg)
+    char* path_cfg = string_from_format("%s/Files/%s/%s.cfg",
+                                        storage->punto_montaje, file, tag);
+
     t_config* cfg = config_create(path_cfg);
     if (!cfg) {
         log_error(storage->logger, "No se pudo abrir archivo de configuración: %s", path_cfg);
-        free(md5);
         free(path_cfg);
-        free(path_abs);
         return false;
     }
 
-    // Actualizar valores del config
-    config_set_value(cfg, "MD5", md5);
+    // Marcar el archivo como COMMITED
     config_set_value(cfg, "STATUS", "COMMITED");
     config_save(cfg);
 
-    // Persistir bitmap y cerrar config
+    // Persistir el bitmap actualizado
     persistir_bitmap(storage);
-    config_destroy(cfg);
 
-    log_info(storage->logger, "Commit completado para %s (MD5: %s)", path_rel, md5);
-    free(md5);
+    // Liberar memoria
+    config_destroy(cfg);
     free(path_cfg);
-    free(path_abs);
+
+    log_info(storage->logger, "Commit finalizado correctamente para %s:%s", file, tag);
     return true;
 }
+
 
 // ****************************************************************************
 bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const char* tag) {
