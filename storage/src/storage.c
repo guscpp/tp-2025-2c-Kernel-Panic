@@ -176,7 +176,7 @@ void crear_initial_file(t_storage* storage){
         log_error(storage->logger, "No se pudo crear el bloque inicial");
     }
 
-    char* path_logico0 = obtener_ruta_absoluta("files/initial_file/BASE/logical_blocks/block000000.dat");
+    char* path_logico0 = obtener_ruta_absoluta("files/initial_file/BASE/logical_blocks/000000.dat");
     if(link(path_block0, path_logico0) == 0){
         log_info(storage->logger, "Se creo el link del bloque inicial con el bloque fisico correctamente");
     }else{

@@ -116,7 +116,7 @@ bool crear_file(t_storage* storage, t_list* parametros)
     return true;
 }
 static char* path_logico_para_truncate(const char* punto_montaje, const char* nombre_file, const char* tag, int i) {
-    return string_from_format("%s/files/%s/%s/logical_blocks/block%06d.dat",
+    return string_from_format("%s/files/%s/%s/logical_blocks/%06d.dat",
                               punto_montaje, nombre_file, tag, i);
 }
 
@@ -508,7 +508,7 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
     config_destroy(metadata);
     free(metadata_path);
 
-    char* nombre_bloque = string_from_format("block%06d.dat", bloque_logico);
+    char* nombre_bloque = string_from_format("%06d.dat", bloque_logico);
     char* ruta_bloque_logico = string_from_format("%s/files/%s/%s/logical_blocks/%s",
                                                  storage->punto_montaje, nombre_file, tag, nombre_bloque);
     free(nombre_bloque);
@@ -639,7 +639,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     free(metadata_path);
 
     // 3. Verificar hard links (si es unico, escribir directamente. Si no, obtener uno nuevo y copiar).
-    char* nombre_bloque_logico = string_from_format("block%06d.dat", bloque_logico);
+    char* nombre_bloque_logico = string_from_format("%06d.dat", bloque_logico);
     char* ruta_bloque_logico = string_from_format("%s/files/%s/%s/logical_blocks/%s",
                                                  storage->punto_montaje, nombre_file, tag, nombre_bloque_logico);
     free(nombre_bloque_logico);
@@ -710,7 +710,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
         fclose(f_destino);
 
         // e. Eliminar el hard link viejo del bloque logico
-        char* nombre_bloque_logico_upd = string_from_format("block%06d.dat", bloque_logico);
+        char* nombre_bloque_logico_upd = string_from_format("%06d.dat", bloque_logico);
         char* ruta_bloque_logico_upd = string_from_format("%s/files/%s/%s/logical_blocks/%s",
                                                          storage->punto_montaje, nombre_file, tag, nombre_bloque_logico_upd);
         free(nombre_bloque_logico_upd);
