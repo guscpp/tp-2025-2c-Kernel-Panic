@@ -328,6 +328,139 @@ bool truncar_file(t_storage* storage, t_list* parametros)
     return true;
 }
 
+bool tag_file(t_storage* storage, t_list* parametros){
+    if(!parametros || list_size(parametros) < 5){
+        log_error(storage->logger, "Parametros invalidos para tag_file");
+        return false;
+    }
+
+    int query_id = *(int*)list_get(parametros, 1);
+    char* nombre_file = list_get(parametros, 2);
+    char* tag_origen = list_get(parametros, 3);
+    char* tag_destino = list_get(parametros, 4);
+
+    char* ruta_tag_origen = obtener_ruta_absoluta(string_from_format("files/%s/%s", nombre_file, tag_origen)); // le paso ruta relativa porque obtener_ruta_absoluta le agrega el punto de montaje
+    char* ruta_tag_destino = obtener_ruta_absoluta(string_from_format("files/%s/%s", nombre_file, tag_destino));
+
+    if(access(ruta_tag_origen, F_OK) != 0){
+        log_error(storage->logger, "El tag %s del file %s no existe", tag_origen, nombre_file);
+        free(ruta_tag_origen);
+        free(ruta_tag_destino);
+        return false;
+    }
+
+    if(access(ruta_tag_destino, F_OK) == 0){ // el enunciado dice nuevo directorio destino, asi que asumo que hay que crear uno nuevo
+        log_error(storage->logger, "El tag destino %s del file %s ya existe", tag_destino, nombre_file);
+        free(ruta_tag_origen);
+        free(ruta_tag_destino);
+        return false;
+    }
+
+    // crear directorios del tag destino y logical blocks
+
+    crear_directorios(string_from_format("files/%s/%s", nombre_file, tag_destino));
+    crear_directorios(string_from_format("files/%s/%s/logical_blocks", nombre_file, tag_destino));
+
+    // copiar metadata.config
+    char* ruta_metadata_origen = string_from_format("%s/metadata.config", ruta_tag_origen);
+    char* ruta_metadata_destino = string_from_format("%s/metadata.config", ruta_tag_destino);
+
+    FILE* metadata_nuevo = fopen(ruta_metadata_destino, "w");
+    if(!metadata_nuevo){
+        log_error(storage->logger, "Error al crear metadata.config para %s:%s", nombre_file, tag_destino);
+        free(ruta_tag_origen);
+        free(ruta_tag_destino);
+        free(ruta_metadata_origen);
+        free(ruta_metadata_destino);
+        return false;
+    }
+    fclose(metadata_nuevo);
+
+    t_config* metadata_origen = config_create(ruta_metadata_origen);
+    if(!metadata_origen){
+        log_error(storage->logger, "No se pudo abrir el metadata.config origen para tag_file %s:%s", nombre_file, tag_origen);
+        config_destroy(metadata_origen);
+        free(ruta_tag_origen);
+        free(ruta_tag_destino);
+        free(ruta_metadata_origen);
+        free(ruta_metadata_destino);
+        return false;
+    }
+
+    t_config* metadata_destino = config_create(ruta_metadata_destino);
+    if(!metadata_destino){
+        log_error(storage->logger, "No se pudo abrir el metadata.config destino para tag_file %s:%s", nombre_file, tag_destino);
+        config_destroy(metadata_destino);
+        free(ruta_tag_origen);
+        free(ruta_tag_destino);
+        free(metadata_origen);
+        free(metadata_destino);
+        return false;
+    }
+
+    char* tamanio_origen = string_from_format("%d", config_get_int_value(metadata_origen, "TAMANIO"));
+    char* bloques_origen = string_duplicate(config_get_string_value(metadata_origen, "BLOCKS")); // aca uso config_get_string_value y no uso config_get_array_value porque quiero copiar el string tal cual esta en el config y no necesito trabajar con el array
+
+    config_set_value(metadata_destino, "TAMANIO", tamanio_origen);
+    config_set_value(metadata_destino, "BLOCKS", bloques_origen);
+    config_set_value(metadata_destino, "ESTADO", "WORK_IN_PROGRESS");
+    config_save(metadata_destino);
+
+    free(tamanio_origen);
+    free(bloques_origen);
+    config_destroy(metadata_origen);
+    config_destroy(metadata_destino);
+
+    // copiar los hard links de logical blocks
+    char* ruta_logical_origen = string_from_format("%s/logical_blocks", ruta_tag_origen);
+    char* ruta_logical_destino = string_from_format("%s/logical_blocks", ruta_tag_destino);
+
+    DIR* dir = opendir(ruta_logical_origen); // abro el directorio de bloques lógicos del tag origen
+    if(dir){
+        struct dirent* entry; // estructura para leer las entradas del directorio
+        while((entry = readdir(dir)) != NULL){
+            if(entry->d_type == DT_REG){ // busca solo los archivos regulares
+                char* bloque_origen = string_from_format("%s/%s", ruta_logical_origen, entry->d_name);
+                char* bloque_destino = string_from_format("%s/%s", ruta_logical_destino, entry->d_name);
+
+                if(link(bloque_origen, bloque_destino) == 0){ // se linkea los dos bloques logicos, porque si bloque origen ya tiene un hard link al bloque fisico, el nuevo bloque destino va a apuntar al mismo bloque fisico
+                    log_info(storage->logger, "Bloque lógico %s linkeado a %s", bloque_origen, bloque_destino);
+                } else {
+                    log_error(storage->logger, "Error al linkear bloque lógico %s a %s", bloque_origen, bloque_destino);
+                    free(bloque_origen);
+                    free(bloque_destino);
+                    free(metadata_origen);
+                    free(metadata_destino);
+                    free(ruta_tag_origen);
+                    free(ruta_tag_destino);
+                    free(ruta_logical_origen);
+                    free(ruta_logical_destino);
+                    closedir(dir);
+                    return false;
+                }
+
+                free(bloque_origen);
+                free(bloque_destino);
+            }
+        }
+        closedir(dir);
+    }else{
+        log_error(storage->logger, "Error al abrir el directorio de bloques lógicos para tag_file %s:%s", nombre_file, tag_origen);
+    }
+
+    free(metadata_origen);
+    free(metadata_destino);
+    free(ruta_tag_origen);
+    free(ruta_tag_destino);
+    free(ruta_logical_origen);
+    free(ruta_logical_destino);
+
+
+    log_info(storage->logger, "##<%d>- Tag creado <%s>:<%s>", query_id, nombre_file, tag_destino);
+
+    return true;
+}
+
 // ****************************************************************************
 bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* tamanio_bloque) {
     if (!parametros || list_size(parametros) < 5) {

@@ -1,6 +1,8 @@
 {
     "files.associations": {
         "storage.h": "c",
-        "bitarray.h": "c"
+        "bitarray.h": "c",
+        "crypto.h": "c",
+        "utils.h": "c"
     }
 }
