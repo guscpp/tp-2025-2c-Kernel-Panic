@@ -329,18 +329,20 @@ bool truncar_file(t_storage* storage, t_list* parametros)
 
 
 // ****************************************************************************
+// Crea un nuevo Tag como copia exacta de un Tag existente dentro del mismo File
+// duplicando su metadata y hard links a bloques físicos.
 bool tag_file(t_storage* storage, t_list* parametros){
     if(!parametros || list_size(parametros) < 5){
         log_error(storage->logger, "Parametros invalidos para tag_file");
         return false;
     }
-
     int query_id = *(int*)list_get(parametros, 1);
     char* nombre_file = list_get(parametros, 2);
     char* tag_origen = list_get(parametros, 3);
     char* tag_destino = list_get(parametros, 4);
 
-    char* ruta_tag_origen = obtener_ruta_absoluta(string_from_format("files/%s/%s", nombre_file, tag_origen)); // le paso ruta relativa porque obtener_ruta_absoluta le agrega el punto de montaje
+    // 1. Validar existencia del tag origen y no existencia del tag destino
+    char* ruta_tag_origen = obtener_ruta_absoluta(string_from_format("files/%s/%s", nombre_file, tag_origen));
     char* ruta_tag_destino = obtener_ruta_absoluta(string_from_format("files/%s/%s", nombre_file, tag_destino));
 
     if(access(ruta_tag_origen, F_OK) != 0){
@@ -350,36 +352,47 @@ bool tag_file(t_storage* storage, t_list* parametros){
         return false;
     }
 
-    if(access(ruta_tag_destino, F_OK) == 0){ // el enunciado dice nuevo directorio destino, asi que asumo que hay que crear uno nuevo
+    if(access(ruta_tag_destino, F_OK) == 0){
         log_error(storage->logger, "El tag destino %s del file %s ya existe", tag_destino, nombre_file);
         free(ruta_tag_origen);
         free(ruta_tag_destino);
         return false;
     }
 
-    // crear directorios del tag destino y logical blocks
-
+    // 2. Crear directorios del tag destino
     crear_directorios(string_from_format("files/%s/%s", nombre_file, tag_destino));
     crear_directorios(string_from_format("files/%s/%s/logical_blocks", nombre_file, tag_destino));
 
-    // copiar metadata.config
+    // 3. Cargar metadata del tag origen
     char* ruta_metadata_origen = string_from_format("%s/metadata.config", ruta_tag_origen);
-    char* ruta_metadata_destino = string_from_format("%s/metadata.config", ruta_tag_destino);
+    t_config* metadata_origen = config_create(ruta_metadata_origen);
+    if(!metadata_origen){
+        log_error(storage->logger, "No se pudo abrir el metadata.config origen para tag_file %s:%s", nombre_file, tag_origen);
 
-    FILE* metadata_nuevo = fopen(ruta_metadata_destino, "w");
-    if(!metadata_nuevo){
+        free(ruta_tag_origen);
+        free(ruta_tag_destino);
+        free(ruta_metadata_origen);
+        return false;
+    }
+
+    // 4. Crear archivo de metadata vacío para el tag destino
+    char* ruta_metadata_destino = string_from_format("%s/metadata.config", ruta_tag_destino);
+    FILE* metadata_nuevo_file = fopen(ruta_metadata_destino, "w");
+    if(!metadata_nuevo_file){
         log_error(storage->logger, "Error al crear metadata.config para %s:%s", nombre_file, tag_destino);
+        config_destroy(metadata_origen);
         free(ruta_tag_origen);
         free(ruta_tag_destino);
         free(ruta_metadata_origen);
         free(ruta_metadata_destino);
         return false;
     }
-    fclose(metadata_nuevo);
+    fclose(metadata_nuevo_file);
 
-    t_config* metadata_origen = config_create(ruta_metadata_origen);
-    if(!metadata_origen){
-        log_error(storage->logger, "No se pudo abrir el metadata.config origen para tag_file %s:%s", nombre_file, tag_origen);
+    // 5. Cargar metadata del tag destino recién creado
+    t_config* metadata_destino = config_create(ruta_metadata_destino);
+    if(!metadata_destino){
+        log_error(storage->logger, "No se pudo abrir el metadata.config destino para tag_file %s:%s", nombre_file, tag_destino);
         config_destroy(metadata_origen);
         free(ruta_tag_origen);
         free(ruta_tag_destino);
@@ -388,77 +401,78 @@ bool tag_file(t_storage* storage, t_list* parametros){
         return false;
     }
 
-    t_config* metadata_destino = config_create(ruta_metadata_destino);
-    if(!metadata_destino){
-        log_error(storage->logger, "No se pudo abrir el metadata.config destino para tag_file %s:%s", nombre_file, tag_destino);
-        config_destroy(metadata_destino);
-        free(ruta_tag_origen);
-        free(ruta_tag_destino);
-        free(metadata_origen);
-        free(metadata_destino);
-        return false;
-    }
+    // 6. Copiar valores de tamaño, bloques y estado (WORK_IN_PROGRESS)
+    int tamanio_origen = config_get_int_value(metadata_origen, "TAMANIO");
+    char* bloques_origen = string_duplicate(config_get_string_value(metadata_origen, "BLOCKS")); // Copia string, se libera
+    char* estado_origen = config_get_string_value(metadata_origen, "ESTADO"); // Puntero interno
 
-    char* tamanio_origen = string_from_format("%d", config_get_int_value(metadata_origen, "TAMANIO"));
-    char* bloques_origen = string_duplicate(config_get_string_value(metadata_origen, "BLOCKS")); // aca uso config_get_string_value y no uso config_get_array_value porque quiero copiar el string tal cual esta en el config y no necesito trabajar con el array
-
-    config_set_value(metadata_destino, "TAMANIO", tamanio_origen);
+    config_set_value(metadata_destino, "TAMANIO", string_itoa(tamanio_origen));
     config_set_value(metadata_destino, "BLOCKS", bloques_origen);
     config_set_value(metadata_destino, "ESTADO", "WORK_IN_PROGRESS");
+
     config_save(metadata_destino);
 
-    free(tamanio_origen);
-    free(bloques_origen);
-    config_destroy(metadata_origen);
-    config_destroy(metadata_destino);
+    // 7. Liberar recursos de metadata
+    config_destroy(metadata_origen); // Libera la estructura y sus strings internos
+    config_destroy(metadata_destino); // Libera la estructura y sus strings internos
+    free(bloques_origen); // Libera la copia hecha con string_duplicate
 
-    // copiar los hard links de logical blocks
+    // 8. Copiar hard links de bloques lógicos
     char* ruta_logical_origen = string_from_format("%s/logical_blocks", ruta_tag_origen);
     char* ruta_logical_destino = string_from_format("%s/logical_blocks", ruta_tag_destino);
 
-    DIR* dir = opendir(ruta_logical_origen); // abro el directorio de bloques lógicos del tag origen
+    DIR* dir = opendir(ruta_logical_origen);
     if(dir){
-        struct dirent* entry; // estructura para leer las entradas del directorio
+        struct dirent* entry;
         while((entry = readdir(dir)) != NULL){
-            if(entry->d_type == DT_REG){ // busca solo los archivos regulares
+            if(entry->d_type == DT_REG){ // Solo archivos regulares
                 char* bloque_origen = string_from_format("%s/%s", ruta_logical_origen, entry->d_name);
                 char* bloque_destino = string_from_format("%s/%s", ruta_logical_destino, entry->d_name);
 
-                if(link(bloque_origen, bloque_destino) == 0){ // se linkea los dos bloques logicos, porque si bloque origen ya tiene un hard link al bloque fisico, el nuevo bloque destino va a apuntar al mismo bloque fisico
+                if(link(bloque_origen, bloque_destino) == 0){
                     log_info(storage->logger, "Bloque lógico %s linkeado a %s", bloque_origen, bloque_destino);
                 } else {
                     log_error(storage->logger, "Error al linkear bloque lógico %s a %s", bloque_origen, bloque_destino);
                     free(bloque_origen);
                     free(bloque_destino);
-                    free(metadata_origen);
-                    free(metadata_destino);
+                    closedir(dir);
+
+                    // Liberar recursos antes de retornar
                     free(ruta_tag_origen);
                     free(ruta_tag_destino);
+                    free(ruta_metadata_origen);
+                    free(ruta_metadata_destino);
                     free(ruta_logical_origen);
                     free(ruta_logical_destino);
-                    closedir(dir);
                     return false;
                 }
-
                 free(bloque_origen);
                 free(bloque_destino);
             }
         }
         closedir(dir);
-    }else{
+    } else {
         log_error(storage->logger, "Error al abrir el directorio de bloques lógicos para tag_file %s:%s", nombre_file, tag_origen);
+
+        // Liberar recursos antes de retornar
+        free(ruta_tag_origen);
+        free(ruta_tag_destino);
+        free(ruta_metadata_origen);
+        free(ruta_metadata_destino);
+        free(ruta_logical_origen);
+        free(ruta_logical_destino);
+        return false;
     }
 
-    free(metadata_origen);
-    free(metadata_destino);
+    // 9. Liberar recursos temporales
     free(ruta_tag_origen);
     free(ruta_tag_destino);
+    free(ruta_metadata_origen);
+    free(ruta_metadata_destino);
     free(ruta_logical_origen);
     free(ruta_logical_destino);
 
-
     log_info(storage->logger, "##<%d>- Tag creado <%s>:<%s>", query_id, nombre_file, tag_destino);
-
     return true;
 }
 
@@ -851,112 +865,134 @@ char* calcular_md5_por_bloque(const char* path_bloque, int tamanio_bloque)
 //*****************************************************************************
 // Evita duplicidad de bloques al commitear un file:tag.
 // Compara hashes de cada bloque contra blocks_hash_index.config
-void evitar_duplicidad(t_storage* storage, char* file, char* tag)
-{
-    // 1️⃣ Construir paths relevantes
-    char* path_file_cfg = string_from_format("%s/FILES/%s/%s.cfg",
-        storage->punto_montaje, file, tag);
+void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
+    log_info(storage->logger, "Iniciando proceso de deduplicación para %s:%s", file, tag);
 
-    char* path_index = string_from_format("%s/blocks_hash_index.config",
-        storage->punto_montaje);
-
-    // 2️⃣ Cargar configs
-    t_config* metadata_cfg = config_create(path_file_cfg);
-    t_config* blocks_hash_index_cfg = config_create(path_index);
-
-    if (!metadata_cfg || !blocks_hash_index_cfg) {
-        log_error(storage->logger, "Error abriendo cfgs para evitar duplicidad en %s:%s", file, tag);
-
-        if (metadata_cfg) config_destroy(metadata_cfg);
-        if (blocks_hash_index_cfg) config_destroy(blocks_hash_index_cfg);
-        free(path_file_cfg);
-        free(path_index);
+    // 1. Cargar metadata.config del file:tag
+    char* metadata_path = string_from_format("%s/files/%s/%s/metadata.config",
+                                           storage->punto_montaje, file, tag);
+    if (access(metadata_path, F_OK) != 0) {
+        log_error(storage->logger, "No se puede deduplicar, metadata.config no existe para %s:%s", file, tag);
+        free(metadata_path);
         return;
     }
 
-    // 3️⃣ Obtener los bloques virtuales del archivo
-    char** bloques_str = config_get_array_value(metadata_cfg, "BLOCKS");
-    if (!bloques_str) {
-        log_warning(storage->logger, "Archivo %s:%s no tiene bloques definidos", file, tag);
-
-        config_destroy(metadata_cfg);
-        config_destroy(blocks_hash_index_cfg);
-        free(path_file_cfg);
-        free(path_index);
+    t_config* metadata = config_create(metadata_path);
+    if (!metadata) {
+        log_error(storage->logger, "No se pudo cargar metadata.config para %s:%s", file, tag);
+        free(metadata_path);
         return;
     }
 
-    // 4️⃣ Iterar sobre cada bloque
-    for (int i = 0; bloques_str[i] != NULL; i++) {
-        int bloque_virtual = atoi(bloques_str[i]);
-        char* path_bloque = string_from_format("%s/physical_blocks/block%04d.dat",
-            storage->punto_montaje, bloque_virtual);
+    // 2. Obtener bloques actuales del metadata
+    char** bloques_str = config_get_array_value(metadata, "BLOCKS");
+    int cantidad_bloques = get_array_length(bloques_str);
+    if (cantidad_bloques == 0) {
+        log_info(storage->logger, "No hay bloques para deduplicar en %s:%s", file, tag);
+        config_destroy(metadata);
+        if (bloques_str) string_array_destroy(bloques_str);
+        free(metadata_path);
+        return;
+    }
 
-        // Calcular hash MD5 del bloque
-        char* hash = calcular_md5_por_bloque(path_bloque, storage->tamanio_bloque);
+    // 3. Cargar o crear blocks_hash_index.config
+    char* hash_index_path = string_from_format("%s/blocks_hash_index.config", storage->punto_montaje);
+    
+    // Verificar si el archivo existe, si no, crearlo vacío
+    if (access(hash_index_path, F_OK) != 0) {
+        FILE* f = fopen(hash_index_path, "w");
+        if (!f) {
+            log_error(storage->logger, "No se pudo crear el archivo blocks_hash_index.config en %s", hash_index_path);
+            config_destroy(metadata);
+            if (bloques_str) string_array_destroy(bloques_str);
+            free(metadata_path);
+            free(hash_index_path);
+            return;
+        }
+        fclose(f);
+    }
+
+    t_config* hash_index = config_create(hash_index_path);
+    if (!hash_index) {
+        log_error(storage->logger, "No se pudo cargar blocks_hash_index.config");
+        config_destroy(metadata);
+        if (bloques_str) string_array_destroy(bloques_str);
+        free(metadata_path);
+        free(hash_index_path);
+        return;
+    }
+
+    // 4. Iterar sobre cada bloque lógico (índice) y su bloque físico actual (contenido de bloques_str[i])
+    for (int i = 0; i < cantidad_bloques; i++) {
+        int bloque_fisico_actual = atoi(bloques_str[i]);
+
+        // Calcular el hash del bloque físico actual
+        char* path_bloque_fisico = string_from_format("%s/physical_blocks/block%04d.dat",
+                                                    storage->punto_montaje, bloque_fisico_actual);
+        char* hash = calcular_md5_por_bloque(path_bloque_fisico, storage->tamanio_bloque);
         if (!hash) {
-            log_error(storage->logger, "No se pudo calcular hash del bloque %d", bloque_virtual);
-            free(path_bloque);
+            log_error(storage->logger, "No se pudo calcular hash para bloque físico %d", bloque_fisico_actual);
+            free(path_bloque_fisico);
             continue;
         }
 
-        // 5️⃣ Verificar si el hash ya existe en blocks_hash_index.config
-        if (config_has_property(blocks_hash_index_cfg, hash)) {
-            char* bloque_original = config_get_string_value(blocks_hash_index_cfg, hash);
+        // 5. Verificar si el hash ya existe en el índice
+        if (config_has_property(hash_index, hash)) {
+            // Ya existe un bloque con este contenido
+            char* bloque_existente_str = config_get_string_value(hash_index, hash);
+            int bloque_existente = atoi(bloque_existente_str + 5); // Extraer número de "block0000"
 
-            log_info(storage->logger,
-                "Bloque duplicado: %s:%s → bloque %d referenciado a %s",
-                file, tag, bloque_virtual, bloque_original);
+            if (bloque_existente != bloque_fisico_actual) { // Asegurarse que no es el mismo bloque
+                log_info(storage->logger, "Deduplicación: Bloque lógico %d de %s:%s reasignado de %d a %d (hash: %s)",
+                        i, file, tag, bloque_fisico_actual, bloque_existente, hash);
 
-            // Actualizar el array del archivo para que apunte al bloque original
-            free(bloques_str[i]);
+                // a. Actualizar el bloque en la metadata del file:tag
+                free(bloques_str[i]);
+                bloques_str[i] = string_itoa(bloque_existente);
 
-            int bloque_aux = atoi(bloque_original);
-            char* bloque_aux_str = string_itoa(bloque_aux);
-
-            bloques_str[i] = bloque_aux_str;
-
-            // Marcar el bloque duplicado como libre en el bitmap
-            pthread_mutex_lock(&storage->mutex_bitmap);
-            bitarray_clean_bit(storage->bitmap, bloque_virtual);
-            pthread_mutex_unlock(&storage->mutex_bitmap);
+                // b. Liberar el bloque físico original en el bitmap
+                pthread_mutex_lock(&storage->mutex_bitmap);
+                if (bitarray_test_bit(storage->bitmap, bloque_fisico_actual)) {
+                    bitarray_clean_bit(storage->bitmap, bloque_fisico_actual);
+                    log_info(storage->logger, "##0-%s:%s Bloque Físico Liberado- Número de Bloque: %d",
+                            file, tag, bloque_fisico_actual);
+                }
+                pthread_mutex_unlock(&storage->mutex_bitmap);
+            } else {
+                // El bloque ya era el correcto, solo loggear
+                log_info(storage->logger, "Bloque lógico %d de %s:%s ya estaba correctamente apuntando al bloque físico %d (hash: %s)",
+                        i, file, tag, bloque_existente, hash);
+            }
         } else {
-            // Si no existe, lo agregamos al índice global
-            
-            char* valor = string_from_format("block%06i" , bloque_virtual);
-            config_set_value(blocks_hash_index_cfg, hash, valor);
-            log_info(storage->logger,
-                "Bloque nuevo agregado al índice global (hash=%s bloque=%d)",
-                hash, bloque_virtual);
-            free(valor);
-            
+            // No existe, agregarlo al índice
+            char* valor_bloque = string_from_format("block%04d", bloque_fisico_actual);
+            config_set_value(hash_index, hash, valor_bloque);
+            log_info(storage->logger, "##0-%s:%s Nuevo hash agregado al índice: %s -> %s",
+                    file, tag, hash, valor_bloque);
+            free(valor_bloque);
         }
 
         free(hash);
-        free(path_bloque);
+        free(path_bloque_fisico);
     }
 
-    // 6️⃣ Guardar los cambios en el archivo de bloques
-    char* joined_blocks = string_new();
-    for (int i = 0; bloques_str[i] != NULL; i++) {
-        string_append_with_format(&joined_blocks, "%s%s", bloques_str[i],
-            bloques_str[i + 1] ? "," : "");
-    }
+    // 6. Serializar y guardar la nueva lista de bloques en metadata
+    char* bloques_serializados = serializar_bloques_array(bloques_str);
+    config_set_value(metadata, "BLOCKS", bloques_serializados);
+    config_save(metadata);
 
-    config_set_value(metadata_cfg, "BLOCKS", joined_blocks);
-    free(joined_blocks);
+    // 7. Guardar el índice de hashes actualizado
+    config_save(hash_index);
 
-    // 7️⃣ Guardar los cambios y liberar recursos
-    config_save(metadata_cfg);
-    config_save(blocks_hash_index_cfg);
+    log_info(storage->logger, "Proceso de deduplicación completado para %s:%s", file, tag);
 
-    log_info(storage->logger, "Verificación de duplicidad completada para %s:%s", file, tag);
-
-    string_array_destroy(bloques_str);
-    config_destroy(metadata_cfg);
-    config_destroy(blocks_hash_index_cfg);
-    free(path_file_cfg);
-    free(path_index);
+    // 8. Liberar recursos
+    config_destroy(metadata);
+    config_destroy(hash_index);
+    if (bloques_str) string_array_destroy(bloques_str);
+    free(metadata_path);
+    free(hash_index_path);
+    free(bloques_serializados);
 }
 
 
@@ -982,7 +1018,7 @@ void persistir_bitmap(t_storage* storage) {
 //Verifica si un archivo/tag tiene estado COMMITED en su archivo .cfg
 bool verificar_si_commited(t_storage* storage, const char* file, const char* tag) {
     // 1️⃣ Armar la ruta del archivo .cfg del file:tag
-    char* path_cfg = string_from_format("%s/Files/%s/%s.cfg",
+    char* path_cfg = string_from_format("%s/files/%s/%s.config",
                                         storage->punto_montaje, file, tag);
 
     // 2️⃣ Intentar abrir el archivo de configuración
@@ -1016,39 +1052,59 @@ bool verificar_si_commited(t_storage* storage, const char* file, const char* tag
 
 //*****************************************************************************
 bool realizar_commit(t_storage* storage, t_list* parametros) {
-    // Obtener parámetros desde la lista
-    // Supongamos que la lista viene así: [op_code, file, tag]
-    char* file = (char*) list_get(parametros, 1);
-    char* tag  = (char*) list_get(parametros, 2);
-
-    log_info(storage->logger, "Iniciando commit para %s:%s", file, tag);
-
-    // Llamamos a la función de deduplicación
-    evitar_duplicidad(storage, file, tag);
-
-    // Obtener el path del archivo de configuración (.cfg)
-    char* path_cfg = string_from_format("%s/Files/%s/%s.cfg",
-                                        storage->punto_montaje, file, tag);
-
-    t_config* cfg = config_create(path_cfg);
-    if (!cfg) {
-        log_error(storage->logger, "No se pudo abrir archivo de configuración: %s", path_cfg);
-        free(path_cfg);
+    if (!parametros || list_size(parametros) < 4) { // [op, query_id, file, tag]
+        log_error(storage->logger, "Parámetros insuficientes para STORAGE_COMMIT");
         return false;
     }
 
-    // Marcar el archivo como COMMITED
-    config_set_value(cfg, "STATUS", "COMMITED");
-    config_save(cfg);
+    int query_id = *(int*)list_get(parametros, 1);
+    char* file = (char*)list_get(parametros, 2);
+    char* tag  = (char*)list_get(parametros, 3);
 
-    // Persistir el bitmap actualizado
+    log_info(storage->logger, "Iniciando commit para %s:%s", file, tag);
+
+    // 1. Obtener ruta del metadata.config
+    char* metadata_path = string_from_format("%s/files/%s/%s/metadata.config",
+                                           storage->punto_montaje, file, tag);
+
+    if (access(metadata_path, F_OK) != 0) {
+        log_error(storage->logger, "File:Tag %s:%s no existe para commit", file, tag);
+        free(metadata_path);
+        return false;
+    }
+
+    // 2. Cargar metadata
+    t_config* metadata = config_create(metadata_path);
+    if (!metadata) {
+        log_error(storage->logger, "No se pudo abrir metadata.config para commit de %s:%s", file, tag);
+        free(metadata_path);
+        return false;
+    }
+
+    // 3. Verificar estado actual
+    char* estado_actual = config_get_string_value(metadata, "ESTADO");
+    if (estado_actual && string_equals_ignore_case(estado_actual, "COMMITED")) {
+        log_warning(storage->logger, "El File:Tag %s:%s ya está COMMITED", file, tag);
+        config_destroy(metadata);
+        free(metadata_path);
+        return true; // Considerar como éxito si ya está commited
+    }
+
+    // 4. Realizar deduplicación
+    log_info(storage->logger, "Realizando deduplicación antes del commit para %s:%s", file, tag);
+    evitar_duplicidad(storage, file, tag); // Llama a la versión corregida
+
+    // 5. Actualizar estado a COMMITED
+    config_set_value(metadata, "ESTADO", "COMMITED");
+    config_save(metadata);
+    config_destroy(metadata);
+
+    log_info(storage->logger, "##%d- Commit de File:Tag %s:%s", query_id, file, tag);
+
+    // 6. Persistir bitmap (esto puede hacerse aquí o en otro momento, dependiendo del diseño)
     persistir_bitmap(storage);
 
-    // Liberar memoria
-    config_destroy(cfg);
-    free(path_cfg);
-
-    log_info(storage->logger, "Commit finalizado correctamente para %s:%s", file, tag);
+    free(metadata_path);
     return true;
 }
 
@@ -1126,4 +1182,32 @@ bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const
     free(path_metadata);
     free(path_bitmap);
     return true;
+}
+
+//*****************************************************************************
+char* serializar_bloques_array(char** bloques) {
+    if (!bloques || !bloques[0]) {
+        return string_duplicate("[]");
+    }
+
+    // Contar elementos
+    int count = 0;
+    while(bloques[count] != NULL) count++;
+
+    if (count == 0) {
+        return string_duplicate("[]");
+    }
+
+    char* resultado = string_new();
+    string_append(&resultado, "[");
+
+    for(int i = 0; i < count; i++) {
+        string_append(&resultado, bloques[i]);
+        if(i < count - 1) {
+            string_append(&resultado, ",");
+        }
+    }
+
+    string_append(&resultado, "]");
+    return resultado;
 }

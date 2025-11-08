@@ -23,5 +23,6 @@ char* calcular_md5_por_bloque(const char* path_bloque, int tamanio_bloque);
 void evitar_duplicidad(t_storage* storage, char* file, char* tag);
 void persistir_bitmap(t_storage* storage);
 bool verificar_si_commited(t_storage* storage, const char* file, const char* tag);
+char* serializar_bloques_array(char** bloques);
 
 #endif 
