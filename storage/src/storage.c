@@ -2,7 +2,7 @@
 #include <commons/collections/dictionary.h>
 
 
-char* PATH_BASE;
+char* PATH_BASE = NULL;
 
 
 // ****************************************************************************
@@ -144,6 +144,7 @@ void recrear_bmap(t_storage* storage, int cantidad_bloques, char* path_bmap) {
 
     if (bitmap_data == NULL) {
         log_error(storage->logger, "No se pudo allocar memoria para el bitmap en recrear_bmap");
+        pthread_mutex_unlock(&storage->mutex_bitmap);
         return; //
     }
 
@@ -153,6 +154,7 @@ void recrear_bmap(t_storage* storage, int cantidad_bloques, char* path_bmap) {
     if (storage->bitmap == NULL) {
         log_error(storage->logger, "No se pudo crear la estructura t_bitarray en recrear_bmap");
         free(bitmap_data); // <-- Liberar el data si la creación falla
+        pthread_mutex_unlock(&storage->mutex_bitmap);
         return;
     }
 
@@ -167,9 +169,13 @@ void recrear_bmap(t_storage* storage, int cantidad_bloques, char* path_bmap) {
     } else {
         log_error(storage->logger, "No se pudo abrir %s para persistir bitmap", path_bmap);
     }
+
     pthread_mutex_unlock(&storage->mutex_bitmap);
+
 }
 
+
+// ****************************************************************************
 void recrear_hash(char* path_hash){
     FILE* archivo_hash = fopen(path_hash, "w");
     if(archivo_hash != NULL){

@@ -200,16 +200,16 @@ bool truncar_file(t_storage* storage, t_list* parametros)
     char* tag = list_get(parametros, 3);
     int nuevo_tamanio = *(int*) list_get(parametros, 4);
 
-    //la ruta correcta es .../files/nombre_file/tag/metadata.config
-    char* ruta_metadata = string_from_format("%s/files/%s/%s/metadata.config", storage->punto_montaje, nombre_file, tag);
-
     // Obtener lock en el diccionario
     pthread_mutex_t* file_mutex = get_or_create_file_mutex(storage, nombre_file, tag);
     pthread_mutex_lock(file_mutex);
 
+    // La ruta correcta es .../files/nombre_file/tag/metadata.config
+    char* ruta_metadata = string_from_format("%s/files/%s/%s/metadata.config", storage->punto_montaje, nombre_file, tag);
+
     if(access(ruta_metadata, F_OK) != 0) {
         log_error(storage->logger, "El tag %s del file %s no existe", tag, nombre_file);
-        free(ruta_metadata); //se libera la ruta antes de retornar
+        free(ruta_metadata);
         pthread_mutex_unlock(file_mutex);
         return false;
     }
@@ -217,7 +217,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
     t_config* metadata_config = config_create(ruta_metadata);
     if(!metadata_config){
         log_error(storage->logger, "No se pudo abrir el metadata.config para truncar el file %s tag %s", nombre_file, tag);
-        free(ruta_metadata); //liberar la ruta antes de retornar
+        free(ruta_metadata);
         pthread_mutex_unlock(file_mutex);
         return false;
     }
@@ -225,7 +225,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
     int tamanio_actual = config_get_int_value(metadata_config, "TAMANIO");
     int tamanio_bloque = storage->tamanio_bloque;
     
-    //división entera hacia arriba para obtener bloques actuales/nuevos
+    // División entera hacia arriba para obtener bloques actuales/nuevos
     int bloques_actuales = (tamanio_actual + tamanio_bloque - 1) / tamanio_bloque;
     int bloques_nuevos = (nuevo_tamanio + tamanio_bloque - 1) / tamanio_bloque;
 
@@ -242,7 +242,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
             char* path_logico = path_logico_para_truncate(storage->punto_montaje, nombre_file, tag, i);
             char* path_fisico = path_fisico_para_truncate(storage->punto_montaje, 0); // Asigna bloque 0 temporalmente
             
-            //crear directorio lógico si no existe
+            // Crear directorio lógico si no existe
             char* dir_logico = string_substring_until(path_logico, string_length(path_logico) - 10); // Quitar "blockXXXXXX.dat"
             mkdir_recursivo(dir_logico);
             free(dir_logico);
@@ -252,7 +252,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
                 free(path_logico);
                 free(path_fisico);
                 config_destroy(metadata_config);
-                free(ruta_metadata); //liberar la ruta antes de retornar
+                free(ruta_metadata);
                 pthread_mutex_unlock(file_mutex);
                 return false;
             }
@@ -262,7 +262,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
         }
     }
 
-    //disminuir tamaño
+    // Disminuir tamaño
     if(bloques_nuevos < bloques_actuales) { 
         for(int i = bloques_actuales - 1; i >= bloques_nuevos; i--){
             char* path_logico = string_from_format("%s/files/%s/%s/logical_blocks/block%06d.dat", storage->punto_montaje, nombre_file, tag, i);
@@ -275,7 +275,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
                     log_error(storage->logger, "Error al eliminar el bloque logico %s", path_logico);
                     free(path_logico);
                     config_destroy(metadata_config);
-                    free(ruta_metadata); //liberar la ruta antes de retornar
+                    free(ruta_metadata);
                     pthread_mutex_unlock(file_mutex);
                     return false;
                 }
@@ -284,7 +284,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
             char* path_fisico = path_fisico_para_truncate(storage->punto_montaje, array_fisico_id);
             struct stat st;
             if (stat(path_fisico, &st) == 0) {
-                if(st.st_nlink == 1) { //si es el ultimo link
+                if(st.st_nlink == 1) { // Si es el ultimo link
                     marcar_bloque_libre(storage, query_id, array_fisico_id);
                     log_info(storage->logger, "Bloque fisico %d liberado", array_fisico_id);
                 }
@@ -293,7 +293,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
         }
     }
 
-    //reconstruir la lista de bloques físicos para la nueva cantidad
+    // Reconstruir la lista de bloques físicos para la nueva cantidad
     int cantidad_bloques_fisico_nueva = bloques_nuevos;
     int* bloque_fisico_final = NULL;
     if(cantidad_bloques_fisico_nueva > 0) {
@@ -302,32 +302,24 @@ bool truncar_file(t_storage* storage, t_list* parametros)
             log_error(storage->logger, "Error al allocar memoria para bloque_fisico_final en truncar_file");
             config_destroy(metadata_config);
             free(ruta_metadata);
-            if(array_bloques_fisico) free(array_bloques_fisico); // <-- Liberar array_bloques_fisico si no es NULL
+            if(array_bloques_fisico) free(array_bloques_fisico);
             pthread_mutex_unlock(file_mutex);
             return false;
         }
         int copiar = (cantidad_bloques_fisico < cantidad_bloques_fisico_nueva ? cantidad_bloques_fisico : cantidad_bloques_fisico_nueva);
         
-        //verificar si array_bloques_fisico no es NULL antes de copiar
+        // Verificar si array_bloques_fisico no es NULL antes de copiar
         if (array_bloques_fisico != NULL) {
             for(int i = 0; i < copiar; i++) {
                 bloque_fisico_final[i] = array_bloques_fisico[i];
             }
-        } else {
-            //OJO
-            //Si array_bloques_fisico es NULL, pero copiar > 0, es un error de logica.
-            //Esto implicaria que cantidad_bloques_fisico > 0 pero array_bloques_fisico es NULL.
-            //En este caso, no hay bloques antiguos que copiar, así que los nuevos bloques
-            //se inicializan a 0 en el siguiente bucle.
-            //No se hace nada aca, el bucle de inicializacion abajo se encarga
-            //de los nuevos bloques.
         }
         for(int i = copiar; i < cantidad_bloques_fisico_nueva; i++) {
-            bloque_fisico_final[i] = 0; //nuevo bloque, apunta a 0 inicialmente
+            bloque_fisico_final[i] = 0; // Nuevo bloque, apunta a 0 inicialmente
         }
     }
 
-    //actualizar metadata
+    // Actualizar metadata
     char* tamanio_final = string_from_format("%d", nuevo_tamanio);
     config_set_value(metadata_config, "TAMANIO", tamanio_final);
     free(tamanio_final);
@@ -393,8 +385,16 @@ bool tag_file(t_storage* storage, t_list* parametros){
 
 
     // 1. Validar existencia del tag origen y no existencia del tag destino
-    char* ruta_tag_origen = obtener_ruta_absoluta(string_from_format("files/%s/%s", nombre_file, tag_origen));
-    char* ruta_tag_destino = obtener_ruta_absoluta(string_from_format("files/%s/%s", nombre_file, tag_destino));
+    // Crear rutas temporales para obtener_ruta_absoluta
+    char* temp_path_origen = string_from_format("files/%s/%s", nombre_file, tag_origen);
+    char* temp_path_destino = string_from_format("files/%s/%s", nombre_file, tag_destino);
+
+    char* ruta_tag_origen = obtener_ruta_absoluta(temp_path_origen);
+    char* ruta_tag_destino = obtener_ruta_absoluta(temp_path_destino);
+
+    // Liberar los temporales *después* de usarlos en obtener_ruta_absoluta
+    free(temp_path_origen);
+    free(temp_path_destino);
 
     if(access(ruta_tag_origen, F_OK) != 0){
         log_error(storage->logger, "El tag %s del file %s no existe", tag_origen, nombre_file);
@@ -415,8 +415,12 @@ bool tag_file(t_storage* storage, t_list* parametros){
     }
 
     // 2. Crear directorios del tag destino
-    crear_directorios(string_from_format("files/%s/%s", nombre_file, tag_destino));
-    crear_directorios(string_from_format("files/%s/%s/logical_blocks", nombre_file, tag_destino));
+    char* temp_path_tag_destino = string_from_format("files/%s/%s", nombre_file, tag_destino);
+    char* temp_path_logical_blocks = string_from_format("files/%s/%s/logical_blocks", nombre_file, tag_destino);
+    crear_directorios(temp_path_tag_destino);
+    crear_directorios(temp_path_logical_blocks);
+    free(temp_path_tag_destino);
+    free(temp_path_logical_blocks);
 
     // 3. Cargar metadata del tag origen
     char* ruta_metadata_origen = string_from_format("%s/metadata.config", ruta_tag_origen);
@@ -465,7 +469,6 @@ bool tag_file(t_storage* storage, t_list* parametros){
     // 6. Copiar valores de tamaño, bloques y estado (WORK_IN_PROGRESS)
     int tamanio_origen = config_get_int_value(metadata_origen, "TAMANIO");
     char* bloques_origen = string_duplicate(config_get_string_value(metadata_origen, "BLOCKS")); // Copia string, se libera
-    //char* estado_origen = config_get_string_value(metadata_origen, "ESTADO"); // Puntero interno
 
     config_set_value(metadata_destino, "TAMANIO", string_itoa(tamanio_origen));
     config_set_value(metadata_destino, "BLOCKS", bloques_origen);
