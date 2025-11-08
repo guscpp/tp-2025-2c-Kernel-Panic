@@ -27,8 +27,13 @@ typedef struct {
     int tamanio_bloque;
     int tamanio_filesystem;
     t_bitarray* bitmap;
-    pthread_mutex_t mutex_bitmap;
     char* path_bitmap;
+
+    pthread_mutex_t mutex_bitmap;       //protege al bitmap
+    pthread_mutex_t mutex_hash_index;   //protege al archivo blocks_hash_index.config
+    t_dictionary* dict_locks_files;     //clave: "file:tag", valor: pthread_mutex_t*
+    pthread_mutex_t mutex_dict_locks;   //protege el diccionario en sí
+    
 } t_storage;
 
 typedef struct{
@@ -40,8 +45,8 @@ typedef struct{
 // === Funciones de inicialización ===
 t_storage* iniciar_storage(void);
 bool inicializar_file_system(t_storage* storage);
-void verificar_storage(t_storage* s);
-void liberar_storage(t_storage* storage);
+void verificar_storage(t_storage* storage);
+void destruir_storage(t_storage* storage);
 
 // === Funciones de servidor ===
 void rutina_recepcion(t_storage* storage, int storage_fd);
@@ -59,5 +64,10 @@ void formatear_fs(t_storage* storage);
 void crear_initial_file(t_storage* storage);
 void recrear_bmap(t_storage* storage, int cantidad_bloques, char* path_bmap);
 void recrear_hash(char* path_hash);
+
+// === Utilidades ===
+void destruir_mutex(char* key, void* value);
+void destruir_mutex_lock(void* data);
+void destruir_dict_locks(t_dictionary* dict);
 
 #endif

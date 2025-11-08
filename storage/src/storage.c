@@ -1,8 +1,11 @@
 #include "storage.h"
+#include <commons/collections/dictionary.h>
 
 
 char* PATH_BASE;
 
+
+// ****************************************************************************
 t_storage* iniciar_storage(){
     t_storage* storage = malloc(sizeof(t_storage));
 
@@ -10,26 +13,29 @@ t_storage* iniciar_storage(){
     storage->config = iniciar_config(storage->logger, "storage.config");
     storage->superblock = iniciar_config(storage->logger, "superblock.config");
     storage->puerto_escucha = config_get_string_value(storage->config, "PUERTO_ESCUCHA");
-
     char* fresh_start_str = config_get_string_value(storage->config, "FRESH_START");
     storage->fresh_start = (strcmp(fresh_start_str, "TRUE") == 0) ? 1 : 0;
-
     storage->punto_montaje = config_get_string_value(storage->config, "PUNTO_MONTAJE");
     storage->retardo_operacion = config_get_int_value(storage->config, "RETARDO_OPERACION");
     storage->retardo_acceso_bloque = config_get_int_value(storage->config, "RETARDO_ACCESO_BLOQUE");
     storage->log_level = config_get_string_value(storage->config, "LOG_LEVEL");
     storage->tamanio_bloque = config_get_int_value(storage->superblock, "BLOCK_SIZE");
     storage->tamanio_filesystem = config_get_int_value(storage->superblock, "FS_SIZE");
-
     storage->bitmap = NULL;
     storage->path_bitmap = string_from_format("%s/bitmap.bin", storage->punto_montaje);
+
     pthread_mutex_init(&storage->mutex_bitmap, NULL);
+    pthread_mutex_init(&storage->mutex_hash_index, NULL); 
+    storage->dict_locks_files = dictionary_create();
+    pthread_mutex_init(&storage->mutex_dict_locks, NULL);
     
+    PATH_BASE = storage->punto_montaje; //se inicializa la variable global del Papu :p
     log_info(storage->logger, "El storage se inicializo correctamente");
-    
     return storage;
 }
 
+
+// ****************************************************************************
 void verificar_storage(t_storage* s)
 {
     log_info(s->logger, "Puerto leido: %s", s->puerto_escucha);
@@ -41,12 +47,17 @@ void verificar_storage(t_storage* s)
 }
 
 
-void liberar_storage (t_storage* storage){
+// ****************************************************************************
+void destruir_storage(t_storage* storage){
     if(storage != NULL){
         if(storage->bitmap != NULL){
             bitarray_destroy(storage->bitmap);
         }
         pthread_mutex_destroy(&storage->mutex_bitmap);
+        dictionary_iterator(storage->dict_locks_files, destruir_mutex);
+        dictionary_destroy(storage->dict_locks_files);
+        
+        pthread_mutex_destroy(&storage->mutex_dict_locks);
         log_destroy(storage->logger);
         config_destroy(storage->config);
         free(storage->path_bitmap);
@@ -61,6 +72,8 @@ int rm_rf (const char* path){
     return aux;
 }
 
+
+// ****************************************************************************
 char* obtener_ruta_absoluta(char* ruta_rel){
     char* aux = string_new();
     string_append(&aux, PATH_BASE);
@@ -69,6 +82,8 @@ char* obtener_ruta_absoluta(char* ruta_rel){
     return aux;
 }
 
+
+// ****************************************************************************
 void crear_archivos(char* ruta, char* modo) {
     char* ruta_abs = obtener_ruta_absoluta(ruta);
     FILE* archivo = fopen(ruta_abs, modo);
@@ -80,6 +95,7 @@ void crear_archivos(char* ruta, char* modo) {
     free(ruta_abs);
 }
 
+// ****************************************************************************
 // Dada una ruta absoluta va creando cada dir individualmente
 // Funcion pensada para usarse dentro de void crear_directorios(char* ruta_rel)
 void mkdir_recursivo(const char* ruta_abs) {
@@ -104,12 +120,16 @@ void mkdir_recursivo(const char* ruta_abs) {
     free(ruta);
 }
 
+
+// ****************************************************************************
 void crear_directorios(char* ruta_rel) {
     char* ruta_abs = obtener_ruta_absoluta(ruta_rel);
     mkdir_recursivo(ruta_abs);
     free(ruta_abs);
 }
 
+
+// ****************************************************************************
 void recrear_bmap(t_storage* storage, int cantidad_bloques, char* path_bmap) {
     
     pthread_mutex_lock(&storage->mutex_bitmap);
@@ -158,6 +178,8 @@ void recrear_hash(char* path_hash){
     free(path_hash);
 }
 
+
+// ****************************************************************************
 void crear_initial_file(t_storage* storage){
     crear_directorios("files/initial_file");
     crear_directorios("files/initial_file/BASE");
@@ -198,6 +220,8 @@ void crear_initial_file(t_storage* storage){
     free(metadata);
 }
 
+
+// ****************************************************************************
 void formatear_fs(t_storage* storage){
     char* path_hash = obtener_ruta_absoluta("blocks_hash_index.config");
     char* path_bmap = obtener_ruta_absoluta("bitmap.bin");
@@ -226,6 +250,8 @@ void formatear_fs(t_storage* storage){
 
 }
 
+
+// ****************************************************************************
 bool inicializar_file_system(t_storage* storage){
     log_info(storage->logger, "Inicializando File System...");
 
@@ -240,6 +266,8 @@ bool inicializar_file_system(t_storage* storage){
     return true;
 }
 
+
+// ****************************************************************************
 void enviar_tamanio_paquete_aworker(t_storage* storage, int worker_fd)
 {
     t_buffer* buffer = crear_buffer();
@@ -251,3 +279,28 @@ void enviar_tamanio_paquete_aworker(t_storage* storage, int worker_fd)
     log_info(storage->logger, "Llegue a enviar");
 }
 
+
+// ****************************************************************************
+// Función helper para destruir cada mutex dentro del diccionario
+void destruir_mutex_lock(void* data) {
+    pthread_mutex_t* mutex = (pthread_mutex_t*) data;
+    pthread_mutex_destroy(mutex);
+    free(mutex);
+}
+
+
+// ****************************************************************************
+// Liberar cada mutex individualmente antes de destruir el diccionario
+void destruir_mutex(char* key, void* value) {
+    pthread_mutex_t* mutex = (pthread_mutex_t*)value;
+    pthread_mutex_destroy(mutex);
+    free(mutex);
+}
+
+
+// ****************************************************************************
+void destruir_dict_locks(t_dictionary* dict) {
+    if (!dict) return;
+    dictionary_iterator(dict, destruir_mutex);
+    dictionary_destroy(dict);
+}

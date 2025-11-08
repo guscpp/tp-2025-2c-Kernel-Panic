@@ -18,6 +18,8 @@ int main(int argc, char* argv[]) {
 
     rutina_recepcion(storage, storage_fd); // acepta conexiones y crea hilos para cada worker que se conecte
 
+    destruir_storage(storage);
+
     return 0;
 }
 

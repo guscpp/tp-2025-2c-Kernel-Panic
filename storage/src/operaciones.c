@@ -2,6 +2,7 @@
 #include "operaciones.h"
 #include <sys/stat.h>       // Para stat()
 #include <commons/string.h> // Para string_*, get_array_length
+#include <commons/collections/dictionary.h>
 
 
 // ****************************************************************************
@@ -54,9 +55,14 @@ bool crear_file(t_storage* storage, t_list* parametros)
     char* nombre_file = list_get(parametros, 2);
     char* tag_inicial = list_get(parametros, 3);
 
+    // Obtener lock en el diccionario
+    pthread_mutex_t* file_mutex = get_or_create_file_mutex(storage, nombre_file, tag_inicial);
+    pthread_mutex_lock(file_mutex);
+
     //mini-validacion
     if (!nombre_file || !tag_inicial || strlen(nombre_file) == 0 || strlen(tag_inicial) == 0) {
         log_error(storage->logger, "Nombre de File o Tag inválido");
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -69,6 +75,7 @@ bool crear_file(t_storage* storage, t_list* parametros)
         log_error(storage->logger, "File %s o Tag %s ya existe", nombre_file, tag_inicial);
         free(ruta_rel_tag);
         free(ruta_abs_tag);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -88,6 +95,7 @@ bool crear_file(t_storage* storage, t_list* parametros)
         log_error(storage->logger, "Error al crear metadata.config para %s:%s", nombre_file, tag_inicial);
         free(ruta_abs_tag);
         free(metadata_path);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -103,6 +111,7 @@ bool crear_file(t_storage* storage, t_list* parametros)
     log_info(storage->logger, "##%d- File Creado %s:%s", query_id, nombre_file, tag_inicial);
 
     free(ruta_abs_tag);
+    pthread_mutex_unlock(file_mutex);
     return true;
 }
 
@@ -194,9 +203,14 @@ bool truncar_file(t_storage* storage, t_list* parametros)
     //la ruta correcta es .../files/nombre_file/tag/metadata.config
     char* ruta_metadata = string_from_format("%s/files/%s/%s/metadata.config", storage->punto_montaje, nombre_file, tag);
 
+    // Obtener lock en el diccionario
+    pthread_mutex_t* file_mutex = get_or_create_file_mutex(storage, nombre_file, tag);
+    pthread_mutex_lock(file_mutex);
+
     if(access(ruta_metadata, F_OK) != 0) {
         log_error(storage->logger, "El tag %s del file %s no existe", tag, nombre_file);
         free(ruta_metadata); //se libera la ruta antes de retornar
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -204,6 +218,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
     if(!metadata_config){
         log_error(storage->logger, "No se pudo abrir el metadata.config para truncar el file %s tag %s", nombre_file, tag);
         free(ruta_metadata); //liberar la ruta antes de retornar
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -238,6 +253,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
                 free(path_fisico);
                 config_destroy(metadata_config);
                 free(ruta_metadata); //liberar la ruta antes de retornar
+                pthread_mutex_unlock(file_mutex);
                 return false;
             }
             log_info(storage->logger, "Bloque logico %d creado y linkeado con el bloque fisico 0", i);
@@ -260,6 +276,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
                     free(path_logico);
                     config_destroy(metadata_config);
                     free(ruta_metadata); //liberar la ruta antes de retornar
+                    pthread_mutex_unlock(file_mutex);
                     return false;
                 }
             }
@@ -286,6 +303,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
             config_destroy(metadata_config);
             free(ruta_metadata);
             if(array_bloques_fisico) free(array_bloques_fisico); // <-- Liberar array_bloques_fisico si no es NULL
+            pthread_mutex_unlock(file_mutex);
             return false;
         }
         int copiar = (cantidad_bloques_fisico < cantidad_bloques_fisico_nueva ? cantidad_bloques_fisico : cantidad_bloques_fisico_nueva);
@@ -324,6 +342,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
 
     config_destroy(metadata_config);
     free(ruta_metadata);
+    pthread_mutex_unlock(file_mutex);
     return true;
 }
 
@@ -341,6 +360,38 @@ bool tag_file(t_storage* storage, t_list* parametros){
     char* tag_origen = list_get(parametros, 3);
     char* tag_destino = list_get(parametros, 4);
 
+    // Obtener lock en el diccionario, pero... (ver mas abajo)
+    char* lock_origen = string_from_format("%s:%s", nombre_file, tag_origen);
+    char* lock_destino = string_from_format("%s:%s", nombre_file, tag_destino);
+    
+    // Determinar orden alfabético
+    pthread_mutex_t* mutex_a = NULL;
+    pthread_mutex_t* mutex_b = NULL;
+    char* key_a = NULL;
+    char* key_b = NULL;
+    
+    if(strcmp(lock_origen, lock_destino) < 0) {
+        // lock_origen viene primero alfabéticamente
+        key_a = lock_origen;
+        key_b = lock_destino;
+        mutex_a = get_or_create_file_mutex(storage, nombre_file, tag_origen);
+        mutex_b = get_or_create_file_mutex(storage, nombre_file, tag_destino);
+    } else {
+        // lock_destino viene primero alfabéticamente  
+        key_a = lock_destino;
+        key_b = lock_origen;
+        mutex_a = get_or_create_file_mutex(storage, nombre_file, tag_destino);
+        mutex_b = get_or_create_file_mutex(storage, nombre_file, tag_origen);
+    }
+    
+    // Adquirir en orden alfabético: primero mutex_a, luego mutex_b
+    pthread_mutex_lock(mutex_a);
+    pthread_mutex_lock(mutex_b);
+
+    free(lock_origen);
+    free(lock_destino);
+
+
     // 1. Validar existencia del tag origen y no existencia del tag destino
     char* ruta_tag_origen = obtener_ruta_absoluta(string_from_format("files/%s/%s", nombre_file, tag_origen));
     char* ruta_tag_destino = obtener_ruta_absoluta(string_from_format("files/%s/%s", nombre_file, tag_destino));
@@ -349,6 +400,8 @@ bool tag_file(t_storage* storage, t_list* parametros){
         log_error(storage->logger, "El tag %s del file %s no existe", tag_origen, nombre_file);
         free(ruta_tag_origen);
         free(ruta_tag_destino);
+        pthread_mutex_unlock(mutex_b);
+        pthread_mutex_unlock(mutex_a);
         return false;
     }
 
@@ -356,6 +409,8 @@ bool tag_file(t_storage* storage, t_list* parametros){
         log_error(storage->logger, "El tag destino %s del file %s ya existe", tag_destino, nombre_file);
         free(ruta_tag_origen);
         free(ruta_tag_destino);
+        pthread_mutex_unlock(mutex_b);
+        pthread_mutex_unlock(mutex_a);
         return false;
     }
 
@@ -372,6 +427,8 @@ bool tag_file(t_storage* storage, t_list* parametros){
         free(ruta_tag_origen);
         free(ruta_tag_destino);
         free(ruta_metadata_origen);
+        pthread_mutex_unlock(mutex_b);
+        pthread_mutex_unlock(mutex_a);
         return false;
     }
 
@@ -385,6 +442,8 @@ bool tag_file(t_storage* storage, t_list* parametros){
         free(ruta_tag_destino);
         free(ruta_metadata_origen);
         free(ruta_metadata_destino);
+        pthread_mutex_unlock(mutex_b);
+        pthread_mutex_unlock(mutex_a);
         return false;
     }
     fclose(metadata_nuevo_file);
@@ -398,13 +457,15 @@ bool tag_file(t_storage* storage, t_list* parametros){
         free(ruta_tag_destino);
         free(ruta_metadata_origen);
         free(ruta_metadata_destino);
+        pthread_mutex_unlock(mutex_b);
+        pthread_mutex_unlock(mutex_a);
         return false;
     }
 
     // 6. Copiar valores de tamaño, bloques y estado (WORK_IN_PROGRESS)
     int tamanio_origen = config_get_int_value(metadata_origen, "TAMANIO");
     char* bloques_origen = string_duplicate(config_get_string_value(metadata_origen, "BLOCKS")); // Copia string, se libera
-    char* estado_origen = config_get_string_value(metadata_origen, "ESTADO"); // Puntero interno
+    //char* estado_origen = config_get_string_value(metadata_origen, "ESTADO"); // Puntero interno
 
     config_set_value(metadata_destino, "TAMANIO", string_itoa(tamanio_origen));
     config_set_value(metadata_destino, "BLOCKS", bloques_origen);
@@ -444,6 +505,8 @@ bool tag_file(t_storage* storage, t_list* parametros){
                     free(ruta_metadata_destino);
                     free(ruta_logical_origen);
                     free(ruta_logical_destino);
+                    pthread_mutex_unlock(mutex_b);
+                    pthread_mutex_unlock(mutex_a);
                     return false;
                 }
                 free(bloque_origen);
@@ -461,6 +524,8 @@ bool tag_file(t_storage* storage, t_list* parametros){
         free(ruta_metadata_destino);
         free(ruta_logical_origen);
         free(ruta_logical_destino);
+        pthread_mutex_unlock(mutex_b);
+        pthread_mutex_unlock(mutex_a);
         return false;
     }
 
@@ -473,6 +538,10 @@ bool tag_file(t_storage* storage, t_list* parametros){
     free(ruta_logical_destino);
 
     log_info(storage->logger, "##<%d>- Tag creado <%s>:<%s>", query_id, nombre_file, tag_destino);
+
+    pthread_mutex_unlock(mutex_b);
+    pthread_mutex_unlock(mutex_a);
+
     return true;
 }
 
@@ -487,8 +556,13 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
     char* tag = list_get(parametros, 3);
     int bloque_logico = *(int*)list_get(parametros, 4);
 
+    // Obtener lock en el diccionario
+    pthread_mutex_t* file_mutex = get_or_create_file_mutex(storage, nombre_file, tag);
+    pthread_mutex_lock(file_mutex);
+
     if (!nombre_file || !tag || strlen(nombre_file) == 0 || strlen(tag) == 0) {
         log_error(storage->logger, "Nombre de File o Tag inválido");
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -496,6 +570,7 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
     if (access(ruta_tag, F_OK) != 0) {
         log_error(storage->logger, "File:Tag inexistente: %s:%s", nombre_file, tag);
         free(ruta_tag);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
     free(ruta_tag);
@@ -506,6 +581,7 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
     if (!metadata) {
         log_error(storage->logger, "No se pudo cargar metadata de %s:%s", nombre_file, tag);
         free(metadata_path);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -517,6 +593,7 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
                   bloque_logico, tam_archivo);
         config_destroy(metadata);
         free(metadata_path);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -532,6 +609,7 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
     if (!f_bloque) {
         log_error(storage->logger, "No se encontró el bloque lógico: %s", ruta_bloque_logico);
         free(ruta_bloque_logico);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -540,6 +618,7 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
         log_error(storage->logger, "Error al allocar memoria para contenido de bloque en leer_bloque");
         fclose(f_bloque);
         free(ruta_bloque_logico);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
     size_t leido = fread(*contenido, 1, storage->tamanio_bloque, f_bloque);
@@ -559,6 +638,7 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
     //log obligatorio
     log_info(storage->logger, "##%d- Bloque Lógico Leído %s:%s - Número de Bloque: %d",
              query_id, nombre_file, tag, bloque_logico);
+    pthread_mutex_unlock(file_mutex);
     return true;
 }
 
@@ -577,8 +657,13 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     char* contenido = list_get(parametros, 5); //decidir en Worker si el contenido es un string
     int tamanio_contenido = strlen(contenido);
 
+    // Obtener lock en el diccionario
+    pthread_mutex_t* file_mutex = get_or_create_file_mutex(storage, nombre_file, tag);
+    pthread_mutex_lock(file_mutex);
+
     if (!nombre_file || !tag || strlen(nombre_file) == 0 || strlen(tag) == 0) {
         log_error(storage->logger, "Nombre de File o Tag inválido");
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -587,6 +672,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     if (access(ruta_tag, F_OK) != 0) {
         log_error(storage->logger, "Intento de escritura en File:Tag inexistente: %s:%s", nombre_file, tag);
         free(ruta_tag);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
     free(ruta_tag);
@@ -598,6 +684,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     if (!metadata) {
         log_error(storage->logger, "No se pudo cargar metadata de %s:%s", nombre_file, tag);
         free(metadata_path);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -606,6 +693,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
         log_error(storage->logger, "Intento de escritura en File:Tag COMMITED: %s:%s", nombre_file, tag);
         config_destroy(metadata);
         free(metadata_path);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -617,17 +705,19 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
                   bloque_logico, tam_archivo);
         config_destroy(metadata);
         free(metadata_path);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
     // Obtener lista de bloques fisicos actuales
     char** bloques_fisicos_array = config_get_array_value(metadata, "BLOCKS");
-    if (!bloques_fisicos_array || !bloques_fisicos_array[0]) { 
-        // Verificar si la lista está vacia o es NULL
+    if (!bloques_fisicos_array) { 
+        // Verificar si la lista está vacia ~~o es NULL~~
         log_error(storage->logger, "Metadata de %s:%s no tiene bloques físicos asignados", nombre_file, tag);
         config_destroy(metadata);
         if (bloques_fisicos_array) free(bloques_fisicos_array); //liberar el array de strings
         free(metadata_path);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -641,6 +731,20 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
             free(bloques_fisicos_array);
         }
         free(metadata_path);
+        pthread_mutex_unlock(file_mutex);
+        return false;
+    }
+
+    // Verificar tambien que el string no sea NULL o vacío
+    if (bloques_fisicos_array[bloque_logico] == NULL || strlen(bloques_fisicos_array[bloque_logico]) == 0) {
+        log_error(storage->logger, "Bloque físico en posición %d es inválido", bloque_logico);
+        config_destroy(metadata);
+        for (int i = 0; bloques_fisicos_array[i] != NULL; i++) {
+            free(bloques_fisicos_array[i]);
+        }
+        free(bloques_fisicos_array);
+        free(metadata_path);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -663,6 +767,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     if (stat(ruta_bloque_logico, &st) != 0) {
         log_error(storage->logger, "No se pudo obtener info del bloque lógico %s", ruta_bloque_logico);
         free(ruta_bloque_logico);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -688,6 +793,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
         if (nuevo_bloque_fisico == -1) {
             log_error(storage->logger, "Espacio Insuficiente - No hay bloques físicos libres para escritura diferenciada");
             pthread_mutex_unlock(&storage->mutex_bitmap);
+            pthread_mutex_unlock(file_mutex);
             return false;
         }
 
@@ -713,6 +819,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
             bitarray_clean_bit(storage->bitmap, nuevo_bloque_fisico);
             free(ruta_fisico_actual);
             free(ruta_fisico_nuevo);
+            pthread_mutex_unlock(file_mutex);
             return false;
         }
         //suponiendo tamanio fijo de bloque, pq no cambia en tiempo de ejecucion
@@ -737,6 +844,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
             free(ruta_fisico_actual);
             free(ruta_fisico_nuevo);
             free(ruta_bloque_logico_upd);
+            pthread_mutex_unlock(file_mutex);
             return false;
         }
         log_info(storage->logger, "##%d-%s:%s Se eliminó el hard link del bloque lógico %d al bloque físico %d",
@@ -752,6 +860,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
              free(ruta_fisico_actual);
              free(ruta_fisico_nuevo);
              free(ruta_bloque_logico_upd);
+             pthread_mutex_unlock(file_mutex);
              return false;
         }
         log_info(storage->logger, "##%d-%s:%s Se agregó el hard link del bloque lógico %d al bloque físico %d",
@@ -770,6 +879,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
         if (!metadata) {
             log_error(storage->logger, "No se pudo recargar metadata para actualizar bloque en escritura diferenciada");
             free(metadata_path);
+            pthread_mutex_unlock(file_mutex);
             return false; 
         }
 
@@ -807,6 +917,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     if (!f_bloque_final) {
         log_error(storage->logger, "No se pudo abrir el bloque físico %d para escritura", bloque_fisico_final);
         free(ruta_fisico_final);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -830,7 +941,8 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     // 5. Log obligatorio
     log_info(storage->logger, "##%d- Bloque Lógico Escrito %s:%s - Número de Bloque: %d",
              query_id, nombre_file, tag, bloque_logico);
-    
+
+    pthread_mutex_unlock(file_mutex);
     return true;
 }
 
@@ -1061,6 +1173,10 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
     char* file = (char*)list_get(parametros, 2);
     char* tag  = (char*)list_get(parametros, 3);
 
+    // Obtener lock en el diccionario
+    pthread_mutex_t* file_mutex = get_or_create_file_mutex(storage, file, tag);
+    pthread_mutex_lock(file_mutex);
+
     log_info(storage->logger, "Iniciando commit para %s:%s", file, tag);
 
     // 1. Obtener ruta del metadata.config
@@ -1070,6 +1186,7 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
     if (access(metadata_path, F_OK) != 0) {
         log_error(storage->logger, "File:Tag %s:%s no existe para commit", file, tag);
         free(metadata_path);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -1078,6 +1195,7 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
     if (!metadata) {
         log_error(storage->logger, "No se pudo abrir metadata.config para commit de %s:%s", file, tag);
         free(metadata_path);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -1087,6 +1205,7 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
         log_warning(storage->logger, "El File:Tag %s:%s ya está COMMITED", file, tag);
         config_destroy(metadata);
         free(metadata_path);
+        pthread_mutex_unlock(file_mutex);
         return true; // Considerar como éxito si ya está commited
     }
 
@@ -1105,6 +1224,7 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
     persistir_bitmap(storage);
 
     free(metadata_path);
+    pthread_mutex_unlock(file_mutex);
     return true;
 }
 
@@ -1116,12 +1236,17 @@ bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const
     char* path_metadata = string_from_format("%s/metadata.config", path_tag);
     char* path_bitmap = string_from_format("%s/bitmap.bin", storage->punto_montaje);
 
+    // Obtener lock en el diccionario
+    pthread_mutex_t* file_mutex = get_or_create_file_mutex(storage, file, tag);
+    pthread_mutex_lock(file_mutex);
+
     // 2️⃣ Verificar existencia
     if (access(path_tag, F_OK) != 0) {
         log_warning(storage->logger, "Intento de eliminar File:Tag inexistente %s:%s", file, tag);
         free(path_tag);
         free(path_metadata);
         free(path_bitmap);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -1132,6 +1257,7 @@ bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const
         free(path_tag);
         free(path_metadata);
         free(path_bitmap);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -1171,6 +1297,7 @@ bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const
         free(path_tag);
         free(path_metadata);
         free(path_bitmap);
+        pthread_mutex_unlock(file_mutex);
         return false;
     }
 
@@ -1181,6 +1308,7 @@ bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const
     free(path_tag);
     free(path_metadata);
     free(path_bitmap);
+    pthread_mutex_unlock(file_mutex);
     return true;
 }
 
@@ -1210,4 +1338,50 @@ char* serializar_bloques_array(char** bloques) {
 
     string_append(&resultado, "]");
     return resultado;
+}
+
+
+//*****************************************************************************
+pthread_mutex_t* get_or_create_file_mutex(t_storage* storage, const char* file, const char* tag) {
+    char* file_tag_id = string_from_format("%s:%s", file, tag);
+    
+    pthread_mutex_lock(&storage->mutex_dict_locks);
+    
+    // 1. Buscar el lock
+    pthread_mutex_t* file_mutex = dictionary_get(storage->dict_locks_files, file_tag_id);
+    
+    // 2. Si no existe, crearlo y agregarlo
+    if (file_mutex == NULL) {
+        file_mutex = malloc(sizeof(pthread_mutex_t));
+        pthread_mutex_init(file_mutex, NULL);
+        dictionary_put(storage->dict_locks_files, file_tag_id, file_mutex);
+        log_debug(storage->logger, "Mutex creado para %s", file_tag_id);
+    }
+    
+    pthread_mutex_unlock(&storage->mutex_dict_locks);
+    
+    free(file_tag_id);
+    return file_mutex;
+}
+
+
+//*****************************************************************************
+void remove_file_mutex(t_storage* storage, const char* file, const char* tag) {
+    char* file_tag_id = string_from_format("%s:%s", file, tag);
+    
+    pthread_mutex_lock(&storage->mutex_dict_locks);
+    
+    // 1. Remover de la lista y obtener el dato (el mutex)
+    void* data = dictionary_remove(storage->dict_locks_files, file_tag_id);
+    
+    // 2. Si se encontró, destruir sus recursos
+    if (data != NULL) {
+        pthread_mutex_t* file_mutex = (pthread_mutex_t*) data;
+        pthread_mutex_destroy(file_mutex);
+        free(file_mutex);
+        log_debug(storage->logger, "Mutex destruido para %s", file_tag_id);
+    }
+    
+    pthread_mutex_unlock(&storage->mutex_dict_locks);
+    free(file_tag_id);
 }
