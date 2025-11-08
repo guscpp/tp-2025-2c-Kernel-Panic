@@ -1,11 +1,12 @@
 #include "storage.h"
+#include "operaciones.h"
 #include <sys/stat.h>       // Para stat()
 #include <commons/string.h> // Para string_*, get_array_length
 
 
 // ****************************************************************************
 // Obtener la longitud de un array de strings
-static int get_array_length(char** array) {
+int get_array_length(char** array) {
     if (!array) return 0;
     int length = 0;
     while (array[length] != NULL) {
@@ -13,6 +14,7 @@ static int get_array_length(char** array) {
     }
     return length;
 }
+
 
 // ****************************************************************************
 void marcar_bloque_libre(t_storage* storage, int query_id, int numero_bloque) {
@@ -39,18 +41,6 @@ void marcar_bloque_libre(t_storage* storage, int query_id, int numero_bloque) {
     log_info(storage->logger, "Bloque físico %d marcado como libre", numero_bloque);
 }
 
-// MarcarBloqueLibre Papu
-/* 
-    char* nombre_archivo = strrchr(path_fisico, '/');
-    if (!nombre_archivo) return;
-
-    int nro_bloque = atoi(nombre_archivo + 6); // saltea los primeros 6 caracteres "/block" dejando 0005.dat por ejemplo
-    bitarray_clean_bit(storage->bitmap, nro_bloque);
-    log_info(storage->logger, "Bloque físico %d marcado como libre en el bitmap", nro_bloque);
-
-    msync(storage->bitmap->bitarray, storage->bitmap->size, MS_SYNC); // sincronizo el bitmap con los cambios
-
-*/
 
 // ****************************************************************************
 bool crear_file(t_storage* storage, t_list* parametros)
@@ -115,16 +105,22 @@ bool crear_file(t_storage* storage, t_list* parametros)
     free(ruta_abs_tag);
     return true;
 }
-static char* path_logico_para_truncate(const char* punto_montaje, const char* nombre_file, const char* tag, int i) {
+
+
+// ****************************************************************************
+char* path_logico_para_truncate(const char* punto_montaje, const char* nombre_file, const char* tag, int i) {
     return string_from_format("%s/files/%s/%s/logical_blocks/%06d.dat",
                               punto_montaje, nombre_file, tag, i);
 }
 
-static char* path_fisico_para_truncate(const char* punto_montaje, int bloque_fisico_id) {
+
+// ****************************************************************************
+char* path_fisico_para_truncate(const char* punto_montaje, int bloque_fisico_id) {
     return string_from_format("%s/physical_blocks/block%04d.dat", punto_montaje, bloque_fisico_id);
 }
 
-static int* leer_bloques_actuales(t_config* metadata_config, int* cantidad_bloques_fisico) {
+// ****************************************************************************
+int* leer_bloques_actuales(t_config* metadata_config, int* cantidad_bloques_fisico) {
     *cantidad_bloques_fisico = 0;
     char** array = config_get_array_value(metadata_config, "BLOCKS");
     if( !array ) {
@@ -164,7 +160,9 @@ static int* leer_bloques_actuales(t_config* metadata_config, int* cantidad_bloqu
     return array_bloques;
 }
 
-static char* serializar_bloques(const int* bloques, int cantidad_bloques) {
+
+// ****************************************************************************
+char* serializar_bloques(const int* bloques, int cantidad_bloques) {
     char* resultado = string_new();
     string_append(&resultado, "[");
     for(int i = 0; i < cantidad_bloques; i++) {
@@ -179,6 +177,7 @@ static char* serializar_bloques(const int* bloques, int cantidad_bloques) {
     return resultado;
 
 }
+
 
 // ****************************************************************************
 bool truncar_file(t_storage* storage, t_list* parametros)
@@ -328,6 +327,8 @@ bool truncar_file(t_storage* storage, t_list* parametros)
     return true;
 }
 
+
+// ****************************************************************************
 bool tag_file(t_storage* storage, t_list* parametros){
     if(!parametros || list_size(parametros) < 5){
         log_error(storage->logger, "Parametros invalidos para tag_file");
@@ -819,6 +820,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     return true;
 }
 
+
 //*****************************************************************************
 // Calcula el MD5 de un bloque físico individual (.bin)
 char* calcular_md5_por_bloque(const char* path_bloque, int tamanio_bloque)
@@ -978,7 +980,7 @@ void persistir_bitmap(t_storage* storage) {
 
 //*****************************************************************************
 //Verifica si un archivo/tag tiene estado COMMITED en su archivo .cfg
-bool verificar_commit(t_storage* storage, const char* file, const char* tag) {
+bool verificar_si_commited(t_storage* storage, const char* file, const char* tag) {
     // 1️⃣ Armar la ruta del archivo .cfg del file:tag
     char* path_cfg = string_from_format("%s/Files/%s/%s.cfg",
                                         storage->punto_montaje, file, tag);
@@ -1010,6 +1012,7 @@ bool verificar_commit(t_storage* storage, const char* file, const char* tag) {
 
     return esta_commited;
 }
+
 
 //*****************************************************************************
 bool realizar_commit(t_storage* storage, t_list* parametros) {
