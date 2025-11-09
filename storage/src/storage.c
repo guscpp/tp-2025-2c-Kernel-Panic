@@ -135,6 +135,7 @@ void recrear_bmap(t_storage* storage, int cantidad_bloques, char* path_bmap) {
     pthread_mutex_lock(&storage->mutex_bitmap);
     // Si existía un bitmap anterior lo destruimos
     if (storage->bitmap != NULL) {
+        free(storage->bitmap->bitarray); //libera el ya existente
         bitarray_destroy(storage->bitmap);
         storage->bitmap = NULL;
     }
@@ -153,7 +154,7 @@ void recrear_bmap(t_storage* storage, int cantidad_bloques, char* path_bmap) {
 
     if (storage->bitmap == NULL) {
         log_error(storage->logger, "No se pudo crear la estructura t_bitarray en recrear_bmap");
-        free(bitmap_data); // <-- Liberar el data si la creación falla
+        free(bitmap_data);
         pthread_mutex_unlock(&storage->mutex_bitmap);
         return;
     }
@@ -248,8 +249,10 @@ void formatear_fs(t_storage* storage){
     recrear_hash(path_hash);
 
     crear_directorios("files");
-    free(path_files);
     crear_directorios("physical_blocks");
+    //free(path_hash);  //no hacer free, recrear_hash() ya libero a path_hash
+    free(path_bmap);
+    free(path_files);
     free(path_phblck);
 
     crear_initial_file(storage);
