@@ -141,7 +141,7 @@ int* leer_bloques_actuales(t_config* metadata_config, int* cantidad_bloques_fisi
     //caso 1: config_get_array_value devuelve ["", NULL] o [NULL] para BLOCKS=[]
     if (array[0] == NULL || (array[0] != NULL && strlen(array[0]) == 0 && array[1] == NULL)) {
          printf("Leer bloques actuales: BLOCKS=[] (lista vacía detectada como [\"\", NULL] o [NULL])");
-         free(array);
+         string_array_destroy(array);
          return NULL; // Debe devolver NULL para indicar 0 bloques
     }
 
@@ -152,20 +152,20 @@ int* leer_bloques_actuales(t_config* metadata_config, int* cantidad_bloques_fisi
     }
     if(n == 0) { //si el primer elemento es "" o hay solo strings vacios
         printf("Leer bloques actuales: Conteo de bloques es 0 (solo strings vacíos)");
-        free(array);
+        string_array_destroy(array);
         return NULL; //devolver NULL si no hay bloques válidos
     }
     int* array_bloques = malloc(sizeof(int) * n);
     if (!array_bloques) {
         printf("No se pudo allocar memoria para array_bloques en leer_bloques_actuales");
-        free(array); //liberar el array original
+        string_array_destroy(array); //liberar el array original
         return NULL;
     }
     for(int i = 0; i < n; i++) {
         array_bloques[i] = atoi(array[i]);
     }
     *cantidad_bloques_fisico = n;
-    free(array); //liberar el array de strings devuelto por config_get_array_value
+    string_array_destroy(array); //liberar el array de strings devuelto por config_get_array_value
     return array_bloques;
 }
 
@@ -217,6 +217,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
     t_config* metadata_config = config_create(ruta_metadata);
     if(!metadata_config){
         log_error(storage->logger, "No se pudo abrir el metadata.config para truncar el file %s tag %s", nombre_file, tag);
+        free(metadata_config);
         free(ruta_metadata);
         pthread_mutex_unlock(file_mutex);
         return false;
@@ -253,6 +254,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
                 free(path_fisico);
                 config_destroy(metadata_config);
                 free(ruta_metadata);
+                if(array_bloques_fisico) free(array_bloques_fisico);
                 pthread_mutex_unlock(file_mutex);
                 return false;
             }
@@ -276,6 +278,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
                     free(path_logico);
                     config_destroy(metadata_config);
                     free(ruta_metadata);
+                    if(array_bloques_fisico) free(array_bloques_fisico);
                     pthread_mutex_unlock(file_mutex);
                     return false;
                 }
@@ -383,7 +386,6 @@ bool tag_file(t_storage* storage, t_list* parametros){
     free(lock_origen);
     free(lock_destino);
 
-
     // 1. Validar existencia del tag origen y no existencia del tag destino
     // Crear rutas temporales para obtener_ruta_absoluta
     char* temp_path_origen = string_from_format("files/%s/%s", nombre_file, tag_origen);
@@ -427,7 +429,7 @@ bool tag_file(t_storage* storage, t_list* parametros){
     t_config* metadata_origen = config_create(ruta_metadata_origen);
     if(!metadata_origen){
         log_error(storage->logger, "No se pudo abrir el metadata.config origen para tag_file %s:%s", nombre_file, tag_origen);
-
+        free(metadata_origen);
         free(ruta_tag_origen);
         free(ruta_tag_destino);
         free(ruta_metadata_origen);
@@ -457,6 +459,7 @@ bool tag_file(t_storage* storage, t_list* parametros){
     if(!metadata_destino){
         log_error(storage->logger, "No se pudo abrir el metadata.config destino para tag_file %s:%s", nombre_file, tag_destino);
         config_destroy(metadata_origen);
+        free(metadata_destino);
         free(ruta_tag_origen);
         free(ruta_tag_destino);
         free(ruta_metadata_origen);
@@ -469,8 +472,10 @@ bool tag_file(t_storage* storage, t_list* parametros){
     // 6. Copiar valores de tamaño, bloques y estado (WORK_IN_PROGRESS)
     int tamanio_origen = config_get_int_value(metadata_origen, "TAMANIO");
     char* bloques_origen = string_duplicate(config_get_string_value(metadata_origen, "BLOCKS")); // Copia string, se libera
+    char* tamanio_origen_str = string_itoa(tamanio_origen);
 
-    config_set_value(metadata_destino, "TAMANIO", string_itoa(tamanio_origen));
+
+    config_set_value(metadata_destino, "TAMANIO", tamanio_origen_str);
     config_set_value(metadata_destino, "BLOCKS", bloques_origen);
     config_set_value(metadata_destino, "ESTADO", "WORK_IN_PROGRESS");
 
@@ -480,6 +485,7 @@ bool tag_file(t_storage* storage, t_list* parametros){
     config_destroy(metadata_origen); // Libera la estructura y sus strings internos
     config_destroy(metadata_destino); // Libera la estructura y sus strings internos
     free(bloques_origen); // Libera la copia hecha con string_duplicate
+    free(tamanio_origen_str);
 
     // 8. Copiar hard links de bloques lógicos
     char* ruta_logical_origen = string_from_format("%s/logical_blocks", ruta_tag_origen);
@@ -583,6 +589,7 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
     t_config* metadata = config_create(metadata_path);
     if (!metadata) {
         log_error(storage->logger, "No se pudo cargar metadata de %s:%s", nombre_file, tag);
+        free(metadata);
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
         return false;
@@ -686,6 +693,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     t_config* metadata = config_create(metadata_path);
     if (!metadata) {
         log_error(storage->logger, "No se pudo cargar metadata de %s:%s", nombre_file, tag);
+        free(metadata);
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
         return false;
@@ -718,7 +726,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
         // Verificar si la lista está vacia ~~o es NULL~~
         log_error(storage->logger, "Metadata de %s:%s no tiene bloques físicos asignados", nombre_file, tag);
         config_destroy(metadata);
-        if (bloques_fisicos_array) free(bloques_fisicos_array); //liberar el array de strings
+        if (bloques_fisicos_array) string_array_destroy(bloques_fisicos_array); //liberar el array de strings
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
         return false;
@@ -881,6 +889,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
         metadata = config_create(metadata_path);
         if (!metadata) {
             log_error(storage->logger, "No se pudo recargar metadata para actualizar bloque en escritura diferenciada");
+            free(metadata);
             free(metadata_path);
             pthread_mutex_unlock(file_mutex);
             return false; 
@@ -995,6 +1004,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
     t_config* metadata = config_create(metadata_path);
     if (!metadata) {
         log_error(storage->logger, "No se pudo cargar metadata.config para %s:%s", file, tag);
+        free(metadata);
         free(metadata_path);
         return;
     }
@@ -1033,6 +1043,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
         config_destroy(metadata);
         if (bloques_str) string_array_destroy(bloques_str);
         free(metadata_path);
+        free(hash_index);
         free(hash_index_path);
         return;
     }
@@ -1142,6 +1153,7 @@ bool verificar_si_commited(t_storage* storage, const char* file, const char* tag
         log_warning(storage->logger,
                     "No se pudo abrir el archivo de configuración para verificar commit: %s",
                     path_cfg);
+        free(cfg);
         free(path_cfg);
         return false; // No está committeado si no existe
     }
@@ -1197,6 +1209,7 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
     t_config* metadata = config_create(metadata_path);
     if (!metadata) {
         log_error(storage->logger, "No se pudo abrir metadata.config para commit de %s:%s", file, tag);
+        free(metadata);
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
         return false;
@@ -1257,6 +1270,7 @@ bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const
     t_config* metadata = config_create(path_metadata);
     if (metadata == NULL) {
         log_error(storage->logger, "No se pudo abrir metadata de %s:%s", file, tag);
+        free(metadata);
         free(path_tag);
         free(path_metadata);
         free(path_bitmap);
