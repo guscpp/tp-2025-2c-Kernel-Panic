@@ -36,6 +36,7 @@ typedef struct{
     int socket_interruption;
     bool desconection; // PARA MANEJAR DESCONEXIONES
     // semaforo
+    int idQuery;
 }t_worker;
 
 enum estado{ // PARA MANEJAR ESTADOS

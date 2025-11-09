@@ -246,7 +246,7 @@ void* atender_desconexion_query(void* arg){
 
 
 void atender_Worker(t_hacerConnect* informacion){
-    printf("atenderWOrker\n");
+    //printf("atenderWOrker\n");
     t_list* paqueteWorker = recibir_paquete(informacion->socket_conexion);
   
         if (paqueteWorker == NULL) {
@@ -258,6 +258,7 @@ void atender_Worker(t_hacerConnect* informacion){
 
     int* codOperacion =  list_get(paqueteWorker, 0);
     switch (*codOperacion){
+
         case WORKER_ID:{
             t_worker* nuevoWorker = malloc(sizeof(t_worker));
             int* idWorkerLista = list_get(paqueteWorker, 1);
@@ -292,6 +293,7 @@ void atender_Worker(t_hacerConnect* informacion){
            
             break;
         }
+
         case   WORKER_READ_RESULT:{
             
                t_query* queryRecivida;
@@ -313,7 +315,7 @@ void atender_Worker(t_hacerConnect* informacion){
                
 
                list_destroy_and_destroy_elements(paqueteWorker, free);
-            
+               free(readQuery);
                atender_Worker(informacion);
             break;
         }
@@ -322,7 +324,6 @@ void atender_Worker(t_hacerConnect* informacion){
          
             t_query* queryTerminada;
             
-   
 
             int idQueryLista = *(int*)list_get(paqueteWorker, 1);
 
@@ -342,9 +343,26 @@ void atender_Worker(t_hacerConnect* informacion){
 
             break;
         } 
+        case WORKER_PC_UPDATE:{
+            // tengo funcion obtener y eliminar por id... 
+            t_query* queryRecivida;
+            queryRecivida->id = *(int*)list_get(paqueteWorker, 2);
+            int idWorker = queryRecivida -> idWorker;
+            pthread_mutex_lock(&mutexQueryEnWorker);
+            queryRecivida = eliminar_por_id(query_en_worker,queryRecivida->id);
+            queryRecivida->estado= READY;
+            pthread_mutex_unlock(&mutexQueryEnWorker);
+            queryRecivida->programCounter = *(int*)list_get(paqueteWorker, 3);
+            pthread_mutex_lock(&mutexColaQuery);
+            list_add(cola_queries, queryRecivida);
+            pthread_mutex_unlock(&mutexColaQuery);
+            log_info('se recivbio la query desalojada');
+            comenzar_a_ejecutar(informacion,idWorker);
+
+        }
         default:{
             log_warning(informacion->logger, "Operacion desconocida");
-            atender_Worker(informacion);
+         
             break;
         }
          
@@ -367,6 +385,7 @@ void   enviar_read_a_query(t_query* queryRecivida, t_readQuery* readQuery,t_hace
 
 }
 void query_completado_con_exito(t_query* query,t_hacerConnect* informacion ){
+    query->estado=EXIT;
     t_buffer* infoQuery = crear_buffer();
 
     t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_END, infoQuery);
