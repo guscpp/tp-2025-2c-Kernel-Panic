@@ -13,6 +13,7 @@ pthread_mutex_t mutexQueryEnWorker;
 pthread_mutex_t mutexListaWorkers;
 
 extern char* algoritmo_planificacion;
+extern  int tiempo_aging;
 // COLA Y SEMAFORO COLA
 sem_t sem_queries;
 sem_t sem_worker_cargado;
@@ -143,6 +144,7 @@ void atender_Query(t_hacerConnect*  informacion){
 
    asignar_id_query(&nuevaQuery->id);
    informacion->id = nuevaQuery->id;
+    informacion->alive = true;
    char* pathFromPaquete = list_get(paqueteQuery, 1);
    nuevaQuery->path = string_duplicate(pathFromPaquete);
    nuevaQuery->prioridad = *(int*)list_get(paqueteQuery, 2);
@@ -160,7 +162,12 @@ void atender_Query(t_hacerConnect*  informacion){
    pthread_mutex_lock(&mutexColaQuery);
    list_add(cola_queries, nuevaQuery);
    pthread_mutex_unlock(&mutexColaQuery);
- // SOLO PARA PRUEBASSS
+ if(strcmp(algoritmo_planificacion, "AGING") == 0){
+   pthread_create(&informacion->hilo_timer, NULL, atender_timer_query, informacion);
+   pthread_detach(informacion->hilo_timer);
+   
+ }
+   // SOLO PARA PRUEBASSS
     {
     char* idsEnCola = string_new(); // string_new() de commons, crea string vacío
 
@@ -181,7 +188,23 @@ if(strcmp(algoritmo_planificacion, "AGING") == 0){
     sem_post(&sem_queries);
 
 }
+void* atender_timer_query(void* arg){
+    t_hacerConnect* informacion = (t_hacerConnect*) arg;
+    t_query* query = obtener_por_id(cola_queries, informacion->id);
+    while(1){
+        sleep(tiempo_aging);
+       if (!informacion->alive) return NULL;
+        if(query->estado == READY && query->prioridad > 0){
+            pthread_mutex_lock(&mutexColaQuery);
+            int prioridad_ant= query->prioridad;
+            -- query->prioridad;
+            log_info(informacion->logger,COLOR_VERDE "##<QUERY_ID: %d> Cambio de prioridad: <PRIORIDAD_ANTERIOR: %d > - <PRIORIDAD_NUEVA %d>"COLOR_VERDE,informacion->id,prioridad_ant,query->prioridad );
+            chequeador_desalojo(query->prioridad,informacion);
+            pthread_mutex_unlock(&mutexColaQuery);
+        }
 
+    }
+}
 void chequeador_desalojo(int prioridad,t_hacerConnect* info){
     pthread_mutex_lock(&mutexQueryEnWorker);
     if(list_is_empty(query_en_worker)){
@@ -236,6 +259,9 @@ void* atender_desconexion_query(void* arg){
     
         log_warning(informacion->logger, "QUERY SE DESCONECTO ID: %d", informacion->id);
         close(informacion->socket_conexion);
+        informacion->alive = false;
+        if(strcmp(algoritmo_planificacion, "AGING") == 0){
+        pthread_join(informacion->hilo_timer, NULL);}
         free(informacion);
         } 
        
@@ -346,17 +372,18 @@ void atender_Worker(t_hacerConnect* informacion){
         case WORKER_PC_UPDATE:{
             // tengo funcion obtener y eliminar por id... 
             t_query* queryRecivida;
-            queryRecivida->id = *(int*)list_get(paqueteWorker, 2);
-            int idWorker = queryRecivida -> idWorker;
+            int idQuery = *(int*)list_get(paqueteWorker, 2);
+           
             pthread_mutex_lock(&mutexQueryEnWorker);
-            queryRecivida = eliminar_por_id(query_en_worker,queryRecivida->id);
+            queryRecivida = eliminar_por_id(query_en_worker,idQuery );
             queryRecivida->estado= READY;
             pthread_mutex_unlock(&mutexQueryEnWorker);
+             int idWorker = queryRecivida -> idWorker;
             queryRecivida->programCounter = *(int*)list_get(paqueteWorker, 3);
             pthread_mutex_lock(&mutexColaQuery);
             list_add(cola_queries, queryRecivida);
             pthread_mutex_unlock(&mutexColaQuery);
-            log_info('se recivbio la query desalojada');
+            log_info(informacion->logger,"se recivbio la query desalojada");
             comenzar_a_ejecutar(informacion,idWorker);
 
         }
@@ -398,6 +425,7 @@ void query_completado_con_exito(t_query* query,t_hacerConnect* informacion ){
     log_info(informacion->logger, "Comunicacion Cerrada con Query");
     eliminar_paquete(paquete);
     free(query);
+    query = NULL;
 
 }
 void comenzar_a_ejecutar(t_hacerConnect* informacion, int idWorker){
