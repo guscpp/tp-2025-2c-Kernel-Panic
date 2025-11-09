@@ -38,7 +38,7 @@ int main(int argc, char* argv[]) {
     enviar_paquete(packetID, w->master_socket_distpach, w->logger);
     eliminar_paquete(packetID);
 
-    //retener_worker(w); 
+    retener_worker(w); 
 
     //MAster: crear la conexion para el interrupt (segundp connect)
     w->master_socket_interrupt = crear_conexion(w->logger, w->ip_master, string_itoa(w->puerto_master));

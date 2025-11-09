@@ -172,9 +172,9 @@ void atender_Query(t_hacerConnect*  informacion){
     log_info(informacion->logger, "se agrego query a la cola, cola actual:  %s", idsEnCola);
     } printf("///////");
 if(strcmp(algoritmo_planificacion, "AGING") == 0){
-    printf("///////");
+    printf("Antes de desalojo \n");
     chequeador_desalojo(nuevaQuery->prioridad,informacion);
-    printf("///////");
+    printf("DEspues de desalojo \n");
    }
     
     
@@ -185,16 +185,22 @@ if(strcmp(algoritmo_planificacion, "AGING") == 0){
 void chequeador_desalojo(int prioridad,t_hacerConnect* info){
     pthread_mutex_lock(&mutexQueryEnWorker);
     if(list_is_empty(query_en_worker)){
+        printf("lista vacia \n");
+    pthread_mutex_unlock(&mutexQueryEnWorker);
         return;
     }
     t_query* queryMayor =  list_get_maximum(query_en_worker, _max_prioridad);
     pthread_mutex_lock(&mutexCantWorkers);
-    if(list_size(query_en_worker) < cantidadWorkers && prioridad< queryMayor->prioridad){
+    if(list_size(query_en_worker) == cantidadWorkers && prioridad< queryMayor->prioridad){
+        log_info(info->logger, "Se va realizar el desalojo de query id: %d", queryMayor->id);
         t_buffer* buffer=crear_buffer();
         t_paquete* paquete = crear_paquete(WORKER_DESALOJO,buffer);
+        int a2 = 5;
+        agregar_a_paquete(paquete, &a2, sizeof(int));
         pthread_mutex_lock(&mutexListaWorkers);
         t_worker* worker =  obtener_por_id_worker( lista_workers, queryMayor->idWorker);
         enviar_paquete(paquete, worker->socket_interruption,info->logger );
+        log_info(info->logger, "Se realiza el desalojo de la query en worker id: %d", worker->id);
         pthread_mutex_unlock(&mutexListaWorkers);
         eliminar_paquete(paquete);
     }
@@ -240,6 +246,7 @@ void* atender_desconexion_query(void* arg){
 
 
 void atender_Worker(t_hacerConnect* informacion){
+    printf("atenderWOrker\n");
     t_list* paqueteWorker = recibir_paquete(informacion->socket_conexion);
   
         if (paqueteWorker == NULL) {
@@ -252,7 +259,7 @@ void atender_Worker(t_hacerConnect* informacion){
     int* codOperacion =  list_get(paqueteWorker, 0);
     switch (*codOperacion){
         case WORKER_ID:{
-            t_worker* nuevoWorker = malloc(sizeof(nuevoWorker ));
+            t_worker* nuevoWorker = malloc(sizeof(t_worker));
             int* idWorkerLista = list_get(paqueteWorker, 1);
             int idWorker = *idWorkerLista ;
             informacion->id = idWorker;
@@ -277,6 +284,8 @@ void atender_Worker(t_hacerConnect* informacion){
             t_buffer* paqueteDesalojo = crear_buffer();
 
             t_paquete* paquete = crear_paquete(RETENER_WORKER,paqueteDesalojo);
+            int a = 2;
+            agregar_a_paquete(paquete, &a, sizeof(int));
             enviar_paquete(paquete, informacion->socket_conexion, informacion->logger);
             eliminar_paquete(paquete);
             comenzar_a_ejecutar(informacion,idWorker);
@@ -333,14 +342,12 @@ void atender_Worker(t_hacerConnect* informacion){
 
             break;
         } 
-        /*case: {
-            
-        //}
         default:{
             log_warning(informacion->logger, "Operacion desconocida");
+            atender_Worker(informacion);
             break;
         }
-        */ 
+         
     }
 }
 void   enviar_read_a_query(t_query* queryRecivida, t_readQuery* readQuery,t_hacerConnect* informacion ){

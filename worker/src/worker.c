@@ -240,9 +240,9 @@ void retener_worker(t_worker* w){
     log_warning(w->logger, "Retengo al worker antes de crear el interrupt"); //tiene warning solo para que se diferencie
 
     t_list* paquete;
-    while(paquete = recibir_paquete(w->master_socket_distpach)){
+    paquete = recibir_paquete(w->master_socket_distpach);
     int* cod_op =  list_get(paquete, 0);
-
+   int numer = list_get(paquete, 1);
     if (*cod_op == -1)
     {
         log_error(w->logger, "Error en la conexion con MAster");
@@ -253,9 +253,9 @@ void retener_worker(t_worker* w){
     log_info(w->logger, "Pude pasar de retener worker");
     return NULL;
 
-    }
-    
 }
+    
+
 
 void avisar_error_generico(t_worker* w, op_code etiqueta){ //solo porque son paquetes vacios 
 

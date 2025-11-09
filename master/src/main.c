@@ -4,6 +4,7 @@ char* algoritmo_planificacion ;
 int tiempo_aging;
 
 int main(int argc, char* argv[]) {
+    
     if (argc != 2)
     {
         printf("Uso: ./bin/master [archivo_config]\n");
