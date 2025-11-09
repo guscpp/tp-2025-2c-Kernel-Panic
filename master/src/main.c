@@ -26,6 +26,7 @@ int main(int argc, char* argv[]) {
     config = iniciar_config(logger,argv[1]);
     puerto = config_get_string_value(config, "PUERTO_ESCUCHA");
     algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
+    log_info(logger, "ALGORITMO: %s" , algoritmo_planificacion);
     tiempo_aging = config_get_int_value(config,"TIEMPO_AGING");
 
     int master_fd = iniciar_servidor(puerto);

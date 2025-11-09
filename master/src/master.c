@@ -10,7 +10,9 @@ pthread_mutex_t mutexCantWorkers;
 pthread_mutex_t mutexIdQuery;
 pthread_mutex_t mutexColaQuery;
 pthread_mutex_t mutexQueryEnWorker;
+pthread_mutex_t mutexListaWorkers;
 
+extern char* algoritmo_planificacion;
 // COLA Y SEMAFORO COLA
 sem_t sem_queries;
 sem_t sem_worker_cargado;
@@ -26,6 +28,10 @@ void inicializar_semaforos(t_log* logger){
     }
 
     if(pthread_mutex_init(&mutexIdQuery,NULL) != 0){
+        log_warning(logger,"Error al inicializar el mutex idQuery");
+    }
+
+    if(pthread_mutex_init(&mutexListaWorkers,NULL) != 0){
         log_warning(logger,"Error al inicializar el mutex idQuery");
     }
     
@@ -84,9 +90,11 @@ void* atender_conexion(void* arg){
         atender_Worker(informacion);
 
         break;
-        case WORKER_INTERRUPTION_HANDSHAKE:
+        case WORKER_ID_INTERRUPT:
         log_info(informacion->logger, "Se ha conectado un worker interruption");
-        // wait()
+        int idWorker = *(int*)list_get(paqueteHandshake,1);
+        list_destroy_and_destroy_elements(paqueteHandshake, free);
+        atender_worker_interrupt(informacion,idWorker);
         break;
         default:
         log_warning(informacion->logger,"Operacion desconocida");
@@ -100,10 +108,26 @@ void* atender_conexion(void* arg){
    return NULL;
 }
 
+void atender_worker_interrupt(t_hacerConnect*  informacion,int id){
+    pthread_mutex_lock(&mutexListaWorkers);
+    t_worker* interrupt =  obtener_por_id_worker( lista_workers, id);
+    interrupt->socket_interruption = informacion->socket_conexion;
+    pthread_mutex_unlock(&mutexListaWorkers);
+    log_info(informacion->logger, "se ha conectado worker interrupt de worker id: %d", id);
+}
 
+t_worker* obtener_por_id_worker(t_list* lista, int idBuscado) {
+    
+    bool coincide_id(t_worker* worker) {
+        return worker->id == idBuscado;
+    }
+
+    return list_find(lista, (void*) coincide_id);
+}
 void atender_Query(t_hacerConnect*  informacion){
+    printf("///// \n");
    t_list* paqueteQuery = recibir_paquete(informacion->socket_conexion);
-   
+    printf("///// \n");
    pthread_t hilo_vigilante;
    pthread_create(&hilo_vigilante, NULL, atender_desconexion_query, informacion);
    pthread_detach(hilo_vigilante);
@@ -128,7 +152,7 @@ void atender_Query(t_hacerConnect*  informacion){
    nuevaQuery->socket = informacion->socket_conexion;
    nuevaQuery->programCounter = 0 ;
    nuevaQuery->estado= READY;
-   
+    printf("///// \n");
    pthread_mutex_lock(&mutexCantWorkers);
    log_info(informacion->logger, COLOR_VERDE "## Se conecta un Query Control para ejecutar la Query %s con prioridad %d - Id asignado: %d . Nivel de multiprocesamiento %d" COLOR_VERDE, nuevaQuery->path, nuevaQuery->prioridad, nuevaQuery->id, cantidadWorkers);
     pthread_mutex_unlock(&mutexCantWorkers);
@@ -137,7 +161,7 @@ void atender_Query(t_hacerConnect*  informacion){
    list_add(cola_queries, nuevaQuery);
    pthread_mutex_unlock(&mutexColaQuery);
  // SOLO PARA PRUEBASSS
- 
+    {
     char* idsEnCola = string_new(); // string_new() de commons, crea string vacío
 
     for (int i = 0; i < list_size(cola_queries); i++) {
@@ -145,32 +169,40 @@ void atender_Query(t_hacerConnect*  informacion){
         string_append_with_format(&idsEnCola, "%d ", q->id);
     }
      
-// PRUEBAAAAA
-log_info(informacion->logger, "se agrego query a la cola, cola actual:  %s", idsEnCola);
-
-    //chequeador_desalojo(nuevaQuery->prioridad);
-   
+    log_info(informacion->logger, "se agrego query a la cola, cola actual:  %s", idsEnCola);
+    } printf("///////");
+if(strcmp(algoritmo_planificacion, "AGING") == 0){
+    printf("///////");
+    chequeador_desalojo(nuevaQuery->prioridad,informacion);
+    printf("///////");
+   }
     
     
     sem_post(&sem_queries);
 
 }
 
-/*void chequeador_desalojo(int prioridad){
+void chequeador_desalojo(int prioridad,t_hacerConnect* info){
     pthread_mutex_lock(&mutexQueryEnWorker);
     if(list_is_empty(query_en_worker)){
         return;
     }
     t_query* queryMayor =  list_get_maximum(query_en_worker, _max_prioridad);
-    pthread_mutex_lock(&mutexCantWorker);
+    pthread_mutex_lock(&mutexCantWorkers);
     if(list_size(query_en_worker) < cantidadWorkers && prioridad< queryMayor->prioridad){
-
-        
+        t_buffer* buffer=crear_buffer();
+        t_paquete* paquete = crear_paquete(WORKER_DESALOJO,buffer);
+        pthread_mutex_lock(&mutexListaWorkers);
+        t_worker* worker =  obtener_por_id_worker( lista_workers, queryMayor->idWorker);
+        enviar_paquete(paquete, worker->socket_interruption,info->logger );
+        pthread_mutex_unlock(&mutexListaWorkers);
+        eliminar_paquete(paquete);
     }
-    pthread_mutex_unlock(&mutexCantWorker);
+    pthread_mutex_unlock(&mutexCantWorkers);
     pthread_mutex_unlock(&mutexQueryEnWorker);
+ 
 }
-*/
+
 
 void asignar_id_query(int* idAsignado){
    
@@ -220,10 +252,11 @@ void atender_Worker(t_hacerConnect* informacion){
     int* codOperacion =  list_get(paqueteWorker, 0);
     switch (*codOperacion){
         case WORKER_ID:{
-            
+            t_worker* nuevoWorker = malloc(sizeof(nuevoWorker ));
             int* idWorkerLista = list_get(paqueteWorker, 1);
             int idWorker = *idWorkerLista ;
             informacion->id = idWorker;
+            nuevoWorker->id = idWorker;
 
             pthread_mutex_lock(&mutexCantWorkers);
 
@@ -232,12 +265,20 @@ void atender_Worker(t_hacerConnect* informacion){
             
             pthread_mutex_unlock(&mutexCantWorkers);
 
+            nuevoWorker->socket= informacion->socket_conexion;
+            
             list_destroy_and_destroy_elements(paqueteWorker, free);
 
             //agreggar a lista
-            
-            // signal(worker cargado en lista) 
+            pthread_mutex_lock(&mutexListaWorkers);
+            list_add(lista_workers, nuevoWorker);
+            pthread_mutex_unlock(&mutexListaWorkers);
+           
+            t_buffer* paqueteDesalojo = crear_buffer();
 
+            t_paquete* paquete = crear_paquete(RETENER_WORKER,paqueteDesalojo);
+            enviar_paquete(paquete, informacion->socket_conexion, informacion->logger);
+            eliminar_paquete(paquete);
             comenzar_a_ejecutar(informacion,idWorker);
            
             break;

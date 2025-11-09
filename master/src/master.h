@@ -33,7 +33,7 @@ typedef struct {
 typedef struct{
     int id;
     int socket;
-    int socket_interrruption;
+    int socket_interruption;
     bool desconection; // PARA MANEJAR DESCONEXIONES
     // semaforo
 }t_worker;
@@ -63,5 +63,9 @@ void query_completado_con_exito(t_query* , t_hacerConnect* );
 
 t_query* obtener_menor_prioridad(t_list*);
 
+void chequeador_desalojo(int,t_hacerConnect* );
+void* _max_prioridad(void* , void* );
 
+void atender_worker_interrupt(t_hacerConnect*  ,int );
+t_worker* obtener_por_id_worker(t_list* , int );
 #endif /* CLIENTE_H_ */
