@@ -20,7 +20,7 @@ t_query_control* inicializar_query_control(int argc, char* argv[])
 
 void verificar_query_control(t_query_control* qc)
 {
-    log_debug(qc->logger, "** Query Control inicializado correctamente");
+    log_info(qc->logger, "** Query Control inicializado correctamente");
     log_info(qc->logger, "** IP Master: %s", qc->ip_master);
     log_info(qc->logger, "** Puerto Master: %d", qc->puerto_master);
     log_info(qc->logger, "** Archivo de query: %s", qc->archivo_query);
@@ -113,15 +113,8 @@ void procesar_respuestas_master(t_query_control* qc)
         
         // Verificar si el paquete es NULL (conexión cerrada)
         if (paqueteMaster == NULL) {
-            log_error(qc->logger, "Conexión con el Master fue cerrada"); // revisar
+            log_info(qc->logger, COLOR_VERDE"## Query Finalizada - Query Desconectada de Master" COLOR_VERDE);
             break;
-        }
-        
-        // Verificar que la lista tenga elementos
-        if (list_is_empty(paqueteMaster)) {
-            log_warning(qc->logger, "** Paquete vacío recibido del Master");
-            list_destroy(paqueteMaster);
-            continue;
         }
         
         int* codigo_operacion_ptr = list_get(paqueteMaster, 0);
@@ -135,73 +128,78 @@ void procesar_respuestas_master(t_query_control* qc)
         log_info(qc->logger, "** Código de operación recibido: %d", codigo_operacion);
 
         switch (codigo_operacion) {
+
             case QUERY_RESPONSE_READ: {
-                // Verificar que tenemos suficientes elementos
-                if (list_size(paqueteMaster) >= 4) {
-                    char* file = (char*)list_get(paqueteMaster, 1);
-                    char* tag = (char*)list_get(paqueteMaster, 2);
-                    char* contenido = (char*)list_get(paqueteMaster, 3);
-                    
-                    if (file && tag && contenido) {
-                        log_info(qc->logger,COLOR_VERDE "## Lectura realizada: File %s:%s, contenido: %s" COLOR_VERDE, 
-                                file, tag, contenido);
-                    } else {
-                        log_error(qc->logger, "** Datos incompletos en respuesta de lectura");
-                    }
-                } else {
-                    log_error(qc->logger, "** Paquete de lectura incompleto");
-                }
+                char* file = (char*)list_get(paqueteMaster, 1);
+                char* tag = (char*)list_get(paqueteMaster, 2);
+                char* contenido = (char*)list_get(paqueteMaster, 3);
+                
+                log_info(qc->logger, COLOR_VERDE "## Lectura realizada: File %s:%s, contenido: %s" COLOR_VERDE, file, tag, contenido);
                 break;
             }
-            
-            case QUERY_RESPONSE_END: { //revisar
-                if (list_size(paqueteMaster) >= 2) {
-                    char* motivo = (char*)list_get(paqueteMaster, 1);
-                    log_info(qc->logger,COLOR_VERDE "## Query Finalizada - %s", motivo ? motivo : "Query Finalizada Con Éxito" COLOR_VERDE);
-                } else {
-                    log_info(qc->logger, "## Query Finalizada");
-            
-                }
+
+            case QUERY_RESPONSE_END: {
+                log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Query Finalizada Con Éxito" COLOR_VERDE);
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
             }
+
+            case QUERY_RESPONSE_ERROR: {
+                log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: No Especificado" COLOR_VERDE);
+                list_destroy_and_destroy_elements(paqueteMaster, free);
+                return;
+            }
+
+            case QUERY_RESPONSE_ERROR_ARCHIVO_NO_ENCONTRADO: {
+                log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Archivo No Encontrado" COLOR_VERDE); //DUPLICADO
+
+                //char* file = (char*)list_get(paqueteMaster, 1);
+                //char* tag = (char*)list_get(paqueteMaster, 2);
             
-            case QUERY_RESPONSE_ERROR:
-                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: No Especificado" COLOR_VERDE);
+                //log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Archivo %s:%s No Encontrado" COLOR_VERDE, file, tag);
+
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
-                
-            case QUERY_RESPONSE_ERROR_ARCHIVO_NO_ENCONTRADO:
-                log_error(qc->logger, COLOR_VERDE"## Query Finalizada - Error: Archivo No Encontrado" COLOR_VERDE);
+            }
+
+            case QUERY_RESPONSE_ERROR_ERROR_EN_INSTRUCCION: {
+                log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Error Al Ejecutar Una Instrucción" COLOR_VERDE); //DUPLICADO
+
+                //char* instruccion = (char*)list_get(paqueteMaster, 1);
+                //log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Error Al Ejecutar la Instrucción: %s" COLOR_VERDE, instruccion);
+
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
-                
-            case QUERY_RESPONSE_ERROR_ERROR_EN_INSTRUCCION:
-                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Error Al Ejecutar Una Instrucción" COLOR_VERDE);
+            }
+
+            case QUERY_RESPONSE_ERROR_LECTURA_INVALIDA: {
+                log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Lectura Inválida" COLOR_VERDE); //DUPLICADO
+
+                //char* file = (char*)list_get(paqueteMaster, 1);
+                //char* tag = (char*)list_get(paqueteMaster, 2);
+                //log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Lectura Inválida del Archivo : %s:%s" COLOR_VERDE, file, tag);
+
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
-                
-            case QUERY_RESPONSE_ERROR_LECTURA_INVALIDA:
-                log_error(qc->logger, COLOR_VERDE"## Query Finalizada - Error: Lectura Inválida" COLOR_VERDE);
+            }
+
+            case QUERY_RESPONSE_ERROR_WORKER_DESCONECTADO: {
+                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Worker Desconectado" COLOR_VERDE); //DUPLICADO
+
+                //char* worker_id = (char*)list_get(paqueteMaster, 1);
+                //log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Worker con ID : %s Desconectado" COLOR_VERDE, worker_id);
+
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
-                
-            case QUERY_RESPONSE_ERROR_QUERY_DESCONECTADO:
-                log_error(qc->logger, COLOR_VERDE"## Query Finalizada - Error: Query Desconectado" COLOR_VERDE);
-                list_destroy_and_destroy_elements(paqueteMaster, free);
-                return;
-                
-            case QUERY_RESPONSE_ERROR_WORKER_DESCONECTADO:
-                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Worker Desconectado" COLOR_VERDE);
-                list_destroy_and_destroy_elements(paqueteMaster, free);
-                return;
-                
-            default:
+            }
+
+            default: {
                 log_warning(qc->logger, "Código de operación desconocido: %d", codigo_operacion);
                 break;
+            }
         }
-        
-        // Liberar el paquete después de procesarlo (excepto en los casos que ya retornaron)
+
         list_destroy_and_destroy_elements(paqueteMaster, free);
     }
 }
+

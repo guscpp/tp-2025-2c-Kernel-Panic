@@ -440,7 +440,7 @@ void executeEnd(t_worker* w, Pcb* pcb){ //avisar a master de la finalizacion
 
 void interrupt_envio_a_master(Pcb* pcb_dsp_de_interrupt, t_worker* w){  //Se envia al socket normal
     log_info(w->logger, "Llego una interrupcion, el proceso fue interrumpido. Espero uno nuevo");
-    /*
+    
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* devuelvo_pcb_master = crear_paquete(WORKER_PC_UPDATE, buffer_generico);
     //TAl vez este no haga falta:
@@ -451,5 +451,5 @@ void interrupt_envio_a_master(Pcb* pcb_dsp_de_interrupt, t_worker* w){  //Se env
     agregar_a_paquete(devuelvo_pcb_master, pcb_dsp_de_interrupt->pc, sizeof(int));
     enviar_paquete(devuelvo_pcb_master, w->master_socket_distpach, w->logger);
     eliminar_paquete(devuelvo_pcb_master);
-    */
+    
 }

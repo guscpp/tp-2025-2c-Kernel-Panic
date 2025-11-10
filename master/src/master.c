@@ -13,6 +13,7 @@ pthread_mutex_t mutexQueryEnWorker;
 pthread_mutex_t mutexListaWorkers;
 
 extern char* algoritmo_planificacion;
+extern  int tiempo_aging;
 // COLA Y SEMAFORO COLA
 sem_t sem_queries;
 sem_t sem_worker_cargado;
@@ -143,6 +144,7 @@ void atender_Query(t_hacerConnect*  informacion){
 
    asignar_id_query(&nuevaQuery->id);
    informacion->id = nuevaQuery->id;
+    informacion->alive = true;
    char* pathFromPaquete = list_get(paqueteQuery, 1);
    nuevaQuery->path = string_duplicate(pathFromPaquete);
    nuevaQuery->prioridad = *(int*)list_get(paqueteQuery, 2);
@@ -160,7 +162,12 @@ void atender_Query(t_hacerConnect*  informacion){
    pthread_mutex_lock(&mutexColaQuery);
    list_add(cola_queries, nuevaQuery);
    pthread_mutex_unlock(&mutexColaQuery);
- // SOLO PARA PRUEBASSS
+ if(strcmp(algoritmo_planificacion, "AGING") == 0){
+   pthread_create(&informacion->hilo_timer, NULL, atender_timer_query, informacion);
+   pthread_detach(informacion->hilo_timer);
+   
+ }
+   // SOLO PARA PRUEBASSS
     {
     char* idsEnCola = string_new(); // string_new() de commons, crea string vacío
 
@@ -172,29 +179,51 @@ void atender_Query(t_hacerConnect*  informacion){
     log_info(informacion->logger, "se agrego query a la cola, cola actual:  %s", idsEnCola);
     } printf("///////");
 if(strcmp(algoritmo_planificacion, "AGING") == 0){
-    printf("///////");
+    printf("Antes de desalojo \n");
     chequeador_desalojo(nuevaQuery->prioridad,informacion);
-    printf("///////");
+    printf("DEspues de desalojo \n");
    }
     
     
     sem_post(&sem_queries);
 
 }
+void* atender_timer_query(void* arg){
+    t_hacerConnect* informacion = (t_hacerConnect*) arg;
+    t_query* query = obtener_por_id(cola_queries, informacion->id);
+    while(1){
+        sleep(tiempo_aging);
+       if (!informacion->alive) return NULL;
+        if(query->estado == READY && query->prioridad > 0){
+            pthread_mutex_lock(&mutexColaQuery);
+            int prioridad_ant= query->prioridad;
+            -- query->prioridad;
+            log_info(informacion->logger,COLOR_VERDE "##<QUERY_ID: %d> Cambio de prioridad: <PRIORIDAD_ANTERIOR: %d > - <PRIORIDAD_NUEVA %d>"COLOR_VERDE,informacion->id,prioridad_ant,query->prioridad );
+            chequeador_desalojo(query->prioridad,informacion);
+            pthread_mutex_unlock(&mutexColaQuery);
+        }
 
+    }
+}
 void chequeador_desalojo(int prioridad,t_hacerConnect* info){
     pthread_mutex_lock(&mutexQueryEnWorker);
     if(list_is_empty(query_en_worker)){
+        printf("lista vacia \n");
+    pthread_mutex_unlock(&mutexQueryEnWorker);
         return;
     }
     t_query* queryMayor =  list_get_maximum(query_en_worker, _max_prioridad);
     pthread_mutex_lock(&mutexCantWorkers);
-    if(list_size(query_en_worker) < cantidadWorkers && prioridad< queryMayor->prioridad){
+    if(list_size(query_en_worker) == cantidadWorkers && prioridad< queryMayor->prioridad){
+        log_info(info->logger, "Se va realizar el desalojo de query id: %d", queryMayor->id);
         t_buffer* buffer=crear_buffer();
         t_paquete* paquete = crear_paquete(WORKER_DESALOJO,buffer);
+        int a2 = 5;
+        agregar_a_paquete(paquete, &a2, sizeof(int));
         pthread_mutex_lock(&mutexListaWorkers);
         t_worker* worker =  obtener_por_id_worker( lista_workers, queryMayor->idWorker);
         enviar_paquete(paquete, worker->socket_interruption,info->logger );
+        log_info(info->logger, "Se realiza el desalojo de la query en worker id: %d", worker->id);
         pthread_mutex_unlock(&mutexListaWorkers);
         eliminar_paquete(paquete);
     }
@@ -230,6 +259,9 @@ void* atender_desconexion_query(void* arg){
     
         log_warning(informacion->logger, "QUERY SE DESCONECTO ID: %d", informacion->id);
         close(informacion->socket_conexion);
+        informacion->alive = false;
+        if(strcmp(algoritmo_planificacion, "AGING") == 0){
+        pthread_join(informacion->hilo_timer, NULL);}
         free(informacion);
         } 
        
@@ -240,6 +272,7 @@ void* atender_desconexion_query(void* arg){
 
 
 void atender_Worker(t_hacerConnect* informacion){
+    //printf("atenderWOrker\n");
     t_list* paqueteWorker = recibir_paquete(informacion->socket_conexion);
   
         if (paqueteWorker == NULL) {
@@ -251,8 +284,9 @@ void atender_Worker(t_hacerConnect* informacion){
 
     int* codOperacion =  list_get(paqueteWorker, 0);
     switch (*codOperacion){
+
         case WORKER_ID:{
-            t_worker* nuevoWorker = malloc(sizeof(nuevoWorker ));
+            t_worker* nuevoWorker = malloc(sizeof(t_worker));
             int* idWorkerLista = list_get(paqueteWorker, 1);
             int idWorker = *idWorkerLista ;
             informacion->id = idWorker;
@@ -277,12 +311,15 @@ void atender_Worker(t_hacerConnect* informacion){
             t_buffer* paqueteDesalojo = crear_buffer();
 
             t_paquete* paquete = crear_paquete(RETENER_WORKER,paqueteDesalojo);
+            int a = 2;
+            agregar_a_paquete(paquete, &a, sizeof(int));
             enviar_paquete(paquete, informacion->socket_conexion, informacion->logger);
             eliminar_paquete(paquete);
             comenzar_a_ejecutar(informacion,idWorker);
            
             break;
         }
+
         case   WORKER_READ_RESULT:{
             
                t_query* queryRecivida;
@@ -304,7 +341,7 @@ void atender_Worker(t_hacerConnect* informacion){
                
 
                list_destroy_and_destroy_elements(paqueteWorker, free);
-            
+               free(readQuery);
                atender_Worker(informacion);
             break;
         }
@@ -313,7 +350,6 @@ void atender_Worker(t_hacerConnect* informacion){
          
             t_query* queryTerminada;
             
-   
 
             int idQueryLista = *(int*)list_get(paqueteWorker, 1);
 
@@ -333,14 +369,30 @@ void atender_Worker(t_hacerConnect* informacion){
 
             break;
         } 
-        /*case: {
-            
-        //}
+        case WORKER_PC_UPDATE:{
+            // tengo funcion obtener y eliminar por id... 
+            t_query* queryRecivida;
+            int idQuery = *(int*)list_get(paqueteWorker, 2);
+           
+            pthread_mutex_lock(&mutexQueryEnWorker);
+            queryRecivida = eliminar_por_id(query_en_worker,idQuery );
+            queryRecivida->estado= READY;
+            pthread_mutex_unlock(&mutexQueryEnWorker);
+             int idWorker = queryRecivida -> idWorker;
+            queryRecivida->programCounter = *(int*)list_get(paqueteWorker, 3);
+            pthread_mutex_lock(&mutexColaQuery);
+            list_add(cola_queries, queryRecivida);
+            pthread_mutex_unlock(&mutexColaQuery);
+            log_info(informacion->logger,"se recivbio la query desalojada");
+            comenzar_a_ejecutar(informacion,idWorker);
+
+        }
         default:{
             log_warning(informacion->logger, "Operacion desconocida");
+         
             break;
         }
-        */ 
+         
     }
 }
 void   enviar_read_a_query(t_query* queryRecivida, t_readQuery* readQuery,t_hacerConnect* informacion ){
@@ -360,6 +412,7 @@ void   enviar_read_a_query(t_query* queryRecivida, t_readQuery* readQuery,t_hace
 
 }
 void query_completado_con_exito(t_query* query,t_hacerConnect* informacion ){
+    query->estado=EXIT;
     t_buffer* infoQuery = crear_buffer();
 
     t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_END, infoQuery);
@@ -372,6 +425,7 @@ void query_completado_con_exito(t_query* query,t_hacerConnect* informacion ){
     log_info(informacion->logger, "Comunicacion Cerrada con Query");
     eliminar_paquete(paquete);
     free(query);
+    query = NULL;
 
 }
 void comenzar_a_ejecutar(t_hacerConnect* informacion, int idWorker){

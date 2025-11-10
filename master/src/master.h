@@ -11,7 +11,9 @@
 typedef struct{
     t_log* logger;
     int socket_conexion;
+    pthread_t hilo_timer; //son solo para queries
     int id;
+    bool alive; //son solo para queries
 } t_hacerConnect;
 
 typedef struct {
@@ -36,6 +38,7 @@ typedef struct{
     int socket_interruption;
     bool desconection; // PARA MANEJAR DESCONEXIONES
     // semaforo
+    int idQuery;
 }t_worker;
 
 enum estado{ // PARA MANEJAR ESTADOS
@@ -68,4 +71,7 @@ void* _max_prioridad(void* , void* );
 
 void atender_worker_interrupt(t_hacerConnect*  ,int );
 t_worker* obtener_por_id_worker(t_list* , int );
+
+void* atender_timer_query(void* );
+
 #endif /* CLIENTE_H_ */
