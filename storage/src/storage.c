@@ -135,7 +135,7 @@ void recrear_bmap(t_storage* storage, int cantidad_bloques, char* path_bmap) {
     pthread_mutex_lock(&storage->mutex_bitmap);
     // Si existía un bitmap anterior lo destruimos
     if (storage->bitmap != NULL) {
-        free(storage->bitmap->bitarray); //libera el ya existente
+        //free(storage->bitmap->bitarray); //libera el ya existente
         bitarray_destroy(storage->bitmap);
         storage->bitmap = NULL;
     }
@@ -182,7 +182,7 @@ void recrear_hash(char* path_hash){
     if(archivo_hash != NULL){
         fclose(archivo_hash);
     }
-    free(path_hash);
+    //free(path_hash);  //libera quien llama a recrear_hash()
 }
 
 
@@ -250,7 +250,7 @@ void formatear_fs(t_storage* storage){
 
     crear_directorios("files");
     crear_directorios("physical_blocks");
-    //free(path_hash);  //no hacer free, recrear_hash() ya libero a path_hash
+    free(path_hash);
     free(path_bmap);
     free(path_files);
     free(path_phblck);
