@@ -19,7 +19,7 @@ void rutina_recepcion(t_storage* storage, int storage_fd){ // se encarga de acep
         if (setsockopt(aux_socket_worker_temp, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0) {
             log_error(storage->logger, "setsockopt keepalive falló para socket %d", aux_socket_worker_temp);
         } else {
-             log_debug(storage->logger, "Keepalive habilitado para socket %d", aux_socket_worker_temp);
+             log_info(storage->logger, "Keepalive habilitado para socket %d", aux_socket_worker_temp);
         }
 
         log_info(storage->logger, "Cliente conectado");
@@ -45,17 +45,18 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
     
     t_list* paquete = recibir_paquete(socket_cliente);
     int codigo_operacion = *(int*) list_get(paquete, 0);
-    if (codigo_operacion == WORKER_HANDSHAKE)
+    if (codigo_operacion == WORKER_HANDSHAKE) {
         log_info(storage->logger, "Handshake recibido, opcode: %d", codigo_operacion);
-    else if (paquete == NULL) {
+        list_destroy_and_destroy_elements(paquete, free);
+    } else if (paquete == NULL) {
         log_error(storage->logger, "Error al recibir paquete del worker en [Socket %d]", socket_cliente);
+        list_destroy_and_destroy_elements(paquete, free);
         close(socket_cliente);
         return NULL;
     }
-    // list_destroy_and_destroy_elements(paquete, free);
-  
+
     log_info(storage->logger, "Hilo ejecucion listo para recibir operaciones de worker en [Socket %d]", socket_cliente);
-    
+
 
     while(1)
     {
@@ -142,8 +143,6 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_respuesta);
             }
-
-            list_destroy_and_destroy_elements(paquete, free);
             break;
 
         case STORAGE_READ_BLOCK:
@@ -202,7 +201,6 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             agregar_a_paquete(paquete_respuesta, msg, strlen(msg) + 1);
             enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
             eliminar_paquete(paquete_respuesta);
-            list_destroy_and_destroy_elements(paquete, free);
 
             break;
         
