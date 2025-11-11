@@ -13,6 +13,15 @@ void rutina_recepcion(t_storage* storage, int storage_fd){ // se encarga de acep
             log_error(storage->logger, "Error al esperar cliente");
             continue;
         }
+
+        //SO_KEEPALIVE el SO cierra el sockets cuando se cae el Worker, chau hilos zombie
+        int keepalive = 1; // 1 para habilitar, 0 para deshabilitar
+        if (setsockopt(aux_socket_worker_temp, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0) {
+            log_error(storage->logger, "setsockopt keepalive falló para socket %d", aux_socket_worker_temp);
+        } else {
+             log_debug(storage->logger, "Keepalive habilitado para socket %d", aux_socket_worker_temp);
+        }
+
         log_info(storage->logger, "Cliente conectado");
 
         args_hilo_worker* args = malloc(sizeof(args_hilo_worker));

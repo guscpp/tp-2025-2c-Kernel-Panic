@@ -1024,7 +1024,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
 
     // 3. Cargar o crear blocks_hash_index.config
     char* hash_index_path = string_from_format("%s/blocks_hash_index.config", storage->punto_montaje);
-    bool hash_index_creado = false;
+    //bool hash_index_creado = false;
     
     // Verificar si el archivo existe, si no, crearlo vacío
     if (access(hash_index_path, F_OK) != 0) {
@@ -1039,7 +1039,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
             return;
         }
         fclose(f);
-        hash_index_creado = true;
+        //hash_index_creado = true;
     }
 
     t_config* hash_index = config_create(hash_index_path);
