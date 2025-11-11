@@ -347,7 +347,7 @@ void atender_Worker(t_hacerConnect* informacion){
         }
         case WORKER_QUERY_END:{
 
-         
+            
             t_query* queryTerminada;
             
 
@@ -369,6 +369,246 @@ void atender_Worker(t_hacerConnect* informacion){
 
             break;
         } 
+        case WORKER_ERROR_ARCHIVO: {
+
+            // Datos del paquete recibido desde el Worker
+            int idQuery = *(int*)list_get(paqueteWorker, 1);
+            char* file = (char*)list_get(paqueteWorker, 2);
+            char* tag  = (char*)list_get(paqueteWorker, 3);
+
+            // Buscar la query en la lista de queries en ejecución
+            pthread_mutex_lock(&mutexQueryEnWorker);
+            t_query* errorArchivo = eliminar_por_id(query_en_worker, idQuery);
+            pthread_mutex_unlock(&mutexQueryEnWorker);
+
+            if (!errorArchivo) {
+                log_warning(informacion->logger, "No se encontró la query %d en ejecución", idQuery);
+                list_destroy_and_destroy_elements(paqueteWorker, free);
+                break;
+            }
+
+            int idWorker = errorArchivo->idWorker;
+            errorArchivo->estado = EXIT;
+
+            // respuesta al Query Control
+            t_buffer* infoQuery = crear_buffer();
+            t_paquete* paquete = crear_paquete(QUERY_RESPONSE_ERROR_ARCHIVO_NO_ENCONTRADO, infoQuery);
+
+            agregar_a_paquete(paquete, file, strlen(file) + 1);
+            agregar_a_paquete(paquete, tag, strlen(tag) + 1);
+
+            enviar_paquete(paquete, errorArchivo->socket, informacion->logger);
+
+            log_info(informacion->logger,
+                COLOR_VERDE "## Query Finalizada - Error: Archivo %s:%s No Encontrado (Query ID: %d, Worker: %d)"
+                COLOR_VERDE,
+                file, tag, idQuery, idWorker);
+
+            // Cerrar conexión con el Query
+            close(errorArchivo->socket);
+            log_info(informacion->logger, "Conexión cerrada con Query %d", idQuery);
+
+            eliminar_paquete(paquete);
+            free(errorArchivo);
+            list_destroy_and_destroy_elements(paqueteWorker, free);
+
+            //reiniciar Worker
+            comenzar_a_ejecutar(informacion, idWorker);
+            break;
+        }
+
+        case WORKER_ERROR_INSTRUCCION_MALFORMADA:{
+
+            // Datos del paquete recibido desde el Worker
+            int idQuery = *(int*)list_get(paqueteWorker, 1);
+            char* instruccion = (char*)list_get(paqueteWorker, 2);
+
+            // Buscar la query en la lista de queries en ejecución
+            pthread_mutex_lock(&mutexQueryEnWorker);
+            t_query* errorInstruccion = eliminar_por_id(query_en_worker, idQuery);
+            pthread_mutex_unlock(&mutexQueryEnWorker);
+
+            if (!errorInstruccion) {
+                log_warning(informacion->logger, "No se encontró la query %d en ejecución", idQuery);
+                list_destroy_and_destroy_elements(paqueteWorker, free);
+                break;
+            }
+
+            int idWorker = errorInstruccion->idWorker;
+            errorInstruccion->estado = EXIT;
+
+            // respuesta al Query Control
+            t_buffer* infoQuery = crear_buffer();
+            t_paquete* paquete = crear_paquete(QUERY_RESPONSE_ERROR_ERROR_EN_INSTRUCCION, infoQuery);
+
+            agregar_a_paquete(paquete, instruccion, strlen(instruccion) + 1);
+
+            enviar_paquete(paquete, errorInstruccion->socket, informacion->logger);
+
+            log_info(informacion->logger,
+                COLOR_VERDE "## Query Finalizada - Error: Instruccion: %s mal formada (Query ID: %d, Worker: %d)"
+                COLOR_VERDE,
+                instruccion, idQuery, idWorker);
+
+            // Cerrar conexión con el Query
+            close(errorInstruccion->socket);
+            log_info(informacion->logger, "Conexión cerrada con Query %d", idQuery);
+
+            eliminar_paquete(paquete);
+            free(errorInstruccion);
+            list_destroy_and_destroy_elements(paqueteWorker, free);
+
+            //reiniciar Worker
+            comenzar_a_ejecutar(informacion, idWorker);
+            break;
+
+
+        }
+        case WORKER_ERROR_MODIFICAR_COMMIT:{
+            
+             // Datos del paquete recibido desde el Worker
+            int idQuery = *(int*)list_get(paqueteWorker, 1);
+            char* file = (char*)list_get(paqueteWorker, 2);
+            char* tag = (char*)list_get(paqueteWorker, 3);
+
+            // Buscar la query en la lista de queries en ejecución
+            pthread_mutex_lock(&mutexQueryEnWorker);
+            t_query* errorCommit = eliminar_por_id(query_en_worker, idQuery);
+            pthread_mutex_unlock(&mutexQueryEnWorker);
+
+            if (!errorCommit) {
+                log_warning(informacion->logger, "No se encontró la query %d en ejecución", idQuery);
+                list_destroy_and_destroy_elements(paqueteWorker, free);
+                break;
+            }
+
+            int idWorker = errorCommit->idWorker;
+            errorCommit->estado = EXIT;
+
+            // respuesta al Query Control
+            t_buffer* infoQuery = crear_buffer();
+            t_paquete* paquete = crear_paquete(QUERY_RESPONSE_ERROR_MODIFICAR_COMMIT, infoQuery);
+
+            agregar_a_paquete(paquete, file, strlen(file) + 1);
+            agregar_a_paquete(paquete, tag, strlen(tag) + 1);
+
+            enviar_paquete(paquete, errorCommit->socket, informacion->logger);
+
+            log_info(informacion->logger,
+                COLOR_VERDE "## Query Finalizada - Error: Se intento modificar el archivo %s:%s que se encuentra en estado de COMMITED (Query ID: %d, Worker: %d)"
+                COLOR_VERDE,
+                file, tag, idQuery, idWorker);
+
+            // Cerrar conexión con el Query
+            close(errorCommit->socket);
+            log_info(informacion->logger, "Conexión cerrada con Query %d", idQuery);
+
+            eliminar_paquete(paquete);
+            free(errorCommit);
+            list_destroy_and_destroy_elements(paqueteWorker, free);
+
+            //reiniciar Worker
+            comenzar_a_ejecutar(informacion, idWorker);
+            break;
+
+
+        }
+        case WORKER_ERROR_TAMANIO_ESCRITURA_EXCEDIDO:{
+            
+            // Datos del paquete recibido desde el Worker
+            int idQuery = *(int*)list_get(paqueteWorker, 1);
+            char* file = (char*)list_get(paqueteWorker, 2);
+            char* tag = (char*)list_get(paqueteWorker, 3);
+
+            // Buscar la query en la lista de queries en ejecución
+            pthread_mutex_lock(&mutexQueryEnWorker);
+            t_query* errorTamanioEscritura = eliminar_por_id(query_en_worker, idQuery);
+            pthread_mutex_unlock(&mutexQueryEnWorker);
+
+            if (!errorTamanioEscritura) {
+                log_warning(informacion->logger, "No se encontró la query %d en ejecución", idQuery);
+                list_destroy_and_destroy_elements(paqueteWorker, free);
+                break;
+            }
+
+            int idWorker = errorTamanioEscritura->idWorker;
+            errorTamanioEscritura->estado = EXIT;
+
+            // respuesta al Query Control
+            t_buffer* infoQuery = crear_buffer();
+            t_paquete* paquete = crear_paquete(QUERY_RESPONSE_ERROR_TAMANIO_ESCRITURA_EXCEDIDO, infoQuery);
+
+            agregar_a_paquete(paquete, file, strlen(file) + 1);
+            agregar_a_paquete(paquete, tag, strlen(tag) + 1);
+
+            enviar_paquete(paquete, errorTamanioEscritura->socket, informacion->logger);
+
+            log_info(informacion->logger,
+                COLOR_VERDE "## Query Finalizada - Error: Se Excedio el Tamaño de Escritura de el Archivo %s:%s (Query ID: %d, Worker: %d)"
+                COLOR_VERDE,
+                file, tag, idQuery, idWorker);
+
+            // Cerrar conexión con el Query
+            close(errorTamanioEscritura->socket);
+            log_info(informacion->logger, "Conexión cerrada con Query %d", idQuery);
+
+            eliminar_paquete(paquete);
+            free(errorTamanioEscritura);
+            list_destroy_and_destroy_elements(paqueteWorker, free);
+
+            //reiniciar Worker
+            comenzar_a_ejecutar(informacion, idWorker);
+            break;
+
+
+
+        }
+        case WORKER_ERROR_STORAGE_DESCONECTADO:{
+
+             // Datos del paquete recibido desde el Worker
+            int idQuery = *(int*)list_get(paqueteWorker, 1);
+            
+
+            // Buscar la query en la lista de queries en ejecución
+            pthread_mutex_lock(&mutexQueryEnWorker);
+            t_query* errorStorageDesc = eliminar_por_id(query_en_worker, idQuery);
+            pthread_mutex_unlock(&mutexQueryEnWorker);
+
+            if (!errorStorageDesc) {
+                log_warning(informacion->logger, "No se encontró la query %d en ejecución", idQuery);
+                list_destroy_and_destroy_elements(paqueteWorker, free);
+                break;
+            }
+
+            int idWorker = errorStorageDesc->idWorker;
+            errorStorageDesc->estado = EXIT;
+
+            // respuesta al Query Control
+            t_buffer* infoQuery = crear_buffer();
+            t_paquete* paquete = crear_paquete(QUERY_RESPONSE_ERROR_STORAGE_DESCONECTADO, infoQuery);
+
+
+            enviar_paquete(paquete, errorStorageDesc->socket, informacion->logger);
+
+            log_info(informacion->logger,
+                COLOR_VERDE "## Query Finalizada - Error: Storage Desconectado (Query ID: %d, Worker: %d)"
+                COLOR_VERDE,
+                idQuery, idWorker);
+
+            // Cerrar conexión con el Query
+            close(errorStorageDesc->socket);
+            log_info(informacion->logger, "Conexión cerrada con Query %d", idQuery);
+
+            eliminar_paquete(paquete);
+            free(errorStorageDesc);
+            list_destroy_and_destroy_elements(paqueteWorker, free);
+
+            //reiniciar Worker
+            comenzar_a_ejecutar(informacion, idWorker);
+            break;
+
+
+        }
         case WORKER_PC_UPDATE:{
             // tengo funcion obtener y eliminar por id... 
             t_query* queryRecivida;
@@ -416,8 +656,9 @@ void query_completado_con_exito(t_query* query,t_hacerConnect* informacion ){
     t_buffer* infoQuery = crear_buffer();
 
     t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_END, infoQuery);
-    char* motivo= "Finalizacion Hardcodeada";
-    agregar_a_paquete(paquete,motivo,strlen(motivo) + 1);
+
+    //char* motivo= "Finalizacion Hardcodeada";
+    //agregar_a_paquete(paquete,motivo,strlen(motivo) + 1);
 
     enviar_paquete( paquete,  query->socket ,  informacion->logger);
     log_info(informacion->logger, COLOR_VERDE "## Se termino la Query id: %d (prioridad: %d )  con exito en el worker %d" COLOR_VERDE, query->id, query->prioridad , query->idWorker);

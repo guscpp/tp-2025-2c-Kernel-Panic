@@ -151,46 +151,74 @@ void procesar_respuestas_master(t_query_control* qc)
             }
 
             case QUERY_RESPONSE_ERROR_ARCHIVO_NO_ENCONTRADO: {
-                log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Archivo No Encontrado" COLOR_VERDE); //DUPLICADO
+                
 
-                //char* file = (char*)list_get(paqueteMaster, 1);
-                //char* tag = (char*)list_get(paqueteMaster, 2);
-            
-                //log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Archivo %s:%s No Encontrado" COLOR_VERDE, file, tag);
+                char* file = (char*)list_get(paqueteMaster, 1);
+                char* tag = (char*)list_get(paqueteMaster, 2);
+    
+                log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Archivo %s:%s No Encontrado" COLOR_VERDE, file, tag);
 
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
             }
 
             case QUERY_RESPONSE_ERROR_ERROR_EN_INSTRUCCION: {
-                log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Error Al Ejecutar Una Instrucción" COLOR_VERDE); //DUPLICADO
 
-                //char* instruccion = (char*)list_get(paqueteMaster, 1);
-                //log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Error Al Ejecutar la Instrucción: %s" COLOR_VERDE, instruccion);
+                char* instruccion = (char*)list_get(paqueteMaster, 1);
+                log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Error Al Ejecutar la Instrucción: %s" COLOR_VERDE, instruccion);
 
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
             }
 
             case QUERY_RESPONSE_ERROR_LECTURA_INVALIDA: {
-                log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Lectura Inválida" COLOR_VERDE); //DUPLICADO
-
-                //char* file = (char*)list_get(paqueteMaster, 1);
-                //char* tag = (char*)list_get(paqueteMaster, 2);
-                //log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Lectura Inválida del Archivo : %s:%s" COLOR_VERDE, file, tag);
+                
+                char* file = (char*)list_get(paqueteMaster, 1);
+                char* tag = (char*)list_get(paqueteMaster, 2);
+                log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Lectura Inválida del Archivo : %s:%s" COLOR_VERDE, file, tag);
 
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
             }
 
             case QUERY_RESPONSE_ERROR_WORKER_DESCONECTADO: {
-                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Worker Desconectado" COLOR_VERDE); //DUPLICADO
-
-                //char* worker_id = (char*)list_get(paqueteMaster, 1);
-                //log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Worker con ID : %s Desconectado" COLOR_VERDE, worker_id);
+                
+                char* worker_id = (char*)list_get(paqueteMaster, 1);
+                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Worker con ID : %s Desconectado" COLOR_VERDE, worker_id);
 
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
+            }
+
+            case QUERY_RESPONSE_ERROR_MODIFICAR_COMMIT: {
+                
+                char* file = (char*)list_get(paqueteMaster, 1);
+                char* tag = (char*)list_get(paqueteMaster, 2);
+                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Se Intento Modifical al Archivo %s:%s que se Encuentra en estado de COMMITED" COLOR_VERDE, file, tag);
+
+                list_destroy_and_destroy_elements(paqueteMaster, free);
+                return;
+
+            }
+
+            case QUERY_RESPONSE_ERROR_TAMANIO_ESCRITURA_EXCEDIDO: {
+                
+                char* file = (char*)list_get(paqueteMaster, 1);
+                char* tag = (char*)list_get(paqueteMaster, 2);
+                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Tamaño de Escritura Excedido Para el Archivo %s:%s" COLOR_VERDE, file, tag);
+
+                list_destroy_and_destroy_elements(paqueteMaster, free);
+                return;
+
+            }
+
+            case QUERY_RESPONSE_ERROR_STORAGE_DESCONECTADO: {
+                
+                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Storage Desconectado" COLOR_VERDE);
+
+                list_destroy_and_destroy_elements(paqueteMaster, free);
+                return;
+
             }
 
             default: {
