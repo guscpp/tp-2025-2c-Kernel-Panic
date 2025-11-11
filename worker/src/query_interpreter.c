@@ -37,7 +37,7 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
         }
 
         if(instruccion_decf->instruccion_malformada){
-                avisar_error_generico(w, WORKER_INSTRUCCION_MALFORMADA);
+                avisar_error_generico(w, WORKER_ERROR_INSTRUCCION_MALFORMADA);
                 break;
         }
 
@@ -307,7 +307,7 @@ void executeTruncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     t_paquete* paqueteTruncate = crear_paquete(STORAGE_TRUNCATE, buffer_generico);
     agregar_a_paquete(paqueteTruncate, &(pcb->query_id), sizeof(pcb->query_id));
     agregar_a_paquete(paqueteTruncate, parametros->nombre_file, strlen(parametros->nombre_file)+1);
-    agregar_a_paquete(paqueteTruncate, parametros->tag, strlen(parametros->tag +1));
+    agregar_a_paquete(paqueteTruncate, parametros->tag, strlen(parametros->tag) + 1);
     agregar_a_paquete(paqueteTruncate, &parametros->tamanio, sizeof(int));
     enviar_paquete(paqueteTruncate, w->storage_socket, w->logger);
     eliminar_paquete(paqueteTruncate);
@@ -447,8 +447,8 @@ void interrupt_envio_a_master(Pcb* pcb_dsp_de_interrupt, t_worker* w){  //Se env
     agregar_a_paquete(devuelvo_pcb_master, pcb_dsp_de_interrupt->nombre_archivo, strlen(pcb_dsp_de_interrupt->nombre_archivo)+1);
     
     //Estos dos si:
-    agregar_a_paquete(devuelvo_pcb_master, pcb_dsp_de_interrupt->query_id, sizeof(int));
-    agregar_a_paquete(devuelvo_pcb_master, pcb_dsp_de_interrupt->pc, sizeof(int));
+    agregar_a_paquete(devuelvo_pcb_master, &(pcb_dsp_de_interrupt->query_id), sizeof(int));
+    agregar_a_paquete(devuelvo_pcb_master, &(w->interpreter->pc), sizeof(int));
     enviar_paquete(devuelvo_pcb_master, w->master_socket_distpach, w->logger);
     eliminar_paquete(devuelvo_pcb_master);
     
