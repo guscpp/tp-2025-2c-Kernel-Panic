@@ -37,8 +37,8 @@ typedef struct{
     int socket;
     int socket_interruption;
     bool desconection; // PARA MANEJAR DESCONEXIONES
-    // semaforo
-    int idQuery;
+    t_log* logger;
+    //int idQuery;
 }t_worker;
 
 enum estado{ // PARA MANEJAR ESTADOS
@@ -71,7 +71,8 @@ void* _max_prioridad(void* , void* );
 
 void atender_worker_interrupt(t_hacerConnect*  ,int );
 t_worker* obtener_por_id_worker(t_list* , int );
+void* atender_desconexion_worker(void* );
 
 void* atender_timer_query(void* );
-
+t_query* obtener_query_por_id_worker(t_list* , int );
 #endif /* CLIENTE_H_ */
