@@ -4,6 +4,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include "../../utils/include/utils.h"
+
+bool error_memoria = false;
 
 char* clave_file_tag(char* file, char* tag) {
     return string_from_format("%s:%s", file, tag);
@@ -157,6 +160,7 @@ int aplicar_clock_m(t_memoria_interna* mem, int query_id) {
 
 int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina) {
     int marco = encontrar_marco_libre(mem);
+
     if (marco == -1) {
         if (mem->algoritmo_reemplazo == LRU)
             marco = aplicar_lru(mem, query_id);
@@ -164,6 +168,16 @@ int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, i
             marco = aplicar_clock_m(mem, query_id);
     }
 
+    /*
+    //agregar la logica de pedirle a storage el bloque
+    //si se responde que hubo error: 
+    //bloque = pedirBloqueAStorage()
+    //if(!bloque){
+            error_memoria = true; 
+            avisar_error_generico(mem->logger, WORKER_ERROR_DIRECCION_INVALIDA); pedi un bloque logico que no es mio
+            return -2
+    }
+    */
     mem->marcos[marco]->libre = false;
     t_entrada_pagina* nueva = malloc(sizeof(t_entrada_pagina));
     nueva->file = string_duplicate(file);
@@ -207,19 +221,26 @@ int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, i
 }
 
 void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* tag, int offset, size_t tam, bool es_escritura) {
-    if (!mem || !file || !tag || tam == 0) return NULL;
+    if (!mem || !file || !tag || tam == 0) return NULL; //no se si haria falta mandar como error el motivo de que no quiera escribir nada
     int num_pagina = offset / mem->tamanio_pagina;
     int despl = offset % mem->tamanio_pagina;
-    if (despl + tam > mem->tamanio_pagina) {
+    if (despl + tam > mem->tamanio_pagina) { //SI Inetna leer en algo que esta fuera del tamanio de pagina 
         log_error(mem->logger, "Query<%d>: Acceso cruza limite de pagina - Offset: %d, Tamaño: %zu", query_id, offset, tam);
+        avisar_error_generico(mem->logger, WORKER_ERROR_SUPERA_TAMPAG);
+        error_memoria = true;
         return NULL;
     }
 
     t_entrada_pagina* entrada = buscar_pagina(mem, file, tag, num_pagina);
     if (!entrada) {
-        log_info(mem->logger, "Query<%d>: - Memoria Miss - File:%s - Tag:%s - Pagina:%d",
+        log_info(mem->logger, "Query<%d>: - Memoria Miss - File:%s - Tag:%s - Pagina:%d", //pf
                  query_id, file, tag, num_pagina);
         int marco = cargar_pagina(mem, query_id, file, tag, num_pagina);
+        /*
+        if (marco == -2){
+            return NILL;
+        }
+        */
         entrada = buscar_pagina(mem, file, tag, num_pagina);
         if (!entrada) return NULL;
     }

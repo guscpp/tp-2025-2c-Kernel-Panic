@@ -29,5 +29,5 @@ void executeDelete(t_instr_param* parametros, t_worker* w, Pcb* pcb);
 void executeEnd(t_worker* w, Pcb* pcb);
 
 void interrupt_envio_a_master(Pcb* pcb_dsp_de_interrupt, t_worker* w);
-void avisar_error_generico(t_worker* w, op_code etiqueta);
+void avisar_error_generico(t_log* logger, op_code etiqueta);
 #endif

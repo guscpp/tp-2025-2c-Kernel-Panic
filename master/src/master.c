@@ -657,8 +657,8 @@ void query_completado_con_exito(t_query* query,t_hacerConnect* informacion ){
 
     t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_END, infoQuery);
 
-    //char* motivo= "Finalizacion Hardcodeada";
-    //agregar_a_paquete(paquete,motivo,strlen(motivo) + 1);
+    char* motivo= "Finalizacion Hardcodeada";
+    agregar_a_paquete(paquete,motivo,strlen(motivo) + 1);
 
     enviar_paquete( paquete,  query->socket ,  informacion->logger);
     log_info(informacion->logger, COLOR_VERDE "## Se termino la Query id: %d (prioridad: %d )  con exito en el worker %d" COLOR_VERDE, query->id, query->prioridad , query->idWorker);

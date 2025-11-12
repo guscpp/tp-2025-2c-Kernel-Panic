@@ -9,6 +9,8 @@
 #include <string.h>
 #include <unistd.h> // para los usleep
 #include <time.h>   // para los timestamps en LRU
+#include "../../utils/include/utils.h" //agrego utils para enviar un opcode
+
 
 typedef enum {
     LRU,
@@ -78,5 +80,9 @@ int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, i
 // Funciones CLOCK-M
 t_clock_m* crear_clock_m(int cantidad_marcos, t_marco** marcos);
 void destruir_clock_m(t_clock_m* clock);
+
+//Aviso de errores
+void avisar_error_generico(t_log* logger, op_code etiqueta);
+
 
 #endif

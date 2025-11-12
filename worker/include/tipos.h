@@ -2,7 +2,7 @@
 #define TIPOS_H_
 
 #include "../../utils/include/utils.h"
-#include "memoria.h"  
+//#include "memoria.h"  
 #include "query_interpreter.h"
 #include <semaphore.h>
 
@@ -75,5 +75,7 @@ typedef struct{
     void (*ejecuta_instruccion)(t_instr_param*, t_worker*, Pcb*);
     bool instruccion_malformada; 
 }t_decode; //solo para que haya execute
+
+extern bool error_memoria;
 
 #endif

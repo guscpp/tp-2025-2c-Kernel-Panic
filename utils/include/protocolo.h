@@ -44,6 +44,8 @@ typedef enum
     WORKER_ERROR_MODIFICAR_COMMIT,
     WORKER_ERROR_TAMANIO_ESCRITURA_EXCEDIDO,
     WORKER_ERROR_STORAGE_DESCONECTADO,
+    WORKER_ERROR_SUPERA_TAMPAG,
+    WORKER_ERROR_DIRECCION_INVALIDA, //para cuando el file quiere acceder a un bloque logico que no le corresponde
     
     // WORKER ↔ STORAGE
     STORAGE_GET_BLOCK_SIZE, // Solicitar tamaño de bloque

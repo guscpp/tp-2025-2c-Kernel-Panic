@@ -26,6 +26,6 @@ bool      recibir_interrupciones(int master_socket, t_worker* w);
 
 void retener_worker(t_worker* w);
 
-void avisar_error_generico(t_worker* w, op_code etiqueta);
-void loggerError(t_worker* w, op_code etiqueta);
+void avisar_error_generico(t_log* logger, op_code etiqueta);
+void loggerError(t_log* logger, op_code etiqueta);
 #endif /* CLIENTE_H_*/

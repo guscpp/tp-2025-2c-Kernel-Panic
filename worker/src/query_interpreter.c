@@ -24,6 +24,12 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
     t_decode* instruccion_decf = malloc(sizeof(t_decode));
 
     for(;;){
+
+        if(error_memoria){
+        log_info(w->logger, "Me estoy por salir del ciclo, porque alguna cosa extrania intento hacer la query");
+            error_memoria = false; 
+            break;
+        }
         instruccion = fetch(pcb, w); //aca me llega la instruccion completa
         
 
@@ -37,7 +43,7 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
         }
 
         if(instruccion_decf->instruccion_malformada){
-                avisar_error_generico(w, WORKER_ERROR_INSTRUCCION_MALFORMADA);
+                avisar_error_generico(w->logger, WORKER_ERROR_INSTRUCCION_MALFORMADA);
                 break;
         }
 
@@ -328,8 +334,11 @@ void executeWrite(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     );
         if (dir) {
         memcpy(dir, parametros->contenido, tam);
+        log_info(w->logger, "Query<%d>: Instrucción realizada: WRITE", pcb->query_id);
     }
-    log_info(w->logger, "Query<%d>: Instrucción realizada: WRITE", pcb->query_id);
+    if(!dir){
+        log_info(w->logger, "INtente hacer algo que no puedo en memoria");
+    }
 }
 
 void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){

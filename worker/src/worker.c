@@ -78,9 +78,8 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
             int query_id = *(int*)list_get(paquete_path, 1);
             char* path_query = (char*)list_get(paquete_path, 2);
             int prioridad = *(int*)list_get(paquete_path, 3); //(*)
-            //int pc = *(int*)list_get(paquete_path, 4);  el PC va venir cuarto
+            int pc = *(int*)list_get(paquete_path, 4);
 
-            int pc = 0; //pongo este porque en el codigo master todavia no me manda el pc
             
             log_info(w->logger, "Query recibida: ID=%d, Path=%s, Prioridad=%d, PC:%d", 
                     query_id, path_query, prioridad, pc);  
@@ -100,7 +99,7 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
             }
 
             list_destroy(paquete_path);
-            avisar_error_generico(w, WORKER_ERROR_ARCHIVO);
+            avisar_error_generico(w->logger, WORKER_ERROR_ARCHIVO);
 
             return NULL;
             //free(path_query); //?
@@ -257,9 +256,9 @@ void retener_worker(t_worker* w){
     
 
 
-void avisar_error_generico(t_worker* w, op_code etiqueta){ //solo porque son paquetes vacios 
+void avisar_error_generico(t_log* logger, op_code etiqueta){ //solo porque son paquetes vacios 
 
-    loggerError(w,etiqueta);
+    loggerError(logger,etiqueta);
     /*
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError = crear_paquete(etiqueta, buffer1);
@@ -270,20 +269,23 @@ void avisar_error_generico(t_worker* w, op_code etiqueta){ //solo porque son paq
 }
 
 //SOlo para ver si anda bien el envio 
-void loggerError(t_worker* w, op_code etiqueta){
+void loggerError(t_log* logger, op_code etiqueta){
     switch (etiqueta)
     {
     case WORKER_ERROR_ARCHIVO:
-        log_info(w->logger, "Envie a master el WORKER_ERROR_ARCHIVO");
+        log_info(logger, "Envie a master el WORKER_ERROR_ARCHIVO");
         break;
     
-    case WORKER_INSTRUCCION_MALFORMADA:
-        log_info(w->logger, "Envie a master el WORKER_INSTRUCCION_MALFORMADA");
+    case WORKER_ERROR_INSTRUCCION_MALFORMADA:
+        log_info(logger, "Envie a master el WORKER_INSTRUCCION_MALFORMADA");
         break;
     
+    case WORKER_ERROR_SUPERA_TAMPAG:
+        log_info(logger, "Envie a master el WORKER_ERROR_SUPERA_TAMPAG");    //este error es porque si yo quiero leer o escribir en memoria, tengo que asegurar de que el offset + el tamanio de lo que escribo o leo este dentro del tamanio de pagina
+        break;
 
     default:
-    log_info(w->logger, "default");
+    log_info(logger, "default");
         break;
     }
 }
