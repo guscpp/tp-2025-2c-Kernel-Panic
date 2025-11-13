@@ -57,6 +57,8 @@ typedef struct {
     t_list* lru_list;        // Lista para LRU (entradas ordenadas por uso)
     t_clock_m* clock_m;      // Estructura para CLOCK-M
     t_dictionary* tablas_paginas;  // Clave = "file:tag", valor = t_list* de entrada_pagina_t*
+    int socket_storage;
+    void* tmp_bloque;
 } t_memoria_interna;
 
 // Funciones publicas
@@ -84,5 +86,8 @@ void destruir_clock_m(t_clock_m* clock);
 //Aviso de errores
 void avisar_error_generico(t_log* logger, op_code etiqueta);
 
+//COmunicacion con storage
+int pedir_bloque_storage(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina);
+void flush_paginas_modificadas( t_memoria_interna* mem, int query_id, char* file, char* tag, int socket_storage);
 
 #endif

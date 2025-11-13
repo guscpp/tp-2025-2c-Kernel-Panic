@@ -303,7 +303,9 @@ void executeCreate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     eliminar_paquete(paquete_Create);
     
     
+    //rtas_storage(w->storage_socket, w, CREATE);
     log_info(w->logger, "Llegue a hacer create");
+    
 }
 
 void executeTruncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
@@ -318,7 +320,9 @@ void executeTruncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     enviar_paquete(paqueteTruncate, w->storage_socket, w->logger);
     eliminar_paquete(paqueteTruncate);
     
+    //rtas_storage(w->storage_socket, w, TRUNCATE);
     log_info(w->logger, "Llegue a hacer truncate");
+    
 }
 
 void executeWrite(t_instr_param* parametros, t_worker* w, Pcb* pcb){
@@ -337,8 +341,9 @@ void executeWrite(t_instr_param* parametros, t_worker* w, Pcb* pcb){
         log_info(w->logger, "Query<%d>: Instrucción realizada: WRITE", pcb->query_id);
     }
     if(!dir){
-        log_info(w->logger, "INtente hacer algo que no puedo en memoria");
+        log_info(w->logger, "INtente hacer algo que no puedo en memoria. ESte es el de query_interpreter o storage no me dio la pagina que le pedi"); //este esta porque el enviar error generico lo puse dentro de memoria.c 
     }
+
 }
 
 void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){
@@ -354,6 +359,7 @@ void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     if (!dir) {
         log_error(w->logger, "Query<%d>: Lectura fallida - File:%s - Tag:%s - Offset:%d",
                   pcb->query_id, parametros->nombre_file, parametros->tag, parametros->direccion_base);
+        log_info(w->logger, "INtente hacer algo que no puedo en memoria. ESte es el de query_interpreter o storage no me dio la pagina que le pedi");
         return;
     }
 
@@ -390,13 +396,16 @@ void executeTag(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     enviar_paquete(paquete_nuevo_tag, w->storage_socket, w->logger);
     eliminar_paquete(paquete_nuevo_tag);
     
+    //rtas_storage(w->storage_socket, w, TAG);
     log_info(w->logger, "Llegue a hacer tag");
+    
 }
 
 void executeCommit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     
     executeFlush(parametros, w, pcb); //executeFLush necesita el nombreDelFIle y el tag, y yo aca en commit tengo esos parametros
     
+    log_info(w->logger, "Este es el flush antes del commit");
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_commit = crear_paquete(STORAGE_COMMIT, buffer_generico);
     agregar_a_paquete(paquete_commit, &(pcb->query_id), sizeof(pcb->query_id));
@@ -405,21 +414,24 @@ void executeCommit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     enviar_paquete(paquete_commit, w->storage_socket, w->logger);
     eliminar_paquete(paquete_commit);
     
+    //rtas_storage(w->storage_socket, w, COMMIT);
     log_info(w->logger, "Llegue a hacer commit");
+
 }
 
 void executeFlush(t_instr_param* parametros, t_worker* w, Pcb* pcb){ //ESto se hace previo a la ejecucion de un commit y de un desalojo de query
 
-    /*  EN storage falta agregar la etiqueta del flush
-    t_buffer* buffer_generico = crear_buffer();
-    t_paquete* paquete_flush = crear_paquete(STORAGE_FLUSH, buffer_generico);
-    agregar_a_paquete(paquete_flush, &(pcb->query_id), sizeof(pcb->query_id));
-    agregar_a_paquete(paquete_flush, parametros->nombre_file, strlen(parametros->nombre_file)+1);
-    agregar_a_paquete(paquete_flush, parametros->tag, strlen(parametros->tag)+1);
-    enviar_paquete(paquete_flush, w->storage_socket, w->logger);
-    eliminar_paquete(paquete_flush);
-    */
-    log_info(w->logger, "Llegue a hacer flush");
+
+    flush_paginas_modificadas(
+        w->mem,
+        pcb->query_id,
+        parametros->nombre_file,
+        parametros->tag,
+        w->storage_socket
+    );
+    //rtas_storage(w->storage_socket, w, FLUSH);
+    log_info(w->logger, "Query<%d>: Instrucción realizada: FLUSH", pcb->query_id);
+
 }
 
 void executeDelete(t_instr_param* parametros, t_worker* w, Pcb* pcb){
@@ -432,6 +444,7 @@ void executeDelete(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     enviar_paquete(paquete_delete, w->storage_socket, w->logger);
     eliminar_paquete(paquete_delete);
     
+    //rtas_storage(w->storage_socket, w, DELETE);
     log_info(w->logger, "Llegue a hacer delete");
     
 }

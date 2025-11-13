@@ -157,7 +157,7 @@ int aplicar_clock_m(t_memoria_interna* mem, int query_id) {
     clock->bits_modificados[victima] = false;
     return victima;
 }
-
+/*
 int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina) {
     int marco = encontrar_marco_libre(mem);
 
@@ -168,16 +168,13 @@ int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, i
             marco = aplicar_clock_m(mem, query_id);
     }
 
-    /*
-    //agregar la logica de pedirle a storage el bloque
-    //si se responde que hubo error: 
-    //bloque = pedirBloqueAStorage()
-    //if(!bloque){
-            error_memoria = true; 
-            avisar_error_generico(mem->logger, WORKER_ERROR_DIRECCION_INVALIDA); pedi un bloque logico que no es mio
-            return -2
+    // 2. Pedís el bloque a Storage
+    if (pedir_bloque_storage(mem, query_id, file, tag, pagina) < 0) {
+        log_error(mem->logger, "Error cargando página %d", pagina);
+        return -1;
     }
-    */
+
+    
     mem->marcos[marco]->libre = false;
     t_entrada_pagina* nueva = malloc(sizeof(t_entrada_pagina));
     nueva->file = string_duplicate(file);
@@ -219,28 +216,95 @@ int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, i
     memset(dir, 0, mem->tamanio_pagina);
     return marco;
 }
+*/
+
+int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina) { //esta es la nueva, le agregue que copie lo que traae del bloque logico
+    int marco = encontrar_marco_libre(mem);
+
+    if (marco == -1) {
+        if (mem->algoritmo_reemplazo == LRU)
+            marco = aplicar_lru(mem, query_id);
+        else
+            marco = aplicar_clock_m(mem, query_id);
+    }
+
+    //pedir el bloque ANTES de registrar la página
+    if (pedir_bloque_storage(mem, query_id, file, tag, num_pagina) < 0) {
+        log_error(mem->logger, "Error cargando pagina: %d", num_pagina);
+        
+        return -1;
+    }
+    
+    // Copiar contenido recibido desde storage al marco de memoria interna
+    void* destino = mem->memory_arena + marco * mem->tamanio_pagina;
+    memcpy(destino, mem->tmp_bloque, mem->tamanio_pagina);
+    free(mem->tmp_bloque);
+    mem->tmp_bloque = NULL;
+    
+    // NO usar memset a 0
+    //memset(destino, 0, mem->tamanio_pagina);
+
+    mem->marcos[marco]->libre = false;
+
+    t_entrada_pagina* nueva = malloc(sizeof(t_entrada_pagina));
+    nueva->file = string_duplicate(file);
+    nueva->tag = string_duplicate(tag);
+    nueva->numero_pagina = num_pagina;
+    nueva->marco = marco;
+    nueva->modificada = false;
+    nueva->ultimo_acceso = time(NULL);
+    nueva->bit_referencia = true;
+    mem->marcos[marco]->entrada_pagina = nueva;
+
+    // Registrar en tabla
+    char* clave = clave_file_tag(file, tag);
+    t_list* tabla = dictionary_get(mem->tablas_paginas, clave);
+    if (!tabla) {
+        tabla = list_create();
+        dictionary_put(mem->tablas_paginas, clave, tabla);
+    } else {
+        free(clave);
+    }
+    list_add(tabla, nueva);
+
+    if (mem->algoritmo_reemplazo == LRU) {
+        list_add(mem->lru_list, nueva);
+    }
+    if (mem->algoritmo_reemplazo == CLOCK_M) {
+        mem->clock_m->bits_referencia[marco] = true;
+        mem->clock_m->bits_modificados[marco] = false;
+    }
+
+    // Logs correctos
+    log_info(mem->logger, "Query<%d>: - Memoria Add - File:%s - Tag:%s - Pagina:%d - Marco:%d",
+             query_id, file, tag, num_pagina, marco);
+    log_info(mem->logger, "Query<%d>: Se asigna el Marco:%d a la Pagina:%d perteneciente al - File:%s - Tag:%s",
+             query_id, marco, num_pagina, file, tag);
+
+    return marco;
+}
 
 void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* tag, int offset, size_t tam, bool es_escritura) {
     if (!mem || !file || !tag || tam == 0) return NULL; //no se si haria falta mandar como error el motivo de que no quiera escribir nada
     int num_pagina = offset / mem->tamanio_pagina;
     int despl = offset % mem->tamanio_pagina;
     if (despl + tam > mem->tamanio_pagina) { //SI Inetna leer en algo que esta fuera del tamanio de pagina 
-        log_error(mem->logger, "Query<%d>: Acceso cruza limite de pagina - Offset: %d, Tamaño: %zu", query_id, offset, tam);
-        avisar_error_generico(mem->logger, WORKER_ERROR_SUPERA_TAMPAG);
+        log_info(mem->logger, "Query<%d>: Acceso cruza limite de pagina - Offset: %d, Tamaño: %zu", query_id, offset, tam);
+        avisar_error_generico(mem->logger, WORKER_ERROR_TAMANIO_ESCRITURA_EXCEDIDO);
         error_memoria = true;
         return NULL;
     }
-
     t_entrada_pagina* entrada = buscar_pagina(mem, file, tag, num_pagina);
     if (!entrada) {
         log_info(mem->logger, "Query<%d>: - Memoria Miss - File:%s - Tag:%s - Pagina:%d", //pf
                  query_id, file, tag, num_pagina);
         int marco = cargar_pagina(mem, query_id, file, tag, num_pagina);
-        /*
-        if (marco == -2){
-            return NILL;
+        
+        if (marco == -1){
+            log_error(mem->logger, "Storage no me devolvio la pagina que le pedi");
+            return NULL;
         }
-        */
+        
         entrada = buscar_pagina(mem, file, tag, num_pagina);
         if (!entrada) return NULL;
     }
@@ -333,4 +397,202 @@ void destruir_memoria(t_memoria_interna* m) {
     dictionary_iterator(m->tablas_paginas, (void*)_destruir_tabla);
     dictionary_destroy(m->tablas_paginas);
     free(m);
+}
+
+// devuelve 0 en éxito (y copia el bloque dentro del marco en cargar_pagina),
+// devuelve -2 si hubo error de storage / red.
+int pedir_bloque_storage(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina) { //pide un bloque logico, lo cual esta bien porque solo se busca uno cuando tira pageFAult
+    if (!mem) return -2;
+    int sock = mem->socket_storage;
+    if (sock <= 0) {
+        log_error(mem->logger, "No hay socket de storage en la estructura de memoria");
+        return -2;
+    }
+
+    // 1) armar y enviar paquete de lectura de bloque lógico
+    t_buffer* buffer = crear_buffer();
+    t_paquete* p = crear_paquete(STORAGE_READ_BLOCK, buffer);
+
+    agregar_a_paquete(p, &query_id, sizeof(int));
+    agregar_a_paquete(p, file, strlen(file) + 1);
+    agregar_a_paquete(p, tag, strlen(tag) + 1);
+    agregar_a_paquete(p, &num_pagina, sizeof(int));
+
+    enviar_paquete(p, sock, mem->logger);
+    eliminar_paquete(p);
+
+    // 2) esperar respuesta
+    t_list* resp = recibir_paquete(sock);
+    if (!resp) {
+        log_error(mem->logger, "Query<%d>: Error recibiendo respuesta de Storage para %s:%s/%d",
+                  query_id, file, tag, num_pagina);
+        return -2; // poner -2
+    }
+
+    int codigo = *(int*)list_get(resp, 0);
+
+    if (codigo == STORAGE_SEND_OK) {
+        // según tu servidor, el payload 1 es el contenido binario del bloque
+        void* contenido_remoto = list_get(resp, 1);
+        if (!contenido_remoto) {
+            log_error(mem->logger, "Query<%d>: STORAGE_SEND_OK sin payload", query_id);
+            list_destroy_and_destroy_elements(resp, free);
+            return -2;
+        }
+        // Copiamos el contenido remoto a un buffer propio
+        void* bloque = malloc(mem->tamanio_pagina);
+        if (!bloque) {
+            log_error(mem->logger, "Query<%d>: no se pudo allocar buffer para bloque", query_id);
+            list_destroy_and_destroy_elements(resp, free);
+            return -2;
+        }
+        memcpy(bloque, contenido_remoto, mem->tamanio_pagina);
+
+        // liberamos la lista de paquete recibido (libera payloads)
+        list_destroy_and_destroy_elements(resp, free);
+
+        // Ahora devolvemos el bloque *colocándolo* en la arena en quien pidió:
+        // Para esto devolvemos el bloque al caller vía un buffer global temporal
+        // pero simpler: el caller (cargar_pagina) pedirá y luego copiará al marco.
+        // Aquí retornamos el bloque como señal positiva usando un pointer global no ideal.
+        // Para mantenerlo simple: guardamos el bloque en mem->tmp_bloque y devolvemos 0.
+        // (Agregá tmp_bloque en t_memoria_interna).
+
+        // A) si ya existe mem->tmp_bloque, liberalo
+        if (mem->tmp_bloque) { free(mem->tmp_bloque); mem->tmp_bloque = NULL; }
+        mem->tmp_bloque = bloque; //y le asigno a bloque temporal el bloque que se trajo de storage
+        return 0;
+    } else {
+        // Storage reportó error. PODRIA SER ESTE EL ERROR DE ENTRAR A UNA PAGINA QUE NO LE CORRESPONDE
+        log_error(mem->logger, "Query<%d>: Storage respondió con error al pedir bloque %s:%s/%d",
+                  query_id, file, tag, num_pagina);
+        list_destroy_and_destroy_elements(resp, free);
+        return -2; //poner -2
+    }
+}
+
+
+/*
+void flush_paginas_modificadas( //mando a storage la cantidad de paginas modificadas. LAs mando todas juntas en un solo paquete
+    t_memoria_interna* mem,
+    int query_id,
+    char* file,
+    char* tag,
+    int socket_storage
+) {
+    char* clave = clave_file_tag(file, tag);
+    t_list* tabla = dictionary_get(mem->tablas_paginas, clave);
+    free(clave);
+    if (!tabla) return;
+
+    t_buffer* buffer = crear_buffer();
+    t_paquete* p = crear_paquete(STORAGE_FLUSH, buffer);
+
+    agregar_a_paquete(p, &query_id, sizeof(int));
+    agregar_a_paquete(p, file, strlen(file)+1);
+    agregar_a_paquete(p, tag, strlen(tag)+1);
+
+    int cantidad_paginas_modificadas = 0;
+
+    for (int i = 0; i < tabla->elements_count; i++) {
+        t_entrada_pagina* e = list_get(tabla, i);
+        if (e->modificada) {
+            cantidad_paginas_modificadas++;
+
+            agregar_a_paquete(p, &e->numero_pagina, sizeof(int));
+
+            void* contenido = mem->memory_arena + e->marco * mem->tamanio_pagina;
+            agregar_a_paquete(p, contenido, mem->tamanio_pagina);
+
+            e->modificada = false; // reset
+            if (mem->algoritmo_reemplazo == CLOCK_M)
+                mem->clock_m->bits_modificados[e->marco] = false;
+        }
+    }
+
+    agregar_a_paquete(p, &cantidad_paginas_modificadas, sizeof(int));
+
+    enviar_paquete(p, socket_storage, mem->logger);
+    eliminar_paquete(p);
+
+    log_info(mem->logger,
+        "Query<%d>: FLUSH de %d páginas modificadas del File:%s Tag:%s",
+        query_id, cantidad_paginas_modificadas, file, tag
+    );
+}
+*/
+//este es como el de arriba solo que con logs
+void flush_paginas_modificadas( t_memoria_interna* mem, int query_id, char* file, char* tag, int socket_storage) {
+    char* clave = clave_file_tag(file, tag);
+    t_list* tabla = dictionary_get(mem->tablas_paginas, clave);
+    free(clave);
+
+    if (!tabla) {
+        log_warning(mem->logger,
+            "Query<%d>: FLUSH - No hay páginas cargadas de %s:%s",
+            query_id, file, tag
+        );
+        return;
+    }
+
+    t_buffer* buffer = crear_buffer();
+    t_paquete* p = crear_paquete(STORAGE_FLUSH, buffer);
+
+    agregar_a_paquete(p, &query_id, sizeof(int));
+    agregar_a_paquete(p, file, strlen(file)+1);
+    agregar_a_paquete(p, tag, strlen(tag)+1);
+
+    int cantidad_paginas_modificadas = 0;
+
+    for (int i = 0; i < tabla->elements_count; i++) {
+        t_entrada_pagina* e = list_get(tabla, i);
+        if (e->modificada) {
+            cantidad_paginas_modificadas++;
+
+            void* contenido = mem->memory_arena + e->marco * mem->tamanio_pagina;
+
+            // LOG DE DEPURACIÓN: datos de la página que se mandará
+            log_info(mem->logger,
+                "Query<%d>: FLUSH -> Pagina:%d | Marco:%d | DirFisica:%p | Tam:%d bytes",
+                query_id,
+                e->numero_pagina,
+                e->marco,
+                contenido,
+                mem->tamanio_pagina
+            );
+
+            // Mostrar una vista del contenido (solo si es imprimible)
+            char* vista = string_substring(contenido, 0, mem->tamanio_pagina);
+            log_info(mem->logger,
+                "Query<%d>: Contenido enviado Página:%d --> \"%s\"",
+                query_id,
+                e->numero_pagina,
+                vista
+            );
+            free(vista);
+
+            // Agregar al paquete
+            agregar_a_paquete(p, &e->numero_pagina, sizeof(int));
+            agregar_a_paquete(p, contenido, mem->tamanio_pagina);
+
+            // Reset modificado
+            e->modificada = false;
+            if (mem->algoritmo_reemplazo == CLOCK_M)
+                mem->clock_m->bits_modificados[e->marco] = false;
+        }
+    }
+
+    agregar_a_paquete(p, &cantidad_paginas_modificadas, sizeof(int));
+
+    // enviar a Storage
+    enviar_paquete(p, socket_storage, mem->logger);
+    eliminar_paquete(p);
+
+    log_info(mem->logger,
+        "Query<%d>: FLUSH completado - %d páginas enviadas - File:%s Tag:%s",
+        query_id,
+        cantidad_paginas_modificadas,
+        file,
+        tag
+    );
 }

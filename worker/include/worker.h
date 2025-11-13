@@ -14,7 +14,7 @@ void      liberar_worker(t_worker* w);
 
 //void      recibir_path_de_query(int master_socket, t_log* logger);
 Pcb*      recibir_path_de_query(int master_socket, t_worker* w);
-void      rtas_storage(int storage_socket, t_worker* w);
+void rtas_storage(int storage_socket, t_worker* w);
 
 FILE*     retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger);
 
@@ -28,4 +28,5 @@ void retener_worker(t_worker* w);
 
 void avisar_error_generico(t_log* logger, op_code etiqueta);
 void loggerError(t_log* logger, op_code etiqueta);
+void flush_paginas_modificadas( t_memoria_interna* mem, int query_id, char* file, char* tag, int socket_storage);
 #endif /* CLIENTE_H_*/

@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 
+int socket_distpach;
 t_worker* inicializar_worker(int id_worker)
 {
     t_worker *w = malloc(sizeof(t_worker));
@@ -55,6 +56,9 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
 {
     log_warning(w->logger, "ESpero recibir un path"); 
     Pcb* dt_archivo = NULL;
+
+    ////////solo para probar errores///////
+    socket_distpach = w->master_socket_distpach;
 
     t_list* paquete_path = recibir_paquete(master_socket);
     int* codigo_operacion =  list_get(paquete_path, 0);
@@ -155,28 +159,6 @@ void* ejecutar_query(void* arg){
     ejecutar_query(arg);
     return NULL;
 }
-//-------------------------------------------------------------------------------------------------
-
-
-void rtas_storage(int storage_socket, t_worker* w){     //cambiar
-        t_list* valores = recibir_paquete(storage_socket);
-        int* cod_op = list_get(valores, 0);
-        log_info(w->logger, "llegue a recibir %d", *cod_op);
-
-        switch (*cod_op)
-        {
-        case STORAGE_SEND_BLOCK_SIZE:
-            int* size = list_get(valores, 1);
-            w->tamanio_bloque = *size;
-            log_info(w->logger, "Tamaño de bloque recibido: %d", w->tamanio_bloque);
-            list_destroy_and_destroy_elements(valores, free);
-            break;
-        
-        default:
-        log_info(w->logger, "Error en el cod_op %d", *cod_op);
-            break;
-        }
-}
 
 //------------------HILO DE ATENCION DE INTERRUPCIONES-----------------------
 void* hilo_atender_interrupcion(void* arg){ //Cuando me lleguen interrupciones, las guardo en el interpreter que tiene un booleano encargado de chquear eso. Y en el ciclo siempre revisamos ese bool
@@ -255,20 +237,85 @@ void retener_worker(t_worker* w){
 }
     
 
+//-------------------------------------------------------------------------------------------------
+
+
+void rtas_storage(int storage_socket, t_worker* w){    
+    log_info(w->logger, "Lllegue a rts_storage");
+        t_list* valores = recibir_paquete(storage_socket);
+        int* cod_op = list_get(valores, 0);
+        log_info(w->logger, "llegue a recibir %d", *cod_op);
+/*
+        if(*cod_op == STORAGE_SEND_OK){
+            log_info(w->logger, "LA instruccion se hizo bien");
+            return;
+        }
+
+        if(*cod_op == STORAGE_SEND_ERROR){
+            *cod_op = de_intruccion;
+        }
+*/
+        switch (*cod_op)
+        {
+        case STORAGE_SEND_BLOCK_SIZE:
+            int* size = list_get(valores, 1);
+            w->tamanio_bloque = *size;
+            log_info(w->logger, "Tamaño de bloque recibido: %d", w->tamanio_bloque);
+            list_destroy_and_destroy_elements(valores, free);
+            break;
+/*
+        case CREATE:
+            log_info(w->logger, "Storage devolvio error al hacer create");
+            break;
+            
+        case TRUNCATE:
+            log_info(w->logger, "Storage devolvio error al hacer truncate");
+            break;
+
+        case WRITE:
+            log_info(w->logger, "Storage devolvio error al hacer write");
+            break;
+
+        case READ:
+            log_info(w->logger, "Storage devolvio error al hacer read");
+            break;
+
+        case TAG:
+            log_info(w->logger, "Storage devolvio error al hacer tag");
+            break;
+        case COMMIT:
+            log_info(w->logger, "Storage devolvio error al hacer commit");
+            avisar_error_generico(w->logger, WORKER_ERROR_MODIFICAR_COMMIT);
+        break;
+        case FLUSH:
+            log_info(w->logger, "Storage devolvio error al hacer flush");
+            break;
+        case DELETE:
+            log_info(w->logger, "Storage devolvio error al hacer delete");
+            break;
+*/
+        default:
+        log_info(w->logger, "Error en el cod_op %d", *cod_op);
+            break;
+        }
+}
+
 
 void avisar_error_generico(t_log* logger, op_code etiqueta){ //solo porque son paquetes vacios 
 
-    loggerError(logger,etiqueta);
-    /*
+
     t_buffer* buffer1 = crear_buffer();
+    /*
     t_paquete* paqueteError = crear_paquete(etiqueta, buffer1);
-    enviar_paquete(paqueteError, w->master_socket_distpach, w->logger);
+    int basura = 5;
+    agregar_a_paquete(paqueteError, basura, sizeof(int)); //para que le llegue a master
+    enviar_paquete(paqueteError, socket_distpach, logger);
     eliminar_paquete(paqueteError);
     */
-
+    loggerError(logger,etiqueta);
 }
 
-//SOlo para ver si anda bien el envio 
+//SOlo para ver si anda bien el envio de errores
 void loggerError(t_log* logger, op_code etiqueta){
     switch (etiqueta)
     {
@@ -280,8 +327,16 @@ void loggerError(t_log* logger, op_code etiqueta){
         log_info(logger, "Envie a master el WORKER_INSTRUCCION_MALFORMADA");
         break;
     
-    case WORKER_ERROR_SUPERA_TAMPAG:
-        log_info(logger, "Envie a master el WORKER_ERROR_SUPERA_TAMPAG");    //este error es porque si yo quiero leer o escribir en memoria, tengo que asegurar de que el offset + el tamanio de lo que escribo o leo este dentro del tamanio de pagina
+    case WORKER_ERROR_TAMANIO_ESCRITURA_EXCEDIDO:
+        log_info(logger, "Envie a master el WORKER_ERROR_TAMANIO_ESCRITURA_EXCEDIDO");    //este error es porque si yo quiero leer o escribir en memoria, tengo que asegurar de que el offset + el tamanio de lo que escribo o leo este dentro del tamanio de pagina
+        break;
+    
+    case WORKER_ERROR_DIRECCION_INVALIDA:
+        log_info(logger, "Envie a master el WORKER_ERROR_DIRECCION_INVALIDA");
+        break;
+
+    case WORKER_ERROR_MODIFICAR_COMMIT:
+        log_info(logger, "Envie a master el WORKER_ERROR_MODIFICAR_COMMIT");
         break;
 
     default:

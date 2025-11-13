@@ -54,8 +54,8 @@ int main(int argc, char* argv[]) {
     w->storage_socket = crear_conexion(w->logger, w->ip_storage, w->puerto_storage); //socket y connect
     t_buffer* buffer2 = crear_buffer();
     t_paquete* packetHandshake2 = crear_paquete(WORKER_HANDSHAKE, buffer2);
-    // int a = 12;
-    // agregar_a_paquete(packetHandshake2, &a, sizeof(int));
+    //int a = 12;
+    //agregar_a_paquete(packetHandshake2, &a, sizeof(int));
     enviar_paquete(packetHandshake2, w->storage_socket, w->logger);
     log_info(w->logger, "Acabo de enviar WORKER_HANDSHAKE a Storage");
     eliminar_paquete(packetHandshake2);
@@ -63,8 +63,7 @@ int main(int argc, char* argv[]) {
     //Storage: pedir el tamanio de bloque
     t_buffer* buffer3 = crear_buffer();
     t_paquete* paquete_tamanio_bloque = crear_paquete(STORAGE_GET_BLOCK_SIZE, buffer3);
-    //int a = 12;
-    //agregar_a_paquete(paquete_tamanio_bloque, &a, sizeof(int));
+    ///agregar_a_paquete(paquete_tamanio_bloque, &a, sizeof(int));
     enviar_paquete(paquete_tamanio_bloque, w->storage_socket, w->logger);
     enviar_paquete(paquete_tamanio_bloque, w->storage_socket, w->logger); // enviarlo 2 veces :|
     log_info(w->logger, "Acabo de enviar STORAGE_GET_BLOCK_SIZE a Storage");
@@ -81,7 +80,9 @@ int main(int argc, char* argv[]) {
         config_get_string_value(w->config, "ALGORITMO_REEMPLAZO"),
         w->tamanio_bloque
     );
-    w->mem = m;    
+    w->mem = m;  
+    m->socket_storage = w->storage_socket;  
+    m->tmp_bloque = NULL;
 
     //MAster: escuchar querys
     t_ejecucion* datos_ejecucion = malloc(sizeof(t_ejecucion));
