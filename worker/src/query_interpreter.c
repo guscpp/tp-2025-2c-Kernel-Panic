@@ -100,6 +100,10 @@ char* fetch(Pcb* pcb, t_worker* w){
         
         //Ahora, este ultimo getline va retormar la ultima posicion en la que quedo el anterior getline. BAsicamente va comenzar a leer el archivo desde el PC indicado, ignorando las primeras lineas que logre ignorar con el for. NO hay manera de que se confunda con el getline de abajo(**) porque no puede entrar a este y al de abajo a la vez, estan separados por el if del PCB que nunca cambia
         ssize_t leido = getline(&buffer_autoselc, &tam_autoselc, pcb->archivo);
+
+        buffer_autoselc[strcspn(buffer_autoselc, "\n")] = '\0'; //encuentra un \n en el buffer que lee la linea de instruccion y lo cambio por \0(c)
+        string_trim(&buffer_autoselc); //elimina espacios vacios a derecha e izquierda, todos los que pueda encontrar (commins)
+
         if(leido == -1){
             log_info(w->logger, "Error al leer la primer instruccion del PC != 0");
             free(buffer_autoselc);
@@ -112,6 +116,10 @@ char* fetch(Pcb* pcb, t_worker* w){
     else{ //est es el de abajo (**)
     //por aca va entrar solamente un proceso que NO fue interrupido (PC = 0), EL PC DEL PCB NUNCA CAMBIA. ENtonces, cuando llegue al getline, no va confundirse con el getline de la linea de arriba, porque siempre va entrar por aca y va tomar este getline
     ssize_t leido = getline(&buffer_autoselc, &tam_autoselc, pcb->archivo);
+
+    buffer_autoselc[strcspn(buffer_autoselc, "\n")] = '\0'; //encuentra un \n en el buffer que lee la linea de instruccion y lo cambio por \0 (c)
+    string_trim(&buffer_autoselc); //elimina espacios vacios a derecha e izquierda, todos los que pueda encontrar (commins) :D
+
         if(leido == -1){
             log_info(w->logger, "Error al leer la instruccion");
             free(buffer_autoselc); //Tengo que liberar el malloc de buffer_autoselec que le encargue a getline. El getline se ocupo hacerme el malloc
@@ -341,7 +349,7 @@ void executeWrite(t_instr_param* parametros, t_worker* w, Pcb* pcb){
         log_info(w->logger, "Query<%d>: Instrucción realizada: WRITE", pcb->query_id);
     }
     if(!dir){
-        log_info(w->logger, "INtente hacer algo que no puedo en memoria. ESte es el de query_interpreter o storage no me dio la pagina que le pedi"); //este esta porque el enviar error generico lo puse dentro de memoria.c 
+        log_info(w->logger, "INtente hacer algo que no puedo en memoria o storage no me dio la pagina que le pedi. ESte es el de query_interpreter"); //este esta porque el enviar error generico lo puse dentro de memoria.c 
     }
 
 }

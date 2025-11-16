@@ -434,10 +434,11 @@ int pedir_bloque_storage(t_memoria_interna* mem, int query_id, char* file, char*
     }
 
     int codigo = *(int*)list_get(resp, 0);
+    log_info(mem->logger, "ESte es el codigo que llega %d", codigo);
 
     if (codigo == STORAGE_SEND_OK) {
         // según tu servidor, el payload 1 es el contenido binario del bloque
-        void* contenido_remoto = list_get(resp, 1);
+        void** contenido_remoto = list_get(resp, 1);
         if (!contenido_remoto) {
             log_error(mem->logger, "Query<%d>: STORAGE_SEND_OK sin payload", query_id);
             list_destroy_and_destroy_elements(resp, free);
