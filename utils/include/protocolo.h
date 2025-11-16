@@ -39,12 +39,14 @@ typedef enum
     WORKER_READ_RESULT,     // Resultado de lectura
     WORKER_QUERY_END,       // Query terminada en worker
     WORKER_ID_INTERRUPT,    //Handshake del segundo connect
-    WORKER_ERROR_ARCHIVO,
-    WORKER_ERROR_INSTRUCCION_MALFORMADA,
+    WORKER_ERROR_ARCHIVO,   //archivo no encontrado en storage
+    WORKER_ERROR_INSTRUCCION_MALFORMADA,    
     WORKER_ERROR_MODIFICAR_COMMIT,
     WORKER_ERROR_TAMANIO_ESCRITURA_EXCEDIDO,
-    WORKER_ERROR_STORAGE_DESCONECTADO,
+    WORKER_ERROR_TAMANIO_LECTURA_EXCEDIDO, 
+    WORKER_ERROR_STORAGE_DESCONECTADO,  
     WORKER_ERROR_DIRECCION_INVALIDA, //para cuando el file quiere acceder a un bloque logico que no le corresponde
+    WORKER_ERROR_QUERY_NO_ENCONTRADA, //el path que me pasa master no puede ejecutarse
     
     // WORKER ↔ STORAGE
     STORAGE_GET_BLOCK_SIZE, // Solicitar tamaño de bloque

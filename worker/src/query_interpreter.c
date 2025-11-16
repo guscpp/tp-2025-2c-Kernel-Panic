@@ -26,7 +26,7 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
     for(;;){
 
         if(error_memoria){
-        log_info(w->logger, "Me estoy por salir del ciclo, porque alguna cosa extrania intento hacer la query");
+        log_info(w->logger, "Me estoy por salir del ciclo, porque alguna cosa extrania intento hacer la query en memoria");
             error_memoria = false; 
             break;
         }
@@ -43,7 +43,7 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
         }
 
         if(instruccion_decf->instruccion_malformada){
-                avisar_error_generico(w->logger, WORKER_ERROR_INSTRUCCION_MALFORMADA);
+                error_instruccion_malformada(w->logger, pcb->query_id, instruccion);
                 break;
         }
 
@@ -359,7 +359,7 @@ void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     if (!dir) {
         log_error(w->logger, "Query<%d>: Lectura fallida - File:%s - Tag:%s - Offset:%d",
                   pcb->query_id, parametros->nombre_file, parametros->tag, parametros->direccion_base);
-        log_info(w->logger, "INtente hacer algo que no puedo en memoria. ESte es el de query_interpreter o storage no me dio la pagina que le pedi");
+        log_info(w->logger, "INtente hacer algo que no puedo en memoria o storage no me dio la pagina que le pedi. ESte es el de query_interpreter");
         return;
     }
 

@@ -290,8 +290,12 @@ void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* ta
     int despl = offset % mem->tamanio_pagina;
     if (despl + tam > mem->tamanio_pagina) { //SI Inetna leer en algo que esta fuera del tamanio de pagina 
         log_info(mem->logger, "Query<%d>: Acceso cruza limite de pagina - Offset: %d, Tamaño: %zu", query_id, offset, tam);
-        avisar_error_generico(mem->logger, WORKER_ERROR_TAMANIO_ESCRITURA_EXCEDIDO);
         error_memoria = true;
+        if(es_escritura){
+        error_tamanio_escrLectura_excedido(mem->logger, WORKER_ERROR_TAMANIO_ESCRITURA_EXCEDIDO, query_id, file, tag);
+        return NULL;
+        }
+        error_tamanio_escrLectura_excedido(mem->logger,WORKER_ERROR_TAMANIO_LECTURA_EXCEDIDO, query_id, file, tag);
         return NULL;
     }
     t_entrada_pagina* entrada = buscar_pagina(mem, file, tag, num_pagina);

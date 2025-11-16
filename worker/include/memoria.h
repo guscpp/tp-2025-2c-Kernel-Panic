@@ -84,7 +84,7 @@ t_clock_m* crear_clock_m(int cantidad_marcos, t_marco** marcos);
 void destruir_clock_m(t_clock_m* clock);
 
 //Aviso de errores
-void avisar_error_generico(t_log* logger, op_code etiqueta);
+void error_tamanio_escrLectura_excedido(t_log* logger, op_code etiqueta, int id_query, char* file, char* tag);
 
 //COmunicacion con storage
 int pedir_bloque_storage(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina);

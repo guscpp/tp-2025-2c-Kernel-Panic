@@ -26,7 +26,9 @@ bool      recibir_interrupciones(int master_socket, t_worker* w);
 
 void retener_worker(t_worker* w);
 
-void avisar_error_generico(t_log* logger, op_code etiqueta);
 void loggerError(t_log* logger, op_code etiqueta);
 void flush_paginas_modificadas( t_memoria_interna* mem, int query_id, char* file, char* tag, int socket_storage);
+void error_path_not_found(t_log* logger, op_code etiqueta, int id_query);
+void error_tamanio_escrLectura_excedido(t_log* logger, op_code etiqueta, int id_query, char* file, char* tag);
+void error_instruccion_malformada(t_log* logger,int id_query, char* instruccion);
 #endif /* CLIENTE_H_*/

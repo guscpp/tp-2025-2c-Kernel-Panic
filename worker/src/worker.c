@@ -92,7 +92,7 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
                 log_info(w->logger, "Es un proceso que fue interrumpido antes");
             }
             dt_archivo = malloc(sizeof(Pcb));
-            if(dt_archivo->archivo = retornar_archivo(path_query, w->path_scripts, w->logger)){
+            if((dt_archivo->archivo = retornar_archivo(path_query, w->path_scripts, w->logger))){
 
                 dt_archivo->nombre_archivo = path_query;
                 dt_archivo->query_id = query_id;
@@ -103,7 +103,7 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
             }
 
             list_destroy(paquete_path);
-            avisar_error_generico(w->logger, WORKER_ERROR_ARCHIVO);
+            error_path_not_found(w->logger, WORKER_ERROR_QUERY_NO_ENCONTRADA, dt_archivo->query_id);
 
             return NULL;
             //free(path_query); //?
@@ -216,25 +216,29 @@ bool recibir_interrupciones(int master_socket, t_worker* w){ //SOlo se encarga d
     return false; 
 }
 
-void retener_worker(t_worker* w){
-    
-    log_warning(w->logger, "Retengo al worker antes de crear el interrupt"); //tiene warning solo para que se diferencie
+void retener_worker(t_worker* w) {
+
+    log_warning(w->logger, "Retengo al worker antes de crear el interrupt");
 
     t_list* paquete;
     paquete = recibir_paquete(w->master_socket_distpach);
-    int* cod_op =  list_get(paquete, 0);
-   int numer = list_get(paquete, 1);
+
+    int* cod_op = (int*) list_get(paquete, 0);   
+
     if (*cod_op == -1)
     {
-        log_error(w->logger, "Error en la conexion con MAster");
-        return NULL;
+        log_error(w->logger, "Error en la conexion con Master");
+        return;   
     }
 
     if (*cod_op == RETENER_WORKER)
-    log_info(w->logger, "Pude pasar de retener worker");
-    return NULL;
+    {
+        log_info(w->logger, "Pude pasar de retener worker");
+        return;  
+    }
 
 }
+
     
 
 //-------------------------------------------------------------------------------------------------
@@ -301,20 +305,49 @@ void rtas_storage(int storage_socket, t_worker* w){
 }
 
 
-void avisar_error_generico(t_log* logger, op_code etiqueta){ //solo porque son paquetes vacios 
-
-
+//ERRORES
+void error_path_not_found(t_log* logger, op_code etiqueta, int id_query){ //descomentar para el envio
+    
     t_buffer* buffer1 = crear_buffer();
-    /*
     t_paquete* paqueteError = crear_paquete(etiqueta, buffer1);
-    int basura = 5;
-    agregar_a_paquete(paqueteError, basura, sizeof(int)); //para que le llegue a master
+    agregar_a_paquete(paqueteError, &id_query, sizeof(int));
     enviar_paquete(paqueteError, socket_distpach, logger);
     eliminar_paquete(paqueteError);
-    */
-    loggerError(logger,etiqueta);
+    loggerError(logger, etiqueta);
 }
 
+void error_archivo_not_found(t_log* logger, op_code etiqueta, int id_query, char* file, char* tag){
+    t_buffer* buffer1 = crear_buffer();
+    t_paquete* paqueteError = crear_paquete(etiqueta, buffer1);
+    agregar_a_paquete(paqueteError, &id_query, sizeof(int));
+    agregar_a_paquete(paqueteError, file, strlen(file)+1);
+    agregar_a_paquete(paqueteError, tag, strlen(tag)+1);
+    enviar_paquete(paqueteError, socket_distpach, logger);
+    eliminar_paquete(paqueteError);
+    loggerError(logger, etiqueta);
+}
+
+void error_tamanio_escrLectura_excedido(t_log* logger, op_code etiqueta, int id_query, char* file, char* tag){
+    t_buffer* buffer1 = crear_buffer();
+    t_paquete* paqueteError = crear_paquete(etiqueta, buffer1);
+    agregar_a_paquete(paqueteError, &id_query, sizeof(int));
+    agregar_a_paquete(paqueteError, file, strlen(file)+1);
+    agregar_a_paquete(paqueteError, tag, strlen(tag)+1);
+    enviar_paquete(paqueteError, socket_distpach, logger);
+    eliminar_paquete(paqueteError);
+    loggerError(logger, etiqueta);
+}
+
+void error_instruccion_malformada(t_log* logger,int id_query, char* instruccion){
+    t_buffer* buffer1 = crear_buffer();
+    t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_INSTRUCCION_MALFORMADA, buffer1);
+    agregar_a_paquete(paqueteError1, &id_query, sizeof(int));
+    agregar_a_paquete(paqueteError1, instruccion, strlen(instruccion)+1);
+    enviar_paquete(paqueteError1, socket_distpach, logger);
+    eliminar_paquete(paqueteError1);
+    loggerError(logger, WORKER_ERROR_INSTRUCCION_MALFORMADA);
+
+}
 //SOlo para ver si anda bien el envio de errores
 void loggerError(t_log* logger, op_code etiqueta){
     switch (etiqueta)
@@ -331,12 +364,19 @@ void loggerError(t_log* logger, op_code etiqueta){
         log_info(logger, "Envie a master el WORKER_ERROR_TAMANIO_ESCRITURA_EXCEDIDO");    //este error es porque si yo quiero leer o escribir en memoria, tengo que asegurar de que el offset + el tamanio de lo que escribo o leo este dentro del tamanio de pagina
         break;
     
+    case WORKER_ERROR_TAMANIO_LECTURA_EXCEDIDO:
+        log_info(logger, "Envie a master el  WORKER_ERROR_TAMANIO_LECTURA_EXCEDIDO");    //este error es porque si yo quiero leer o escribir en memoria, tengo que asegurar de que el offset + el tamanio de lo que escribo o leo este dentro del tamanio de pagina
+        break;
+    
     case WORKER_ERROR_DIRECCION_INVALIDA:
         log_info(logger, "Envie a master el WORKER_ERROR_DIRECCION_INVALIDA");
         break;
 
     case WORKER_ERROR_MODIFICAR_COMMIT:
         log_info(logger, "Envie a master el WORKER_ERROR_MODIFICAR_COMMIT");
+        break;
+    case WORKER_ERROR_QUERY_NO_ENCONTRADA:
+        log_info(logger, "Envie a master WORKER_ERROR_QUERY_NO_ENCONTRADA");
         break;
 
     default:
