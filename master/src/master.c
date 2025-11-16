@@ -128,7 +128,9 @@ void* atender_desconexion_worker(void* arg){
 
     if (ret == 0) {
       
-    
+        pthread_mutex_lock(&mutexCantWorkers);
+        cantidadWorkers ++;
+        pthread_mutex_unlock(&mutexCantWorkers);
         log_warning(informacion->logger, COLOR_VERDE "## WORKER SE DESCONECTO ID: %d" COLOR_VERDE, informacion->id);
         close(informacion->socket_interruption);
         close(informacion->socket);
@@ -146,10 +148,11 @@ void* atender_desconexion_worker(void* arg){
 
         enviar_paquete( paquete,  query->socket ,  informacion->logger);
         log_info(informacion->logger, COLOR_VERDE "## Se termino la Query id: %d (prioridad: %d ) por desconexion en el worker %d" COLOR_VERDE, query->id, query->prioridad , query->idWorker);
-        close(query->socket);
+      
         log_info(informacion->logger, "Comunicacion Cerrada con Query");
         eliminar_paquete(paquete);
-        free(query);
+        close(query->socket);
+        //free(query);
         }
         free(informacion);
         } 
@@ -177,9 +180,10 @@ void atender_Query(t_hacerConnect*  informacion){ // RECORDAR CAMBIAR ESTRUCTURA
     printf("///// \n");
    t_list* paqueteQuery = recibir_paquete(informacion->socket_conexion);
     printf("///// \n");
-   pthread_t hilo_vigilante;
-   pthread_create(&hilo_vigilante, NULL, atender_desconexion_query, informacion);
-   pthread_detach(hilo_vigilante);
+
+    t_query* nuevaQuery = malloc(sizeof(t_query));
+
+   
    
 
    int* codOperacion = list_get(paqueteQuery, 0);
@@ -188,17 +192,18 @@ void atender_Query(t_hacerConnect*  informacion){ // RECORDAR CAMBIAR ESTRUCTURA
         log_warning(informacion->logger,"Operacion desconocida");
    }
 
-   t_query* nuevaQuery = malloc(sizeof(t_query));
 
    asignar_id_query(&nuevaQuery->id);
    informacion->id = nuevaQuery->id;
-    informacion->alive = true;
+   nuevaQuery->alive = true;
    char* pathFromPaquete = list_get(paqueteQuery, 1);
    nuevaQuery->path = string_duplicate(pathFromPaquete);
    nuevaQuery->prioridad = *(int*)list_get(paqueteQuery, 2);
-
+   nuevaQuery->logger = informacion->logger;
    list_destroy_and_destroy_elements(paqueteQuery, free);
-
+   pthread_t hilo_vigilante;
+   pthread_create(&hilo_vigilante, NULL, atender_desconexion_query, nuevaQuery);
+   pthread_detach(hilo_vigilante);
    nuevaQuery->socket = informacion->socket_conexion;
    nuevaQuery->programCounter = 0 ;
    nuevaQuery->estado= READY;
@@ -210,8 +215,8 @@ void atender_Query(t_hacerConnect*  informacion){ // RECORDAR CAMBIAR ESTRUCTURA
    pthread_mutex_lock(&mutexColaQuery);
    list_add(cola_queries, nuevaQuery);
    pthread_mutex_unlock(&mutexColaQuery);
- if(strcmp(algoritmo_planificacion, "AGING") == 0){
-    pthread_create(&informacion->hilo_timer, NULL, atender_timer_query, informacion);
+ if(strcmp(algoritmo_planificacion, "PRIORIDADES") == 0){
+    pthread_create(&nuevaQuery->hilo_timer, NULL, atender_timer_query, nuevaQuery);
    
  }
    // SOLO PARA PRUEBASSS
@@ -225,7 +230,7 @@ void atender_Query(t_hacerConnect*  informacion){ // RECORDAR CAMBIAR ESTRUCTURA
      
     log_info(informacion->logger, "se agrego query a la cola, cola actual:  %s", idsEnCola);
     } printf("///////");
-if(strcmp(algoritmo_planificacion, "AGING") == 0){
+if(strcmp(algoritmo_planificacion, "PRIORIDADES") == 0){
     printf("Antes de desalojo \n");
     chequeador_desalojo(nuevaQuery->prioridad,informacion);
     printf("DEspues de desalojo \n");
@@ -241,7 +246,7 @@ void* atender_timer_query(void* arg){
     t_query* query = obtener_por_id(cola_queries, informacion->id);
     pthread_mutex_unlock(&mutexColaQuery);
     while (1) {
-        if (!informacion->alive)
+        if (!query->alive)
             break; 
         sleep(tiempo_aging);
         
@@ -271,24 +276,26 @@ void chequeador_desalojo(int prioridad,t_hacerConnect* info){
     t_query* queryMayor =  list_get_maximum(query_en_worker, _max_prioridad);
     pthread_mutex_lock(&mutexCantWorkers);
     if(list_size(query_en_worker) == cantidadWorkers && prioridad< queryMayor->prioridad){
-        log_info(info->logger, "Se va realizar el desalojo de query id: %d", queryMayor->id);
-        t_buffer* buffer=crear_buffer();
-        t_paquete* paquete = crear_paquete(WORKER_DESALOJO,buffer);
-        int a2 = 5;
-        agregar_a_paquete(paquete, &a2, sizeof(int));
-        pthread_mutex_lock(&mutexListaWorkers);
-        t_worker* worker =  obtener_por_id_worker( lista_workers, queryMayor->idWorker);
-        enviar_paquete(paquete, worker->socket_interruption,info->logger );
-        log_info(info->logger, "Se realiza el desalojo de la query en worker id: %d", worker->id);
-        pthread_mutex_unlock(&mutexListaWorkers);
-        eliminar_paquete(paquete);
+       realizar_desalojo( queryMayor->id,info->logger);
     }
     pthread_mutex_unlock(&mutexCantWorkers);
     pthread_mutex_unlock(&mutexQueryEnWorker);
  
 }
 
-
+void realizar_desalojo(int idQuery,t_log* logger){
+ log_info(logger, "Se va realizar el desalojo de query id: %d", idQuery);
+        t_buffer* buffer=crear_buffer();
+        t_paquete* paquete = crear_paquete(WORKER_DESALOJO,buffer);
+        int a2 = 5;
+        agregar_a_paquete(paquete, &a2, sizeof(int));
+        pthread_mutex_lock(&mutexListaWorkers);
+        t_worker* worker =  obtener_por_id_worker( lista_workers, idQuery);
+        enviar_paquete(paquete, worker->socket_interruption,logger );
+        log_info(logger, "Se realiza el desalojo de la query en worker id: %d", worker->id);
+        pthread_mutex_unlock(&mutexListaWorkers);
+        eliminar_paquete(paquete);
+}
 void asignar_id_query(int* idAsignado){
    
     pthread_mutex_lock(&mutexIdQuery);
@@ -304,19 +311,22 @@ void* _max_prioridad(void* a, void* b) {
 }
 
 void* atender_desconexion_query(void* arg){
-    t_hacerConnect* informacion = (t_hacerConnect*) arg;
+    t_query* informacion = (t_query*) arg;
   
     char buffer[1];
 
-    int ret = recv(informacion->socket_conexion, buffer, 1, 0);
+    int ret = recv(informacion->socket, buffer, 1, 0);
 
     if (ret == 0) {
       
     
         log_warning(informacion->logger, "QUERY SE DESCONECTO ID: %d", informacion->id);
-        close(informacion->socket_conexion);
+        close(informacion->socket);
         informacion->alive = false;
-        if(strcmp(algoritmo_planificacion, "AGING") == 0){
+        if(informacion->estado == RUNNING){
+            realizar_desalojo(informacion->id,informacion->logger);
+        }
+        if(strcmp(algoritmo_planificacion, "PRIORIDADES") == 0){
         pthread_join(informacion->hilo_timer, NULL);}
         free(informacion);
         } 
@@ -331,12 +341,12 @@ void atender_Worker(t_hacerConnect* informacion){
     //printf("atenderWOrker\n");
     t_list* paqueteWorker = recibir_paquete(informacion->socket_conexion);
   
-        /*if (paqueteWorker == NULL) {
-        log_warning(informacion->logger,  "## WORKER SE DESCONECTO ID: %d", informacion->id);
-        close(informacion->socket_conexion);
-        free(informacion);
+        if (paqueteWorker == NULL) {
+        log_warning(informacion->logger,   "SE TERMINA HILO WORKER ID: %d", informacion->id);
+        //close(informacion->socket_conexion);
+        //free(informacion);
         return;
-        } */
+        } 
 
     int* codOperacion =  list_get(paqueteWorker, 0);
     switch (*codOperacion){
@@ -347,9 +357,9 @@ void atender_Worker(t_hacerConnect* informacion){
             int idWorker = *idWorkerLista ;
             informacion->id = idWorker;
             nuevoWorker->id = idWorker;
-
-            pthread_mutex_lock(&mutexCantWorkers);
             nuevoWorker->logger = informacion->logger;
+            pthread_mutex_lock(&mutexCantWorkers);
+           
             cantidadWorkers ++;
             log_info(informacion->logger, COLOR_VERDE "## Se conecta el worker ID: %d  CANTIDAD TOTAL DE WORKERS: %d" COLOR_VERDE, idWorker , cantidadWorkers);
             

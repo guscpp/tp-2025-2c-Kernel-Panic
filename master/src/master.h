@@ -11,9 +11,8 @@
 typedef struct{
     t_log* logger;
     int socket_conexion;
-    pthread_t hilo_timer; //son solo para queries
     int id;
-    bool alive; //son solo para queries
+   
 } t_hacerConnect;
 
 typedef struct {
@@ -24,6 +23,9 @@ typedef struct {
     int programCounter ;
     int idWorker;
     int estado;
+    bool alive; //son solo para queries
+    pthread_t hilo_timer; //son solo para queries
+     t_log* logger;
     } t_query;
 
 typedef struct {
@@ -75,4 +77,6 @@ void* atender_desconexion_worker(void* );
 
 void* atender_timer_query(void* );
 t_query* obtener_query_por_id_worker(t_list* , int );
+
+void realizar_desalojo(int,t_log* );
 #endif /* CLIENTE_H_ */
