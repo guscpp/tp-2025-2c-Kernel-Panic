@@ -129,9 +129,11 @@ void* atender_desconexion_worker(void* arg){
     if (ret == 0) {
       
         pthread_mutex_lock(&mutexCantWorkers);
-        cantidadWorkers ++;
+        cantidadWorkers --;
+       
+        log_warning(informacion->logger, COLOR_VERDE "## WORKER SE DESCONECTO ID: %d , cantidad de workers %d" COLOR_VERDE, informacion->id, cantidadWorkers);
+
         pthread_mutex_unlock(&mutexCantWorkers);
-        log_warning(informacion->logger, COLOR_VERDE "## WORKER SE DESCONECTO ID: %d" COLOR_VERDE, informacion->id);
         close(informacion->socket_interruption);
         close(informacion->socket);
         pthread_mutex_lock(&mutexQueryEnWorker);
@@ -139,6 +141,9 @@ void* atender_desconexion_worker(void* arg){
         pthread_mutex_unlock(&mutexQueryEnWorker);
         if (query != NULL){
         query->estado=EXIT;
+        pthread_mutex_lock(&mutexListaWorkers);
+        eliminar_worker_por_id( lista_workers,  informacion->id);
+        pthread_mutex_unlock(&&mutexListaWorkers);
         t_buffer* infoQuery = crear_buffer();
 
         t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_ERROR_WORKER_DESCONECTADO, infoQuery);
@@ -154,6 +159,7 @@ void* atender_desconexion_worker(void* arg){
         close(query->socket);
         //free(query);
         }
+
         free(informacion);
         } 
        
@@ -177,9 +183,9 @@ t_worker* obtener_por_id_worker(t_list* lista, int idBuscado) {
     return list_find(lista, (void*) coincide_id);
 }
 void atender_Query(t_hacerConnect*  informacion){ // RECORDAR CAMBIAR ESTRUCTURA DE LOS HILOS PARA CODIGO MAS LIMPIOOO
-    printf("///// \n");
+  
    t_list* paqueteQuery = recibir_paquete(informacion->socket_conexion);
-    printf("///// \n");
+
 
     t_query* nuevaQuery = malloc(sizeof(t_query));
 
@@ -207,7 +213,7 @@ void atender_Query(t_hacerConnect*  informacion){ // RECORDAR CAMBIAR ESTRUCTURA
    nuevaQuery->socket = informacion->socket_conexion;
    nuevaQuery->programCounter = 0 ;
    nuevaQuery->estado= READY;
-    printf("///// \n");
+  
    pthread_mutex_lock(&mutexCantWorkers);
    log_info(informacion->logger, COLOR_VERDE "## Se conecta un Query Control para ejecutar la Query %s con prioridad %d - Id asignado: %d . Nivel de multiprocesamiento %d" COLOR_VERDE, nuevaQuery->path, nuevaQuery->prioridad, nuevaQuery->id, cantidadWorkers);
     pthread_mutex_unlock(&mutexCantWorkers);
@@ -694,7 +700,8 @@ void atender_Worker(t_hacerConnect* informacion){
 
         }
         default:{
-            log_warning(informacion->logger, "Operacion desconocida");
+            log_warning(informacion->logger, "Se termina hilo worker");
+            return;
          
             break;
         }
@@ -806,7 +813,14 @@ t_query* eliminar_por_id(t_list* lista, int idBuscado) {
 
     return list_remove_by_condition(lista, (void*) coincide_id);
 }
+t_worker* eliminar_worker_por_id(t_list* lista, int idBuscado) {
+    
+    bool coincide_id(t_worker* worker) {
+        return worker->id == idBuscado;
+    }
 
+    return list_remove_by_condition(lista, (void*) coincide_id);
+}
 t_query* obtener_por_id(t_list* lista, int idBuscado) {
     
     bool coincide_id(t_query* query) {

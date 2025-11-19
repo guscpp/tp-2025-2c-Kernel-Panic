@@ -79,4 +79,5 @@ void* atender_timer_query(void* );
 t_query* obtener_query_por_id_worker(t_list* , int );
 
 void realizar_desalojo(int,t_log* );
+t_worker* eliminar_worker_por_id(t_list* , int );
 #endif /* CLIENTE_H_ */
