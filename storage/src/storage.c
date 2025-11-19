@@ -313,3 +313,34 @@ void destruir_dict_locks(t_dictionary* dict) {
     dictionary_iterator(dict, destruir_mutex);
     dictionary_destroy(dict);
 }
+
+
+bool escribir_bloque_test(t_storage* storage,  char* file, char* tag,int bloque_logico, char* contenido) { // test
+    // Simulamos los parámetros que vendrían del Worker
+    t_list* parametros = list_create();
+
+    int op = STORAGE_WRITE_BLOCK;   // dummy
+    int query_id = 999;             // id ficticio para el log
+    int bloque_copia = bloque_logico;  // copia porque list_add guarda puntero
+    char* file_dup = string_duplicate(file);
+    char* tag_dup  = string_duplicate(tag);
+    char* cont_dup = string_duplicate(contenido);
+
+    // Indices según tu función:
+    // 0: cod_op, 1: query_id, 2:file, 3:tag, 4:bloque_logico, 5:contenido
+    list_add(parametros, &op);
+    list_add(parametros, &query_id);
+    list_add(parametros, file_dup);
+    list_add(parametros, tag_dup);
+    list_add(parametros, &bloque_copia);
+    list_add(parametros, cont_dup);
+
+    bool ok = escribir_bloque(storage, parametros);
+
+    list_destroy(parametros);
+    free(file_dup);
+    free(tag_dup);
+    free(cont_dup);
+
+    return ok;
+}

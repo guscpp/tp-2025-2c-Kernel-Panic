@@ -70,4 +70,13 @@ void destruir_mutex(char* key, void* value);
 void destruir_mutex_lock(void* data);
 void destruir_dict_locks(t_dictionary* dict);
 
+
+// === Pruebas ===
+void rutina_recepcion(t_storage* storage, int storage_fd);
+bool crear_file(t_storage* storage, t_list* parametros);
+bool truncar_file(t_storage* storage, t_list* parametros);
+bool escribir_bloque(t_storage* storage, t_list* parametros);
+bool escribir_bloque_test(t_storage* storage, char* file, char* tag,int bloque_logico, char* contenido);
+bool realizar_commit(t_storage* storage, t_list* parametros);
+
 #endif

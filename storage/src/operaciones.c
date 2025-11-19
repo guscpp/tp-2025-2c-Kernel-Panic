@@ -1026,7 +1026,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
     char* hash_index_path = string_from_format("%s/blocks_hash_index.config", storage->punto_montaje);
     //bool hash_index_creado = false;
     
-    // Verificar si el archivo existe, si no, crearlo vacío
+    // Verificar si el archivo existe, si no, crearlo vacío 
     if (access(hash_index_path, F_OK) != 0) {
         FILE* f = fopen(hash_index_path, "w");
         if (!f) {
@@ -1106,7 +1106,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
         // 5. Verificar si el hash ya existe en el índice
         if (config_has_property(hash_index, hash)) {
             // Ya existe un bloque con este contenido
-            char* bloque_existente_str = config_get_string_value(hash_index, hash);
+            char* bloque_existente_str = config_get_string_value(hash_index, hash); // no entendi como busca la palabra clave "hash", si dentro del blocks_hash_index.config estan los hashes como claves
             int bloque_existente = -1;
             
             // Extraer el número del bloque existente desde "blockXXXX"
