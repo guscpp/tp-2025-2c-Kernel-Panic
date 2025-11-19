@@ -143,7 +143,7 @@ void* atender_desconexion_worker(void* arg){
         query->estado=EXIT;
         pthread_mutex_lock(&mutexListaWorkers);
         eliminar_worker_por_id( lista_workers,  informacion->id);
-        pthread_mutex_unlock(&&mutexListaWorkers);
+        pthread_mutex_unlock(&mutexListaWorkers);
         t_buffer* infoQuery = crear_buffer();
 
         t_paquete* paquete  = crear_paquete( QUERY_RESPONSE_ERROR_WORKER_DESCONECTADO, infoQuery);
@@ -699,9 +699,58 @@ void atender_Worker(t_hacerConnect* informacion){
             comenzar_a_ejecutar(informacion,idWorker);
 
         }
+        case WORKER_ERROR_TAMANIO_LECTURA_EXCEDIDO:{
+            
+            // Datos del paquete recibido desde el Worker
+            int idQuery = *(int*)list_get(paqueteWorker, 1);
+            char* file = (char*)list_get(paqueteWorker, 2);
+            char* tag = (char*)list_get(paqueteWorker, 3);
+
+            // Buscar la query en la lista de queries en ejecución
+            pthread_mutex_lock(&mutexQueryEnWorker);
+            t_query* errorTamanioEscritura = eliminar_por_id(query_en_worker, idQuery);
+            pthread_mutex_unlock(&mutexQueryEnWorker);
+
+            if (!errorTamanioEscritura) {
+                log_warning(informacion->logger, "No se encontró la query %d en ejecución", idQuery);
+                list_destroy_and_destroy_elements(paqueteWorker, free);
+                break;
+            }
+
+            int idWorker = errorTamanioEscritura->idWorker;
+            errorTamanioEscritura->estado = EXIT;
+
+            // respuesta al Query Control
+            t_buffer* infoQuery = crear_buffer();
+            t_paquete* paquete = crear_paquete(QUERY_RESPONSE_ERROR_TAMANIO_ESCRITURA_EXCEDIDO, infoQuery);
+
+            agregar_a_paquete(paquete, file, strlen(file) + 1);
+            agregar_a_paquete(paquete, tag, strlen(tag) + 1);
+
+            enviar_paquete(paquete, errorTamanioEscritura->socket, informacion->logger);
+
+            log_info(informacion->logger,
+                COLOR_VERDE "## Query Finalizada - Error: Se Excedio el Tamaño de Escritura de el Archivo %s:%s (Query ID: %d, Worker: %d)"
+                COLOR_VERDE,
+                file, tag, idQuery, idWorker);
+
+            // Cerrar conexión con el Query
+            close(errorTamanioEscritura->socket);
+            log_info(informacion->logger, "Conexión cerrada con Query %d", idQuery);
+
+            eliminar_paquete(paquete);
+            free(errorTamanioEscritura);
+            list_destroy_and_destroy_elements(paqueteWorker, free);
+
+            //reiniciar Worker
+            comenzar_a_ejecutar(informacion, idWorker);
+            break;
+
+
+
+        }
         default:{
-            log_warning(informacion->logger, "Se termina hilo worker");
-            return;
+            log_warning(informacion->logger, "Operacion desconocida");
          
             break;
         }
@@ -738,7 +787,7 @@ void query_completado_con_exito(t_query* query,t_hacerConnect* informacion ){
     close(query->socket);
     log_info(informacion->logger, "Comunicacion Cerrada con Query");
     eliminar_paquete(paquete);
-    free(query);
+    //free(query);
  
 
 }
@@ -793,8 +842,8 @@ void enviar_query_a_worker(t_query* query,t_hacerConnect* informacion, int idWor
     int desconexion = enviar_paquete( paquete,  informacion->socket_conexion ,  informacion->logger);
     if (desconexion == -1){
         log_warning(informacion->logger, "WORKER SE DESCONECTO ID: %d", informacion->id);
-        close(informacion->socket_conexion);
-        free(informacion);
+        //close(informacion->socket_conexion);
+        //free(informacion);
     }
 
     log_info(informacion->logger, "se ha enviado al worker id: %d una query", idWorker);
