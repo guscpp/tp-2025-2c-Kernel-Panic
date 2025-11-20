@@ -1282,8 +1282,8 @@ void persistir_bitmap(t_storage* storage) {
 //Verifica si un archivo/tag tiene estado COMMITED en su archivo .cfg
 bool verificar_si_commited(t_storage* storage, const char* file, const char* tag) {
     // 1️⃣ Armar la ruta del archivo .cfg del file:tag
-    char* path_cfg = string_from_format("%s/files/%s/%s.config",
-                                        storage->punto_montaje, file, tag);
+    char* path_cfg = string_from_format("%s/files/%s/%s/metadata.config",
+                                           storage->punto_montaje, file, tag);
 
     // 2️⃣ Intentar abrir el archivo de configuración
     t_config* cfg = config_create(path_cfg);
@@ -1385,16 +1385,16 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
 
 // ****************************************************************************
 bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const char* tag) {
-    // Retardo obligatorio al inicio de toda operación
+    // Retardo obligatorio
     usleep(storage->retardo_operacion * 1000);
 
-    // 1️⃣ Verificar si es initial_file:BASE antes de cualquier otra cosa
+    // 1. Verificar si es initial_file:BASE antes de cualquier otra cosa
     if (string_equals_ignore_case((char*)file, "initial_file") && string_equals_ignore_case((char*)tag, "BASE")) {
         log_error(storage->logger, "ERROR: Intento de eliminar File:Tag protegido: %s:%s. Este archivo no se puede borrar.", file, tag);
         return false;
     }
 
-    // 2️⃣ Armar rutas
+    // 2. Armar rutas
     char* path_tag = string_from_format("%s/files/%s/%s", storage->punto_montaje, file, tag);
     char* path_metadata = string_from_format("%s/metadata.config", path_tag);
     char* path_bitmap = string_from_format("%s/bitmap.bin", storage->punto_montaje);
@@ -1404,7 +1404,7 @@ bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const
     pthread_mutex_t* file_mutex = get_or_create_file_mutex(storage, file, tag);
     pthread_mutex_lock(file_mutex);
 
-    // 3️⃣ Verificar existencia
+    // 3. Verificar existencia
     if (access(path_tag, F_OK) != 0) {
         log_warning(storage->logger, "Intento de eliminar File:Tag inexistente %s:%s", file, tag);
         free(path_tag);
@@ -1415,7 +1415,7 @@ bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const
         return false;
     }
 
-    // 4️⃣ Abrir metadata
+    // 4. Abrir metadata
     t_config* metadata = config_create(path_metadata);
     if (metadata == NULL) {
         log_error(storage->logger, "No se pudo abrir metadata de %s:%s", file, tag);
@@ -1440,16 +1440,16 @@ bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const
         return false;
     }
 
-    // 5️⃣ Obtener bloques
+    // 5. Obtener bloques
     char** bloques = config_get_array_value(metadata, "BLOCKS"); // <-- Esto devuelve un array de strings dinámicos
     int cantidad_bloques = get_array_length(bloques);
     log_info(storage->logger, "Eliminando tag %s:%s que tiene %d bloques lógicos", file, tag, cantidad_bloques);
-    // 6️⃣ Liberar bloques fisicos
+
+    // 6. Liberar bloques fisicos
     // Primero: unlink de todos los bloques logicos (baja el nlink de los fisicos)
     for (int i = 0; i < cantidad_bloques; i++) {
         if (!bloques[i] || strlen(bloques[i]) == 0) continue;
-
-        char* path_logico = string_from_format("%s/block%06d.dat", path_logical_dir, i);
+        char* path_logico = string_from_format("%s/block%06d.dat", path_logical_dir, i); // <-- Corrección: Formato correcto para bloque lógico
         if (unlink(path_logico) == 0) {
             log_info(storage->logger, "##%d- %s:%s Se eliminó el hard link del bloque lógico %d", query_id, file, tag, i);
         }
@@ -1459,24 +1459,21 @@ bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const
     // Segundo: chequear los bloques fisicos DESPUES de todos los unlinks
     for (int i = 0; i < cantidad_bloques; i++) {
         if (!bloques[i] || strlen(bloques[i]) == 0) continue;
-
         int bloque_fisico_id = atoi(bloques[i]);
-        char* path_fisico = string_from_format("%s/physical_blocks/%04d.dat", storage->punto_montaje, bloque_fisico_id);
+        char* path_fisico = string_from_format("%s/physical_blocks/block%04d.dat", storage->punto_montaje, bloque_fisico_id);
 
         struct stat st;
-        if (stat(path_fisico, &st) == 0 && st.st_nlink == 1) {
+        if (stat(path_fisico, &st) == 0 && st.st_nlink == 1) { // <-- Verificar nlink == 1 despues de todos los unlink
             unlink(path_fisico);
-
             pthread_mutex_lock(&storage->mutex_bitmap);
             bitarray_clean_bit(storage->bitmap, bloque_fisico_id);
             pthread_mutex_unlock(&storage->mutex_bitmap);
-
             log_info(storage->logger, "##%d- Bloque físico %d liberado completamente (nlink=1)", query_id, bloque_fisico_id);
         }
         free(path_fisico);
     }
 
-    // 7️⃣ Guardar bitmap actualizado en disco
+    // 7. Guardar bitmap actualizado en disco
     FILE* f = fopen(path_bitmap, "wb");
     if (f) {
         fwrite(storage->bitmap->bitarray, storage->bitmap->size, 1, f);
@@ -1485,10 +1482,10 @@ bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const
         log_error(storage->logger, "No se pudo abrir %s para persistir bitmap", path_bitmap);
     }
 
-    // 8️⃣ Destruir metadata
+    // 8. Destruir metadata
     config_destroy(metadata);
 
-    // 9️⃣ Liberar el array de bloques obtenido de config_get_array_value
+    // 9. Liberar el array de bloques obtenido de config_get_array_value
     if (bloques != NULL) {
         for (int i = 0; bloques[i] != NULL; i++) {
             free(bloques[i]);
@@ -1496,7 +1493,7 @@ bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const
         free(bloques);
     }
 
-    // 10️⃣ Borrar carpeta fisica del tag
+    // 10. Borrar carpeta fisica del tag
     int rm_ok = rm_rf(path_tag);
     if (rm_ok != 0) {
         log_error(storage->logger, "No se pudo borrar %s (codigo %d)", path_tag, rm_ok);
@@ -1507,10 +1504,9 @@ bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const
         pthread_mutex_unlock(file_mutex);
         return false;
     }
-
     log_info(storage->logger, "##%d- File Eliminado %s:%s", query_id, file, tag);
 
-    // 1️⃣1️⃣ Liberar memoria temporal
+    // 11. Liberar memoria temporal
     free(path_tag);
     free(path_metadata);
     free(path_bitmap);
@@ -1518,7 +1514,6 @@ bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const
 
     pthread_mutex_unlock(file_mutex);
     remove_file_mutex(storage, file, tag);
-
     return true;
 }
 
