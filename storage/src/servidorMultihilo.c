@@ -73,20 +73,21 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             
             log_info(storage->logger, "Operacion STORAGE_GET_BLOCK_SIZE");
             enviar_tamanio_paquete_aworker(storage, socket_cliente);
+            
             break;
             
         case STORAGE_CREATE_FILE:
             if(crear_file(storage, paquete)){
                 log_info(storage->logger, "File creado exitosamente");
                 t_buffer* respuesta_buffer = crear_buffer();
-                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK, respuesta_buffer);
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK_CREATE_FILE, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_respuesta);
 
             }else{
                 log_error(storage->logger, "Error al crear el file");
                 t_buffer* respuesta_buffer = crear_buffer();
-                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR, respuesta_buffer);
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR_CREATE_FILE, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_respuesta);
             }
@@ -97,13 +98,13 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             if(truncar_file(storage, paquete)){
                 log_info(storage->logger, "File truncado exitosamente");
                 t_buffer* respuesta_buffer = crear_buffer();
-                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK, respuesta_buffer);
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK_TRUNCATE, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_respuesta);
             }else{
                 log_error(storage->logger, "Error al truncar el file");
                 t_buffer* respuesta_buffer = crear_buffer();
-                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR, respuesta_buffer);
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR_TRUNCATE, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_respuesta);
             }
@@ -113,13 +114,13 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             if(tag_file(storage, paquete)){
                 log_info(storage->logger, "Tag creado exitosamente");
                 t_buffer* respuesta_buffer = crear_buffer();
-                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK, respuesta_buffer);
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK_TAG, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_respuesta);
             }else{
                 log_error(storage->logger, "Error al crear el tag");
                 t_buffer* respuesta_buffer = crear_buffer();
-                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR, respuesta_buffer);
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR_TAG, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_respuesta);
             }
@@ -131,7 +132,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
 
                 log_info(storage->logger, "Commit realizado exitosamente");
                 t_buffer* respuesta_buffer = crear_buffer();
-                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK, respuesta_buffer);
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK_COMMIT, respuesta_buffer);
 
                 //paquete con opcode + un dato dummy 
                 // int numero_adicional = 4444;
@@ -144,7 +145,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
 
                 log_error(storage->logger, "Error al realizar commit");
                 t_buffer* respuesta_buffer = crear_buffer();
-                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR, respuesta_buffer);
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR_COMMIT, respuesta_buffer);
 
                 //paquete con opcode + un dato dummy 
                 // int numero_adicional = 4444;
@@ -162,7 +163,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
                 if (leer_bloque(storage, paquete, &contenido_bloque, &tamanio_bloque)) {
                     log_info(storage->logger, "Contenido leido: %p, tamaño: %d", contenido_bloque, tamanio_bloque);
                     t_buffer* buffer_resp = crear_buffer();
-                    t_paquete* paquete_resp = crear_paquete(STORAGE_SEND_OK, buffer_resp);
+                    t_paquete* paquete_resp = crear_paquete(STORAGE_SEND_OK_READ_BLOCK, buffer_resp);
                     agregar_a_paquete(paquete_resp, contenido_bloque, tamanio_bloque);
                     log_info(storage->logger, "Contenido leido: %p, tamaño: %d", contenido_bloque, tamanio_bloque);
                     enviar_paquete(paquete_resp, socket_cliente, storage->logger);
@@ -170,7 +171,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
                     free(contenido_bloque);
                 } else {
                     t_buffer* buf_err = crear_buffer();
-                    t_paquete* pkt_err = crear_paquete(STORAGE_SEND_ERROR, buf_err);
+                    t_paquete* pkt_err = crear_paquete(STORAGE_SEND_ERROR_READ_BLOCK, buf_err);
                     enviar_paquete(pkt_err, socket_cliente, storage->logger);
                     eliminar_paquete(pkt_err);
                 }
@@ -181,13 +182,13 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             if(escribir_bloque(storage, paquete)){
                 log_info(storage->logger, "Bloque escrito exitosamente");
                 t_buffer* respuesta_buffer = crear_buffer();
-                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK, respuesta_buffer);
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK_WRITE_BLOCK, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_respuesta);
             }else{
                 log_error(storage->logger, "Error al escribir el bloque");
                 t_buffer* respuesta_buffer = crear_buffer();
-                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR, respuesta_buffer);
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR_WRITE_BLOCK, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_respuesta);
             }
@@ -197,13 +198,13 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             if(eliminar_file_tag(storage, paquete)){
                 log_info(storage->logger, "File:Tag eliminado exitosamente");
                 t_buffer* respuesta_buffer = crear_buffer();
-                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK, respuesta_buffer);
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK_DELETE, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_respuesta);
             }else{
                 log_error(storage->logger, "Error al eliminar el File:Tag");
                 t_buffer* respuesta_buffer = crear_buffer();
-                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR, respuesta_buffer);
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR_DELETE, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_respuesta);
             } 
