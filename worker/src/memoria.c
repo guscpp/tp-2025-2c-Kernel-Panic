@@ -435,7 +435,7 @@ int pedir_bloque_storage(t_memoria_interna* mem, int query_id, char* file, char*
     int codigo = *(int*)list_get(resp, 0);
     log_info(mem->logger, "ESte es el codigo que llega %d", codigo);
 
-    if (codigo == STORAGE_SEND_OK) {
+    if (codigo == STORAGE_SEND_OK_READ_BLOCK) {
         // según tu servidor, el payload 1 es el contenido binario del bloque
         if (list_size(resp) < 2) {
             log_error(mem->logger, "Query<%d>: STORAGE_SEND_OK sin contenido para %s:%s/%d",
