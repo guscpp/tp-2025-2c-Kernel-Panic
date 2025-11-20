@@ -203,6 +203,8 @@ void crear_initial_file(t_storage* storage){
         free(ceros);
     }else{
         log_error(storage->logger, "No se pudo crear el bloque inicial");
+        free(path_block0);
+        return;
     }
 
     char* path_logico0 = obtener_ruta_absoluta("files/initial_file/BASE/logical_blocks/000000.dat");
@@ -216,8 +218,8 @@ void crear_initial_file(t_storage* storage){
     char* metadata = obtener_ruta_absoluta("files/initial_file/BASE/metadata.config");
     FILE* archivo_metadata = fopen(metadata, "w");
     if(archivo_metadata){
-        fprintf(archivo_metadata, "TAMANIO=%d\n", storage->tamanio_bloque);
-        fprintf(archivo_metadata, "ESTADO=WORK_IN_PROGRESS\n");
+        fprintf(archivo_metadata, "TAMANIO=0\n");
+        fprintf(archivo_metadata, "ESTADO=COMMITED\n");
         fprintf(archivo_metadata, "BLOCKS=[0]\n");
         fclose(archivo_metadata);
     }
@@ -265,12 +267,51 @@ bool inicializar_file_system(t_storage* storage){
     log_info(storage->logger, "Inicializando File System...");
 
     PATH_BASE = storage->punto_montaje;
+    char* path_bmap = storage->path_bitmap;
 
     if(storage->fresh_start){
         log_info(storage->logger, "FRESH_START=TRUE → Formateo inicial");
         formatear_fs(storage);
     }else{
         log_info(storage->logger, "FRESH_START=FALSE → Mantiene el contenido preexistente");
+
+        FILE* f = fopen(path_bmap, "rb");
+        if (!f) {
+            log_error(storage->logger, "No existe bitmap.bin aunque FRESH_START=FALSE");
+            return true;
+        }
+
+        // Obtener tamaño real del archivo
+        fseek(f, 0, SEEK_END);
+        size_t bitmap_size = ftell(f);
+        rewind(f);
+
+        // Calcular tamaño esperado
+        int cantidad_bloques = storage->tamanio_filesystem / storage->tamanio_bloque;
+        size_t expected_size = (cantidad_bloques + 7) / 8;
+
+        if (bitmap_size != expected_size) {
+            log_error(storage->logger, "Tamaño de bitmap.bin corrupto (%zu vs esperado %zu)", 
+                      bitmap_size, expected_size);
+            fclose(f);
+            return true;
+        }
+
+        // Leer los bytes crudos
+        char* bitarray_data = malloc(bitmap_size);
+        if (fread(bitarray_data, 1, bitmap_size, f) != bitmap_size) {
+            log_error(storage->logger, "Error al leer bitmap.bin");
+            free(bitarray_data);
+            fclose(f);
+            return true;
+        }
+        fclose(f);
+
+        // Crear el t_bitarray (commons bitarray_create toma ownership del puntero)
+    storage->bitmap = bitarray_create_with_mode(bitarray_data, bitmap_size, LSB_FIRST);
+    
+        log_info(storage->logger, "Bitmap cargado correctamente (%zu bytes, %d bloques)", 
+                 bitmap_size, cantidad_bloques);
     }
     return true;
 }
