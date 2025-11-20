@@ -245,64 +245,71 @@ void retener_worker(t_worker* w) {
 //-------------------------------------------------------------------------------------------------
 
 
-void rtas_storage(int storage_socket, t_worker* w){    
-    log_info(w->logger, "Lllegue a rts_storage");
-        t_list* valores = recibir_paquete(storage_socket);
-        int* cod_op = list_get(valores, 0);
-        log_info(w->logger, "llegue a recibir %d", *cod_op);
-/*
-        if(*cod_op == STORAGE_SEND_OK){
-            log_info(w->logger, "LA instruccion se hizo bien");
-            return;
-        }
-
-        if(*cod_op == STORAGE_SEND_ERROR){
-            *cod_op = de_intruccion;
-        }
-*/
-        switch (*cod_op)
-        {
+void rtas_storage(int storage_socket, t_worker* w) {
+    log_info(w->logger, "Esperando respuesta de Storage");
+    
+    t_list* valores = recibir_paquete(storage_socket);
+    if(valores == NULL || list_size(valores) == 0) {
+        log_error(w->logger, "No se recibió respuesta de Storage");
+        return;
+    }
+    
+    int* cod_op = list_get(valores, 0);
+    log_info(w->logger, "Respuesta de Storage recibida, código: %d", *cod_op);
+    
+    switch(*cod_op) {
         case STORAGE_SEND_BLOCK_SIZE:
-            int* size = list_get(valores, 1);
-            w->tamanio_bloque = *size;
-            log_info(w->logger, "Tamaño de bloque recibido: %d", w->tamanio_bloque);
-            list_destroy_and_destroy_elements(valores, free);
-            break;
-/*
-        case CREATE:
-            log_info(w->logger, "Storage devolvio error al hacer create");
-            break;
-            
-        case TRUNCATE:
-            log_info(w->logger, "Storage devolvio error al hacer truncate");
-            break;
-
-        case WRITE:
-            log_info(w->logger, "Storage devolvio error al hacer write");
-            break;
-
-        case READ:
-            log_info(w->logger, "Storage devolvio error al hacer read");
-            break;
-
-        case TAG:
-            log_info(w->logger, "Storage devolvio error al hacer tag");
-            break;
-        case COMMIT:
-            log_info(w->logger, "Storage devolvio error al hacer commit");
-            avisar_error_generico(w->logger, WORKER_ERROR_MODIFICAR_COMMIT);
+            log_info(w->logger, "Storage envió tamaño de bloque");
+            if(list_size(valores) >= 2) {
+                int* tamanio_bloque = list_get(valores, 1);
+                w->tamanio_bloque = *tamanio_bloque;
+                log_info(w->logger, "Tamaño de bloque recibido: %d", w->tamanio_bloque);
+            }
         break;
-        case FLUSH:
-            log_info(w->logger, "Storage devolvio error al hacer flush");
+        case STORAGE_SEND_OK_CREATE_FILE:
+            log_info(w->logger, "Storage confirmó creación de archivo exitosa");
             break;
-        case DELETE:
-            log_info(w->logger, "Storage devolvio error al hacer delete");
+        case STORAGE_SEND_OK_TRUNCATE:
+            log_info(w->logger, "Storage confirmó truncado exitoso");
             break;
-*/
-        default:
-        log_info(w->logger, "Error en el cod_op %d", *cod_op);
+        case STORAGE_SEND_OK_WRITE_BLOCK:
+            log_info(w->logger, "Storage confirmó escritura exitosa");
+            break;
+        case STORAGE_SEND_OK_READ_BLOCK: {
+            log_info(w->logger, "Storage envió bloque para lectura");
+            // El bloque se guarda en mem->tmp_bloque en pedir_bloque_storage
             break;
         }
+        case STORAGE_SEND_OK_TAG:
+            log_info(w->logger, "Storage confirmó creación de tag exitosa");
+            break;
+        case STORAGE_SEND_OK_COMMIT:
+            log_info(w->logger, "Storage confirmó commit exitoso");
+            break;
+        case STORAGE_SEND_OK_DELETE:
+            log_info(w->logger, "Storage confirmó eliminación exitosa");
+            break;
+        // falta crear
+        // case STORAGE_SEND_OK_FLUSH:
+        //     log_info(w->logger, "Storage confirmó flush exitoso");
+        //     break;
+        case STORAGE_SEND_ERROR_CREATE_FILE:
+        case STORAGE_SEND_ERROR_TRUNCATE:
+        case STORAGE_SEND_ERROR_WRITE_BLOCK:
+        case STORAGE_SEND_ERROR_READ_BLOCK:
+        case STORAGE_SEND_ERROR_TAG:
+        case STORAGE_SEND_ERROR_COMMIT:
+        case STORAGE_SEND_ERROR_DELETE:
+        //case STORAGE_SEND_ERROR_FLUSH:   
+            log_error(w->logger, "Storage respondió con error");
+            // Aquí deberías manejar el error específicamente
+            break;
+        default:
+            log_warning(w->logger, "Respuesta desconocida de Storage: %d", *cod_op);
+            break;
+    }
+    
+    list_destroy_and_destroy_elements(valores, free);
 }
 
 

@@ -66,7 +66,7 @@ int main(int argc, char* argv[]) {
     t_paquete* paquete_tamanio_bloque = crear_paquete(STORAGE_GET_BLOCK_SIZE, buffer3);
     ///agregar_a_paquete(paquete_tamanio_bloque, &a, sizeof(int));
     enviar_paquete(paquete_tamanio_bloque, w->storage_socket, w->logger);
-    enviar_paquete(paquete_tamanio_bloque, w->storage_socket, w->logger); // enviarlo 2 veces :|
+    //enviar_paquete(paquete_tamanio_bloque, w->storage_socket, w->logger); // enviarlo 2 veces :|
     log_info(w->logger, "Acabo de enviar STORAGE_GET_BLOCK_SIZE a Storage");
     eliminar_paquete(paquete_tamanio_bloque);
 

@@ -313,12 +313,13 @@ void executeCreate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     
     
     //rtas_storage(w->storage_socket, w, CREATE);
-    log_info(w->logger, "Llegue a hacer create");
+    rtas_storage(w->storage_socket, w);
+    log_info(w->logger, "Query<%d>: Instrucción realizada: CREATE %s:%s", 
+             pcb->query_id, parametros->nombre_file, parametros->tag);
     
 }
 
 void executeTruncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
-
     
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paqueteTruncate = crear_paquete(STORAGE_TRUNCATE, buffer_generico);
@@ -330,45 +331,36 @@ void executeTruncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     eliminar_paquete(paqueteTruncate);
     
     //rtas_storage(w->storage_socket, w, TRUNCATE);
-    log_info(w->logger, "Llegue a hacer truncate");
+    rtas_storage(w->storage_socket, w);
+    log_info(w->logger, "Query<%d>: Instrucción realizada: TRUNCATE %s:%s %d bytes", 
+        pcb->query_id, parametros->nombre_file, parametros->tag, parametros->tamanio);
     
 }
 
 void executeWrite(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     size_t tam = strlen(parametros->contenido);
-    void* dir = acceder_memoria(
-        w->mem,
-        pcb->query_id,
-        parametros->nombre_file,
-        parametros->tag,
-        parametros->direccion_base,
-        tam,
-        true // es escritura
-    );
+    void* dir = acceder_memoria(w->mem, pcb->query_id, parametros->nombre_file, parametros->tag,
+                                parametros->direccion_base, tam, true);
         if (dir) {
         memcpy(dir, parametros->contenido, tam);
+        log_info(w->logger, "Query<%d>: Accion:ESCRIBIR - Direccion Fisica:%p - Valor:%s", 
+            pcb->query_id, dir, parametros->contenido);
         log_info(w->logger, "Query<%d>: Instrucción realizada: WRITE", pcb->query_id);
     }
     if(!dir){
-        log_info(w->logger, "INtente hacer algo que no puedo en memoria o storage no me dio la pagina que le pedi. ESte es el de query_interpreter"); //este esta porque el enviar error generico lo puse dentro de memoria.c 
+        log_error(w->logger, "Query<%d>: Escritura fallida - File:%s - Tag:%s - Offset:%d",
+                 pcb->query_id, parametros->nombre_file, parametros->tag, parametros->direccion_base);
     }
 
 }
 
 void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){
-    void* dir = acceder_memoria(
-        w->mem,
-        pcb->query_id,
-        parametros->nombre_file,
-        parametros->tag,
-        parametros->direccion_base,
-        parametros->tamanio,
-        false // es lectura
-    );
+    void* dir = acceder_memoria(w->mem, pcb->query_id, parametros->nombre_file, parametros->tag,
+                                parametros->direccion_base, parametros->tamanio, false);
     if (!dir) {
         log_error(w->logger, "Query<%d>: Lectura fallida - File:%s - Tag:%s - Offset:%d",
                   pcb->query_id, parametros->nombre_file, parametros->tag, parametros->direccion_base);
-        log_info(w->logger, "INtente hacer algo que no puedo en memoria o storage no me dio la pagina que le pedi. ESte es el de query_interpreter");
+        log_info(w->logger, "Intente hacer algo que no puedo en memoria o storage no me dio la pagina que le pedi. ESte es el de query_interpreter");
         return;
     }
 
@@ -393,53 +385,58 @@ void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 }
 
 void executeTag(t_instr_param* parametros, t_worker* w, Pcb* pcb){
-
     
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_nuevo_tag = crear_paquete(STORAGE_TAG, buffer_generico);
+
     agregar_a_paquete(paquete_nuevo_tag, &(pcb->query_id), sizeof(pcb->query_id));
     agregar_a_paquete(paquete_nuevo_tag, parametros->nombre_file_org, strlen(parametros->nombre_file_org)+1);
     agregar_a_paquete(paquete_nuevo_tag, parametros->tag_origen, strlen(parametros->tag_origen)+1);
     agregar_a_paquete(paquete_nuevo_tag, parametros->nombre_file_destino, strlen(parametros->nombre_file_destino)+1);
     agregar_a_paquete(paquete_nuevo_tag, parametros->tag_destino, strlen(parametros->tag_destino)+1);
+    
     enviar_paquete(paquete_nuevo_tag, w->storage_socket, w->logger);
     eliminar_paquete(paquete_nuevo_tag);
     
     //rtas_storage(w->storage_socket, w, TAG);
-    log_info(w->logger, "Llegue a hacer tag");
+    rtas_storage(w->storage_socket, w);
+    log_info(w->logger, "Query<%d>: Instrucción realizada: TAG %s:%s -> %s:%s", 
+            pcb->query_id, parametros->nombre_file_org, parametros->tag_origen,
+            parametros->nombre_file_destino, parametros->tag_destino);
     
 }
 
 void executeCommit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     
     executeFlush(parametros, w, pcb); //executeFLush necesita el nombreDelFIle y el tag, y yo aca en commit tengo esos parametros
-    
     log_info(w->logger, "Este es el flush antes del commit");
+
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_commit = crear_paquete(STORAGE_COMMIT, buffer_generico);
+
     agregar_a_paquete(paquete_commit, &(pcb->query_id), sizeof(pcb->query_id));
     agregar_a_paquete(paquete_commit, parametros->nombre_file, strlen(parametros->nombre_file)+1);
     agregar_a_paquete(paquete_commit, parametros->tag, strlen(parametros->tag)+1);
+
     enviar_paquete(paquete_commit, w->storage_socket, w->logger);
     eliminar_paquete(paquete_commit);
     
     //rtas_storage(w->storage_socket, w, COMMIT);
-    log_info(w->logger, "Llegue a hacer commit");
+    rtas_storage(w->storage_socket, w);
+    log_info(w->logger, "Query<%d>: Instrucción realizada: COMMIT %s:%s", 
+             pcb->query_id, parametros->nombre_file, parametros->tag);
 
 }
 
 void executeFlush(t_instr_param* parametros, t_worker* w, Pcb* pcb){ //ESto se hace previo a la ejecucion de un commit y de un desalojo de query
 
+    flush_paginas_modificadas(w->mem, pcb->query_id, parametros->nombre_file,
+                              parametros->tag, w->storage_socket);
 
-    flush_paginas_modificadas(
-        w->mem,
-        pcb->query_id,
-        parametros->nombre_file,
-        parametros->tag,
-        w->storage_socket
-    );
     //rtas_storage(w->storage_socket, w, FLUSH);
-    log_info(w->logger, "Query<%d>: Instrucción realizada: FLUSH", pcb->query_id);
+    rtas_storage(w->storage_socket, w);
+    log_info(w->logger, "Query<%d>: Instrucción realizada: FLUSH %s:%s", 
+             pcb->query_id, parametros->nombre_file, parametros->tag);
 
 }
 
@@ -447,26 +444,41 @@ void executeDelete(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_delete = crear_paquete(STORAGE_DELETE, buffer_generico);
+
     agregar_a_paquete(paquete_delete, &(pcb->query_id), sizeof(pcb->query_id));
     agregar_a_paquete(paquete_delete, parametros->nombre_file, strlen(parametros->nombre_file)+1);
     agregar_a_paquete(paquete_delete, parametros->tag, strlen(parametros->tag)+1);
+
     enviar_paquete(paquete_delete, w->storage_socket, w->logger);
     eliminar_paquete(paquete_delete);
     
     //rtas_storage(w->storage_socket, w, DELETE);
-    log_info(w->logger, "Llegue a hacer delete");
+    rtas_storage(w->storage_socket, w);
+    log_info(w->logger, "Query<%d>: Instrucción realizada: DELETE %s:%s", 
+             pcb->query_id, parametros->nombre_file, parametros->tag);
     
 }
 
 void executeEnd(t_worker* w, Pcb* pcb){ //avisar a master de la finalizacion
     
-    log_info(w->logger, "TErmine el proceso. ESpero uno nuevo");
+    log_info(w->logger, "Query<%d>: Finalización exitosa de la Query", pcb->query_id);
+
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* aviso_end_query = crear_paquete(WORKER_QUERY_END, buffer_generico);
+
     agregar_a_paquete(aviso_end_query, &(pcb->query_id), sizeof(int)); //envio queryId
+    
     enviar_paquete(aviso_end_query, w->master_socket_distpach, w->logger);
     eliminar_paquete(aviso_end_query);
-    log_info(w->logger, "termine End");
+    
+    // Cerrar archivo de la query
+    if(pcb->archivo != NULL) {
+        fclose(pcb->archivo);
+    }
+    
+    // Liberar memoria
+    free(pcb->nombre_archivo);
+    free(pcb);
 }
 
 void interrupt_envio_a_master(Pcb* pcb_dsp_de_interrupt, t_worker* w){  //Se envia al socket normal

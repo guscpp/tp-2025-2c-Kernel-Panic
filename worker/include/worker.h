@@ -14,7 +14,7 @@ void      liberar_worker(t_worker* w);
 
 //void      recibir_path_de_query(int master_socket, t_log* logger);
 Pcb*      recibir_path_de_query(int master_socket, t_worker* w);
-void rtas_storage(int storage_socket, t_worker* w);
+void      rtas_storage(int storage_socket, t_worker* w);
 
 FILE*     retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger);
 

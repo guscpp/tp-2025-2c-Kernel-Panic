@@ -100,44 +100,67 @@ void eliminar_paquete(t_paquete *packet)
 
 t_list* recibir_paquete(int socket_cliente)
 {
-	int size;
-	int desplazamiento = 0;
-	int cod_op;
-	void * buffer;
-	t_list* valores = list_create();
-	int tamanio;
-	
-	int detec = recv(socket_cliente, &cod_op, sizeof(int), MSG_WAITALL);
-	if (detec == 0) {
-        // El cliente cerró la conexión
-		printf("recibir_paquete() - Se desconecto");
-        return NULL;}
-	int* cod_op_ptr = malloc(sizeof(int));
+    int size;
+    int desplazamiento = 0;
+    int cod_op;
+    void * buffer = NULL;
+    t_list* valores = list_create();
+    int tamanio;
+    
+    // Recibir codigo de operacion
+    int detec = recv(socket_cliente, &cod_op, sizeof(int), MSG_WAITALL);
+    if (detec <= 0) {
+        list_destroy(valores);
+        return NULL;
+    }
+    
+    int* cod_op_ptr = malloc(sizeof(int));
     *cod_op_ptr = cod_op;
     list_add(valores, cod_op_ptr);
-	
-	buffer = recibir_buffer(&size, socket_cliente);
-	while(desplazamiento < size)
-	{
-		memcpy(&tamanio, buffer + desplazamiento, sizeof(int));
-		desplazamiento+=sizeof(int);
-		char* valor = malloc(tamanio);
-		memcpy(valor, buffer+desplazamiento, tamanio);
-		list_add(valores, valor);
-		desplazamiento+=tamanio;
-	}
-	free(buffer);
-	return valores;
+    
+    // Recibir buffer
+    buffer = recibir_buffer(&size, socket_cliente);
+    if (size < 0) {  // Error en la recepcion
+        list_destroy_and_destroy_elements(valores, free);
+        return NULL;
+    }
+    
+    // Procesar solo si hay datos en el buffer
+    if (buffer != NULL && size > 0) {
+        while(desplazamiento < size) {
+            memcpy(&tamanio, buffer + desplazamiento, sizeof(int));
+            desplazamiento += sizeof(int);
+            char* valor = malloc(tamanio);
+            memcpy(valor, buffer + desplazamiento, tamanio);
+            list_add(valores, valor);
+            desplazamiento += tamanio;
+        }
+        free(buffer);
+    }
+    
+    return valores;
 }
 
 
 void* recibir_buffer(int* size, int socket_cliente) 
 {
-	void * buffer;
-
-	recv(socket_cliente, size, sizeof(int), MSG_WAITALL);
-	buffer = malloc(*size);
-	recv(socket_cliente, buffer, *size, MSG_WAITALL);
-
-	return buffer;
+    void * buffer = NULL;
+    
+    // Recibir el tamanio del buffer
+    if (recv(socket_cliente, size, sizeof(int), MSG_WAITALL) <= 0) {
+        *size = -1;  // Indica error
+        return NULL;
+    }
+    
+    // Si el tamanio es valido y mayor que cero
+    if (*size > 0) {
+        buffer = malloc(*size);
+        if (recv(socket_cliente, buffer, *size, MSG_WAITALL) != *size) {
+            free(buffer);
+            *size = -1;  // Indicar error
+            return NULL;
+        }
+    }
+    // Si size es cero, devolver NULL pero sin error
+    return buffer;
 }
