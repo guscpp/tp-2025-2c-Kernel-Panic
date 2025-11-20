@@ -1384,10 +1384,19 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
 
 
 // ****************************************************************************
-bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const char* tag) {
+bool eliminar_file_tag(t_storage* storage, t_list* parametros) {
     // Retardo obligatorio
     usleep(storage->retardo_operacion * 1000);
 
+
+    if (!parametros || list_size(parametros) < 4) { // [op, query_id, file, tag
+        log_error(storage->logger, "Parámetros insuficientes para STORAGE_DELETE");
+        return false;
+    }
+    int query_id = *(int*)list_get(parametros, 1);
+    char* file = (char*)list_get(parametros, 2);
+    char* tag  = (char*)list_get(parametros, 3);
+    
     // 1. Verificar si es initial_file:BASE antes de cualquier otra cosa
     if (string_equals_ignore_case((char*)file, "initial_file") && string_equals_ignore_case((char*)tag, "BASE")) {
         log_error(storage->logger, "ERROR: Intento de eliminar File:Tag protegido: %s:%s. Este archivo no se puede borrar.", file, tag);

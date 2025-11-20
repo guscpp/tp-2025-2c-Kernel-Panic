@@ -78,5 +78,6 @@ bool truncar_file(t_storage* storage, t_list* parametros);
 bool escribir_bloque(t_storage* storage, t_list* parametros);
 bool escribir_bloque_test(t_storage* storage, char* file, char* tag,int bloque_logico, char* contenido);
 bool realizar_commit(t_storage* storage, t_list* parametros);
+bool eliminar_file_tag(t_storage* storage, t_list* parametros);
 
 #endif
