@@ -110,7 +110,7 @@ t_list* recibir_paquete(int socket_cliente)
 	int detec = recv(socket_cliente, &cod_op, sizeof(int), MSG_WAITALL);
 	if (detec == 0) {
         // El cliente cerró la conexión
-		printf("Se desconecto");
+		printf("recibir_paquete() - Se desconecto");
         return NULL;}
 	int* cod_op_ptr = malloc(sizeof(int));
     *cod_op_ptr = cod_op;

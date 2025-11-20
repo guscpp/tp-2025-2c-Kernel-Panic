@@ -25,7 +25,9 @@ if [ $CANTIDAD -eq 1 ]; then
     echo "Iniciando worker 0 con ID 0 (ejecución en primer plano)"
     echo "Para terminar el proceso usar: Ctrl+C"
     echo ""
-    ./bin/worker ./worker.config 0
+    #./bin/worker ./worker.config 0
+    valgrind --tool=memcheck --leak-check=full --track-origins=yes --log-file=valgrind_worker0.log ./bin/worker ./worker.config 0
+    
 else
     for ((i=0; i<$CANTIDAD; i++)); do
         echo "Iniciando worker $i con ID $i"

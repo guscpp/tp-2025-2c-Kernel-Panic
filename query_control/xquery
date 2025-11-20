@@ -22,7 +22,8 @@ echo ""
 PIDS=""
 if [ $CANTIDAD -eq 1 ]; then
     echo "Iniciando query 0 con prioridad 0 (ejecución en primer plano)"
-    ./bin/query_control ./query_control.config "query_ejemplo_0" 0
+    #./bin/query_control ./query_control.config "query_ejemplo_0" 0
+    valgrind --tool=memcheck --leak-check=full --track-origins=yes --log-file=valgrind_query0.log ./bin/query_control ./query_control.config "query_ejemplo_0" 0
 else
     for ((i=0; i<$CANTIDAD; i++)); do
         echo "Iniciando query $i con prioridad $i"

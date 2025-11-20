@@ -6,7 +6,8 @@ make
 
 if [ $? -eq 0 ]; then
     echo "Iniciando storage..."
-    ./bin/storage ./storage.config
+    #./bin/storage ./storage.config
+    valgrind --tool=memcheck --leak-check=full --track-origins=yes --log-file=valgrind_storage.log ./bin/storage storage.config
 else
     echo "Error en la compilación del storage"
     exit 1

@@ -6,7 +6,8 @@ make debug
 
 if [ $? -eq 0 ]; then
     echo "Iniciando master..."
-    ./bin/master ./master.config
+    #./bin/master ./master.config
+    valgrind --tool=memcheck --leak-check=full --track-origins=yes --log-file=valgrind_master.log ./bin/master master.config
 else
     echo "Error en la compilación del master"
     exit 1

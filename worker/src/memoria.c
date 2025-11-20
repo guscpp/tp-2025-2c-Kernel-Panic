@@ -427,7 +427,7 @@ int pedir_bloque_storage(t_memoria_interna* mem, int query_id, char* file, char*
 
     // 2) esperar respuesta
     t_list* resp = recibir_paquete(sock);
-    if (!resp) {
+    if (!resp || list_size(resp) < 1) {
         log_error(mem->logger, "Query<%d>: Error recibiendo respuesta de Storage para %s:%s/%d",
                   query_id, file, tag, num_pagina);
         return -2; // poner -2
@@ -438,7 +438,11 @@ int pedir_bloque_storage(t_memoria_interna* mem, int query_id, char* file, char*
 
     if (codigo == STORAGE_SEND_OK) {
         // según tu servidor, el payload 1 es el contenido binario del bloque
-        void** contenido_remoto = list_get(resp, 1);
+        if (list_size(resp) < 2) {
+            log_error(mem->logger, "Query<%d>: STORAGE_SEND_OK sin contenido para %s:%s/%d",
+                      query_id, file, tag, num_pagina);
+        }
+        void* contenido_remoto = list_get(resp, 1);
         if (!contenido_remoto) {
             log_error(mem->logger, "Query<%d>: STORAGE_SEND_OK sin payload", query_id);
             list_destroy_and_destroy_elements(resp, free);
