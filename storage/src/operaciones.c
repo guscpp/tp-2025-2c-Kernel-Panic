@@ -1439,7 +1439,7 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
 
 
 // ****************************************************************************
-bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const char* tag) {
+bool eliminar_file_tag(t_storage* storage, t_list* parametros) {
     
     usleep(storage->retardo_operacion * 1000); // Retardo obligatorio
 

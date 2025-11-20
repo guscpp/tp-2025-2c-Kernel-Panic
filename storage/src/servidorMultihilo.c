@@ -160,9 +160,11 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
                 void* contenido_bloque = NULL;
                 int tamanio_bloque = storage->tamanio_bloque;
                 if (leer_bloque(storage, paquete, &contenido_bloque, &tamanio_bloque)) {
+                    log_info(storage->logger, "Contenido leido: %p, tamaño: %d", contenido_bloque, tamanio_bloque);
                     t_buffer* buffer_resp = crear_buffer();
                     t_paquete* paquete_resp = crear_paquete(STORAGE_SEND_OK, buffer_resp);
                     agregar_a_paquete(paquete_resp, contenido_bloque, tamanio_bloque);
+                    log_info(storage->logger, "Contenido leido: %p, tamaño: %d", contenido_bloque, tamanio_bloque);
                     enviar_paquete(paquete_resp, socket_cliente, storage->logger);
                     eliminar_paquete(paquete_resp);
                     free(contenido_bloque);
