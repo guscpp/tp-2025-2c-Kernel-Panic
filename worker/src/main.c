@@ -2,7 +2,6 @@
 
 int main(int argc, char* argv[]) {
 //Lo comente para poder hacer debug de lo ultimo que agregue
-/*
     if (argc != 3)
     {
         printf("Uso: ./bin/worker [archivo_config] [ID Worker]\n");
@@ -10,8 +9,8 @@ int main(int argc, char* argv[]) {
     }
 
     int id_worker = atoi(argv[2]);
-   */
-  int id_worker = 2; 
+    //int id_worker = 2; //id hardcodeado (en vez de venir por consola)
+
     t_worker* w = inicializar_worker(id_worker);
     
     t_query_interpreter*  query_interpreter =  query_interpreter_crear(w->logger); //tiene pc y un verificador de interrupciones

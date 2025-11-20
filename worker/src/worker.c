@@ -29,6 +29,7 @@ t_worker* inicializar_worker(int id_worker)
 
 void verificar_worker(t_worker* w)
 {
+    log_info(w->logger, "Id_worker: %d", w->id_worker);
     log_info(w->logger, "Ip_Master: %s", w->ip_master);
     log_info(w->logger, "Puerto Master: %d", w->puerto_master);
     log_info(w->logger, "Ip_Storage: %s", w->ip_storage);

@@ -231,7 +231,6 @@ int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, i
     //pedir el bloque ANTES de registrar la página
     if (pedir_bloque_storage(mem, query_id, file, tag, num_pagina) < 0) {
         log_error(mem->logger, "Error cargando pagina: %d", num_pagina);
-        
         return -1;
     }
     

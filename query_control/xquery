@@ -23,7 +23,8 @@ PIDS=""
 if [ $CANTIDAD -eq 1 ]; then
     echo "Iniciando query 0 con prioridad 0 (ejecución en primer plano)"
     #./bin/query_control ./query_control.config "query_ejemplo_0" 0
-    valgrind --tool=memcheck --leak-check=full --track-origins=yes --log-file=valgrind_query0.log ./bin/query_control ./query_control.config "query_ejemplo_0" 0
+    #valgrind --tool=memcheck --leak-check=full --track-origins=yes --log-file=valgrind_query0.log --show-error-list=yes --error-limit=no ./bin/query_control ./query_control.config "query_ejemplo_0" 0
+    valgrind --tool=memcheck --leak-check=full --leak-resolution=high --show-leak-kinds=all --track-origins=yes --track-fds=yes --trace-children=yes --trace-children-skip='*/bin/*,*/sbin/*' --child-silent-after-fork=no --show-error-list=yes --error-limit=no --errors-for-leak-kinds=all --keep-debuginfo=yes --read-var-info=yes --read-inline-info=yes --sigill-diagnostics=yes --vgdb=no --verbose --log-file=valgrind_xquery.log strace -f -o strace_xquery.log ./bin/query_control ./query_control.config "query_ejemplo_0" 0
 else
     for ((i=0; i<$CANTIDAD; i++)); do
         echo "Iniciando query $i con prioridad $i"

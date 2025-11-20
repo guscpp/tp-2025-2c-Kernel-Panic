@@ -133,9 +133,9 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
                 t_buffer* respuesta_buffer = crear_buffer();
                 t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK, respuesta_buffer);
 
-                //numero adicional de test para que el paquete no salga "vacio"
-                int numero_adicional = 4444;
-                agregar_a_paquete(paquete_respuesta, &numero_adicional, sizeof(int));
+                //paquete con opcode + un dato dummy 
+                // int numero_adicional = 4444;
+                // agregar_a_paquete(paquete_respuesta, &numero_adicional, sizeof(int));
 
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_respuesta);
@@ -146,9 +146,9 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
                 t_buffer* respuesta_buffer = crear_buffer();
                 t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR, respuesta_buffer);
 
-                //numero adicional de test para que el paquete no salga "vacio"
-                int numero_adicional = 4444;
-                agregar_a_paquete(paquete_respuesta, &numero_adicional, sizeof(int));
+                //paquete con opcode + un dato dummy 
+                // int numero_adicional = 4444;
+                // agregar_a_paquete(paquete_respuesta, &numero_adicional, sizeof(int));
 
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_respuesta);

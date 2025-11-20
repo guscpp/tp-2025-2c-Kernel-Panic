@@ -18,6 +18,7 @@ t_query_interpreter* query_interpreter_crear(t_log* logger){
 void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
     //me agarro el PC que me enviaron desde kernel y lo guardo en el PC del interpreter. DOnde verdadeeramente va a avanzar va ser en worker, luego si hay interrupciones voy a sobreescribir el pc que me dio kernel (para poner el actual si es que hubo interrupcion)
     w->interpreter->pc = pcb->pc;
+    int i = 1;
 
     log_info(w->logger, "El archivo_query que se esta ejecutando es %s. Query ID: %d, PC: %d", pcb->nombre_archivo, pcb->query_id, pcb->pc);
     char* instruccion;
@@ -31,7 +32,7 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
             break;
         }
         instruccion = fetch(pcb, w); //aca me llega la instruccion completa
-        
+        printf("printf - i = %d", i++);
 
         w->interpreter->pc++;  //el pc que avanza es el del interpreter
 

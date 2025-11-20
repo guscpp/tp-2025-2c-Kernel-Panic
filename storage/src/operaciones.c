@@ -51,6 +51,8 @@ bool crear_file(t_storage* storage, t_list* parametros)
         return false;
     }
 
+    usleep(storage->retardo_operacion * 1000);  //retardo olbigatorio
+
     int query_id = *(int*)list_get(parametros, 1);
     char* nombre_file = list_get(parametros, 2);
     char* tag_inicial = list_get(parametros, 3);
@@ -104,8 +106,6 @@ bool crear_file(t_storage* storage, t_list* parametros)
     fprintf(metadata_file, "BLOCKS=[]\n");  // <-- CORRECTO: "BLOCKS", NO "BLOQUES"
     fclose(metadata_file);
     free(metadata_path);
-
-    usleep(storage->retardo_operacion * 10);  //retardo olbigatorio
 
     // Log obligatorio con QUERY_ID
     log_info(storage->logger, "##%d- File Creado %s:%s", query_id, nombre_file, tag_inicial);
@@ -567,69 +567,103 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
         log_error(storage->logger, "Parámetros insuficientes para STORAGE_READ_BLOCK");
         return false;
     }
+
     int query_id = *(int*)list_get(parametros, 1);
     char* nombre_file = list_get(parametros, 2);
     char* tag = list_get(parametros, 3);
     int bloque_logico = *(int*)list_get(parametros, 4);
 
-    // Obtener lock en el diccionario
+    if (!nombre_file || !tag) {
+        log_error(storage->logger, "Nombre de file o tag nulos en leer_bloque");
+        return false;
+    }
+
     pthread_mutex_t* file_mutex = get_or_create_file_mutex(storage, nombre_file, tag);
+    if (!file_mutex) {
+        log_error(storage->logger, "No se pudo obtener el mutex para %s:%s", nombre_file, tag);
+        return false;
+    }
     pthread_mutex_lock(file_mutex);
 
-    if (!nombre_file || !tag || strlen(nombre_file) == 0 || strlen(tag) == 0) {
-        log_error(storage->logger, "Nombre de File o Tag inválido");
-        pthread_mutex_unlock(file_mutex);
-        return false;
-    }
-
-    char* ruta_tag = string_from_format("%s/files/%s/%s", storage->punto_montaje, nombre_file, tag);
-    if (access(ruta_tag, F_OK) != 0) {
-        log_error(storage->logger, "File:Tag inexistente: %s:%s", nombre_file, tag);
-        free(ruta_tag);
-        pthread_mutex_unlock(file_mutex);
-        return false;
-    }
-    free(ruta_tag);
-
-    char* metadata_path = string_from_format("%s/files/%s/%s/metadata.config",
-                                            storage->punto_montaje, nombre_file, tag);
-    t_config* metadata = config_create(metadata_path);
-    if (!metadata) {
-        log_error(storage->logger, "No se pudo cargar metadata de %s:%s", nombre_file, tag);
-        free(metadata);
+    // 1. Verificar existencia del archivo de metadata
+    char* metadata_path = string_from_format("%s/files/%s/%s/metadata.config", storage->punto_montaje, nombre_file, tag);
+    if (access(metadata_path, F_OK) != 0) {
+        log_error(storage->logger, "No existe metadata para %s:%s", nombre_file, tag);
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
         return false;
     }
 
+    t_config* metadata = config_create(metadata_path);
+    if (!metadata) {
+        log_error(storage->logger, "No se pudo cargar metadata de %s:%s", nombre_file, tag);
+        free(metadata_path);
+        pthread_mutex_unlock(file_mutex);
+        return false;
+    }
+
+    // 2. Verificar límites de archivo
     int tam_archivo = config_get_int_value(metadata, "TAMANIO");
     int bloques_logicos_totales = (tam_archivo + storage->tamanio_bloque - 1) / storage->tamanio_bloque;
-
     if (bloque_logico < 0 || bloque_logico >= bloques_logicos_totales) {
-        log_error(storage->logger, "Lectura fuera de límite: bloque lógico %d en archivo de %d bytes",
-                  bloque_logico, tam_archivo);
+        log_error(storage->logger, "Lectura fuera de límite: bloque lógico %d en archivo de %d bytes (total bloques: %d)", bloque_logico, tam_archivo, bloques_logicos_totales);
         config_destroy(metadata);
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
         return false;
     }
 
+    // 3. Obtener lista de bloques físicos y verificar el índice
+    char** bloques_fisicos_array = config_get_array_value(metadata, "BLOCKS");
+    int cantidad_bloques_metadata = get_array_length(bloques_fisicos_array);
+    if (bloque_logico >= cantidad_bloques_metadata) {
+        log_error(storage->logger, "Índice de bloque lógico %d fuera de rango para la lista de bloques físicos (longitud: %d)", bloque_logico, cantidad_bloques_metadata);
+        config_destroy(metadata);
+        if (bloques_fisicos_array) {
+            for (int i = 0; bloques_fisicos_array[i] != NULL; i++) free(bloques_fisicos_array[i]);
+            free(bloques_fisicos_array);
+        }
+        free(metadata_path);
+        pthread_mutex_unlock(file_mutex);
+        return false;
+    }
+
+    // 4. Verificar que el bloque físico no sea nulo o vacío
+    if (bloques_fisicos_array[bloque_logico] == NULL || strlen(bloques_fisicos_array[bloque_logico]) == 0) {
+        log_error(storage->logger, "Bloque físico en posición %d es inválido o vacío", bloque_logico);
+        config_destroy(metadata);
+        if (bloques_fisicos_array) {
+            for (int i = 0; bloques_fisicos_array[i] != NULL; i++) free(bloques_fisicos_array[i]);
+            free(bloques_fisicos_array);
+        }
+        free(metadata_path);
+        pthread_mutex_unlock(file_mutex);
+        return false;
+    }
+
+    //int bloque_fisico_actual = atoi(bloques_fisicos_array[bloque_logico]);
     config_destroy(metadata);
+    if (bloques_fisicos_array) {
+        for (int i = 0; bloques_fisicos_array[i] != NULL; i++) free(bloques_fisicos_array[i]);
+        free(bloques_fisicos_array);
+    }
     free(metadata_path);
 
-    char* nombre_bloque = string_from_format("%06d.dat", bloque_logico);
-    char* ruta_bloque_logico = string_from_format("%s/files/%s/%s/logical_blocks/%s",
-                                                 storage->punto_montaje, nombre_file, tag, nombre_bloque);
-    free(nombre_bloque);
+    // 5. Construir la ruta al archivo del bloque físico
+    char* nombre_bloque_logico = string_from_format("%06d.dat", bloque_logico);
+    char* ruta_bloque_logico = string_from_format("%s/files/%s/%s/logical_blocks/%s", storage->punto_montaje, nombre_file, tag, nombre_bloque_logico);
+    free(nombre_bloque_logico);
 
-    FILE* f_bloque = fopen(ruta_bloque_logico, "r"); //deberia ser "rb" si son binarios
+    // 6. Abrir y leer el archivo del bloque lógico
+    FILE* f_bloque = fopen(ruta_bloque_logico, "rb");
     if (!f_bloque) {
-        log_error(storage->logger, "No se encontró el bloque lógico: %s", ruta_bloque_logico);
+        log_error(storage->logger, "No se pudo abrir el bloque lógico %s para lectura", ruta_bloque_logico);
         free(ruta_bloque_logico);
         pthread_mutex_unlock(file_mutex);
         return false;
     }
 
+    // 7. Asignar memoria para el contenido
     *contenido = malloc(storage->tamanio_bloque);
     if (!*contenido) {
         log_error(storage->logger, "Error al allocar memoria para contenido de bloque en leer_bloque");
@@ -638,23 +672,44 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
         pthread_mutex_unlock(file_mutex);
         return false;
     }
+
+    // 8. Leer el archivo del bloque
     size_t leido = fread(*contenido, 1, storage->tamanio_bloque, f_bloque);
     fclose(f_bloque);
     free(ruta_bloque_logico);
 
+    // 9. Verificar el resultado de fread
+    if (leido == 0 && ferror(f_bloque)) { // fread falló
+        log_error(storage->logger, "Error al leer el bloque lógico");
+        free(*contenido);
+        *contenido = NULL; // Asegurar que el puntero sea NULL si falla
+        pthread_mutex_unlock(file_mutex);
+        return false;
+    }
+
+    // Si se leyó menos de lo esperado pero no es EOF, es un error
+    if (leido < storage->tamanio_bloque && !feof(f_bloque)) {
+        log_error(storage->logger, "Lectura parcial del bloque lógico (leídos %zu, esperados %d)", leido, storage->tamanio_bloque);
+        free(*contenido);
+        *contenido = NULL;
+        pthread_mutex_unlock(file_mutex);
+        return false;
+    }
+
+    // Rellenar con ceros solo si se leyó menos que el tamaño del bloque Y es EOF
     if (leido < storage->tamanio_bloque) {
-        //rellenar con ceros si el bloque leído es más pequeño que el tamaño de bloque
         memset((char*)(*contenido) + leido, 0, storage->tamanio_bloque - leido);
     }
+
     *tamanio_bloque = storage->tamanio_bloque;
 
-    //aplicar retardos
-    usleep(storage->retardo_operacion * 10);
-    usleep(storage->retardo_acceso_bloque * 10);
+    // Aplicar retardos
+    usleep(storage->retardo_operacion * 1000);
+    usleep(storage->retardo_acceso_bloque * 1000);
 
-    //log obligatorio
-    log_info(storage->logger, "##%d- Bloque Lógico Leído %s:%s - Número de Bloque: %d",
-             query_id, nombre_file, tag, bloque_logico);
+    // Log obligatorio
+    log_info(storage->logger, "##%d- Bloque Lógico Leído %s:%s - Número de Bloque: %d", query_id, nombre_file, tag, bloque_logico);
+
     pthread_mutex_unlock(file_mutex);
     return true;
 }
@@ -948,8 +1003,8 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     }
 
     // Aplicar retardos
-    usleep(storage->retardo_operacion * 10);
-    usleep(storage->retardo_acceso_bloque * 10);
+    usleep(storage->retardo_operacion * 1000);
+    //usleep(storage->retardo_acceso_bloque * 1000);
 
     // Escribir el nuevo contenido
     fseek(f_bloque_final, 0, SEEK_SET); // Ir al inicio del bloque
@@ -1385,8 +1440,8 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
 
 // ****************************************************************************
 bool eliminar_file_tag(t_storage* storage, int query_id, const char* file, const char* tag) {
-    // Retardo obligatorio
-    usleep(storage->retardo_operacion * 1000);
+    
+    usleep(storage->retardo_operacion * 1000); // Retardo obligatorio
 
     // 1. Verificar si es initial_file:BASE antes de cualquier otra cosa
     if (string_equals_ignore_case((char*)file, "initial_file") && string_equals_ignore_case((char*)tag, "BASE")) {
