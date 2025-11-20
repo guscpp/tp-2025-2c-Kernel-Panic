@@ -88,10 +88,17 @@ char* fetch(Pcb* pcb, t_worker* w){
             {
             ssize_t leido = getline(&buffer_autoselc, &tam_autoselc, pcb->archivo);
             
-            if(leido == -1){
-            log_info(w->logger, "Error al leer la instruccion que se ignora (la del for en fetch)");
-            free(buffer_autoselc); //Tengo que liberar el malloc de buffer_autoselec que le encargue a getline. El getline se ocupo hacerme el malloc
-            return NULL;
+            if(leido == -1) {
+                if(feof(pcb->archivo)) {
+                    // se llego al final del archivo
+                    free(buffer_autoselc);
+                    return strdup("END"); // devolver END explícitamente
+                } else {
+                    // error de lectura
+                    log_error(w->logger, "Error de lectura en el archivo de query");
+                    free(buffer_autoselc);
+                    return NULL;
+                }
             }
 
             }
@@ -105,10 +112,17 @@ char* fetch(Pcb* pcb, t_worker* w){
         buffer_autoselc[strcspn(buffer_autoselc, "\n")] = '\0'; //encuentra un \n en el buffer que lee la linea de instruccion y lo cambio por \0(c)
         string_trim(&buffer_autoselc); //elimina espacios vacios a derecha e izquierda, todos los que pueda encontrar (commins)
 
-        if(leido == -1){
-            log_info(w->logger, "Error al leer la primer instruccion del PC != 0");
-            free(buffer_autoselc);
-            return NULL;
+        if(leido == -1) {
+            if(feof(pcb->archivo)) {
+                // se llego al final del archivo
+                free(buffer_autoselc);
+                return strdup("END"); // devolver END explícitamente
+            } else {
+                // error de lectura
+                log_error(w->logger, "Error de lectura en el archivo de query");
+                free(buffer_autoselc);
+                return NULL;
+            }
         }
         return buffer_autoselc;
         
@@ -121,10 +135,17 @@ char* fetch(Pcb* pcb, t_worker* w){
     buffer_autoselc[strcspn(buffer_autoselc, "\n")] = '\0'; //encuentra un \n en el buffer que lee la linea de instruccion y lo cambio por \0 (c)
     string_trim(&buffer_autoselc); //elimina espacios vacios a derecha e izquierda, todos los que pueda encontrar (commins) :D
 
-        if(leido == -1){
-            log_info(w->logger, "Error al leer la instruccion");
-            free(buffer_autoselc); //Tengo que liberar el malloc de buffer_autoselec que le encargue a getline. El getline se ocupo hacerme el malloc
-            return NULL;
+        if(leido == -1) {
+            if(feof(pcb->archivo)) {
+                // se llego al final del archivo
+                free(buffer_autoselc);
+                return strdup("END"); // devolver END explícitamente
+            } else {
+                // error de lectura
+                log_error(w->logger, "Error de lectura en el archivo de query");
+                free(buffer_autoselc);
+                return NULL;
+            }
         }
         return buffer_autoselc;
     }

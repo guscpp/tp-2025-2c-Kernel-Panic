@@ -289,10 +289,9 @@ void rtas_storage(int storage_socket, t_worker* w) {
         case STORAGE_SEND_OK_DELETE:
             log_info(w->logger, "Storage confirmó eliminación exitosa");
             break;
-        // falta crear
-        // case STORAGE_SEND_OK_FLUSH:
-        //     log_info(w->logger, "Storage confirmó flush exitoso");
-        //     break;
+        case STORAGE_SEND_OK_FLUSH:
+            log_info(w->logger, "Storage confirmó flush exitoso");
+            break;
         case STORAGE_SEND_ERROR_CREATE_FILE:
         case STORAGE_SEND_ERROR_TRUNCATE:
         case STORAGE_SEND_ERROR_WRITE_BLOCK:
@@ -300,7 +299,7 @@ void rtas_storage(int storage_socket, t_worker* w) {
         case STORAGE_SEND_ERROR_TAG:
         case STORAGE_SEND_ERROR_COMMIT:
         case STORAGE_SEND_ERROR_DELETE:
-        //case STORAGE_SEND_ERROR_FLUSH:   
+        case STORAGE_SEND_ERROR_FLUSH:
             log_error(w->logger, "Storage respondió con error");
             // Aquí deberías manejar el error específicamente
             break;

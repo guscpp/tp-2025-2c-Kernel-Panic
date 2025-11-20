@@ -70,10 +70,8 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
         switch (codigo_operacion)
         {
         case STORAGE_GET_BLOCK_SIZE:
-            
             log_info(storage->logger, "Operacion STORAGE_GET_BLOCK_SIZE");
             enviar_tamanio_paquete_aworker(storage, socket_cliente);
-            
             break;
             
         case STORAGE_CREATE_FILE:
@@ -91,7 +89,6 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_respuesta);
             }
-            
             break;
 
         case STORAGE_TRUNCATE:
@@ -127,54 +124,54 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             break;
 
         case STORAGE_COMMIT:
-            
             if (realizar_commit(storage, paquete)) {
-
                 log_info(storage->logger, "Commit realizado exitosamente");
                 t_buffer* respuesta_buffer = crear_buffer();
                 t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK_COMMIT, respuesta_buffer);
-
-                //paquete con opcode + un dato dummy 
-                // int numero_adicional = 4444;
-                // agregar_a_paquete(paquete_respuesta, &numero_adicional, sizeof(int));
-
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_respuesta);
-                
             } else {
-
                 log_error(storage->logger, "Error al realizar commit");
                 t_buffer* respuesta_buffer = crear_buffer();
                 t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR_COMMIT, respuesta_buffer);
+                enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
+                eliminar_paquete(paquete_respuesta);
+            }
+            break;
 
-                //paquete con opcode + un dato dummy 
-                // int numero_adicional = 4444;
-                // agregar_a_paquete(paquete_respuesta, &numero_adicional, sizeof(int));
-
+        case STORAGE_FLUSH:
+            if(flush_archivo(storage, paquete)){
+                log_info(storage->logger, "FLUSH realizado exitosamente");
+                t_buffer* respuesta_buffer = crear_buffer();
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK_FLUSH, respuesta_buffer);
+                enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
+                eliminar_paquete(paquete_respuesta);
+            } else {
+                log_error(storage->logger, "Error al realizar FLUSH");
+                t_buffer* respuesta_buffer = crear_buffer();
+                t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_ERROR_FLUSH, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_respuesta);
             }
             break;
 
         case STORAGE_READ_BLOCK:
-            {
-                void* contenido_bloque = NULL;
-                int tamanio_bloque = storage->tamanio_bloque;
-                if (leer_bloque(storage, paquete, &contenido_bloque, &tamanio_bloque)) {
-                    log_info(storage->logger, "Contenido leido: %p, tamaño: %d", contenido_bloque, tamanio_bloque);
-                    t_buffer* buffer_resp = crear_buffer();
-                    t_paquete* paquete_resp = crear_paquete(STORAGE_SEND_OK_READ_BLOCK, buffer_resp);
-                    agregar_a_paquete(paquete_resp, contenido_bloque, tamanio_bloque);
-                    log_info(storage->logger, "Contenido leido: %p, tamaño: %d", contenido_bloque, tamanio_bloque);
-                    enviar_paquete(paquete_resp, socket_cliente, storage->logger);
-                    eliminar_paquete(paquete_resp);
-                    free(contenido_bloque);
-                } else {
-                    t_buffer* buf_err = crear_buffer();
-                    t_paquete* pkt_err = crear_paquete(STORAGE_SEND_ERROR_READ_BLOCK, buf_err);
-                    enviar_paquete(pkt_err, socket_cliente, storage->logger);
-                    eliminar_paquete(pkt_err);
-                }
+            void* contenido_bloque = NULL;
+            int tamanio_bloque = storage->tamanio_bloque;
+            if (leer_bloque(storage, paquete, &contenido_bloque, &tamanio_bloque)) {
+                log_info(storage->logger, "Contenido leido: %p, tamaño: %d", contenido_bloque, tamanio_bloque);
+                t_buffer* buffer_resp = crear_buffer();
+                t_paquete* paquete_resp = crear_paquete(STORAGE_SEND_OK_READ_BLOCK, buffer_resp);
+                agregar_a_paquete(paquete_resp, contenido_bloque, tamanio_bloque);
+                log_info(storage->logger, "Contenido leido: %p, tamaño: %d", contenido_bloque, tamanio_bloque);
+                enviar_paquete(paquete_resp, socket_cliente, storage->logger);
+                eliminar_paquete(paquete_resp);
+                free(contenido_bloque);
+            } else {
+                t_buffer* buf_err = crear_buffer();
+                t_paquete* pkt_err = crear_paquete(STORAGE_SEND_ERROR_READ_BLOCK, buf_err);
+                enviar_paquete(pkt_err, socket_cliente, storage->logger);
+                eliminar_paquete(pkt_err);
             }
             break;
 
@@ -208,7 +205,6 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_respuesta);
             } 
-
             break;
         
         default:

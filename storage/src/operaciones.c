@@ -1437,6 +1437,12 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
     return true;
 }
 
+//*****************************************************************************
+bool flush_archivo(t_storage* storage, t_list* paquete) {
+
+    // falta implementar, claramente
+    return true;
+}
 
 // ****************************************************************************
 bool eliminar_file_tag(t_storage* storage, t_list* parametros) {

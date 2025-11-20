@@ -9,6 +9,7 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
 bool escribir_bloque(t_storage* storage, t_list* parametros);
 bool eliminar_file_tag(t_storage* storage, t_list* parametros);
 bool realizar_commit(t_storage* storage, t_list* parametros);
+bool flush_archivo(t_storage* storage, t_list* paquete);
 
 
 // === Funciones auxiliares internas ===
