@@ -222,7 +222,7 @@ void atender_Query(t_hacerConnect*  informacion){ // RECORDAR CAMBIAR ESTRUCTURA
    list_add(cola_queries, nuevaQuery);
    pthread_mutex_unlock(&mutexColaQuery);
  if(strcmp(algoritmo_planificacion, "PRIORIDADES") == 0){
-    pthread_create(&nuevaQuery->hilo_timer, NULL, atender_timer_query, nuevaQuery);
+    pthread_create(&nuevaQuery->hilo_timer, NULL, atender_timer_query, informacion);
    
  }
    // SOLO PARA PRUEBASSS
@@ -282,21 +282,21 @@ void chequeador_desalojo(int prioridad,t_hacerConnect* info){
     t_query* queryMayor =  list_get_maximum(query_en_worker, _max_prioridad);
     pthread_mutex_lock(&mutexCantWorkers);
     if(list_size(query_en_worker) == cantidadWorkers && prioridad< queryMayor->prioridad){
-       realizar_desalojo( queryMayor->id,info->logger);
+       realizar_desalojo( queryMayor->id,queryMayor->idWorker,info->logger);
     }
     pthread_mutex_unlock(&mutexCantWorkers);
     pthread_mutex_unlock(&mutexQueryEnWorker);
  
 }
 
-void realizar_desalojo(int idQuery,t_log* logger){
+void realizar_desalojo(int idQuery,int idWorker,t_log* logger){
  log_info(logger, "Se va realizar el desalojo de query id: %d", idQuery);
         t_buffer* buffer=crear_buffer();
         t_paquete* paquete = crear_paquete(WORKER_DESALOJO,buffer);
         int a2 = 5;
         agregar_a_paquete(paquete, &a2, sizeof(int));
         pthread_mutex_lock(&mutexListaWorkers);
-        t_worker* worker =  obtener_por_id_worker( lista_workers, idQuery);
+        t_worker* worker =  obtener_por_id_worker( lista_workers, idWorker );
         enviar_paquete(paquete, worker->socket_interruption,logger );
         log_info(logger, "Se realiza el desalojo de la query en worker id: %d", worker->id);
         pthread_mutex_unlock(&mutexListaWorkers);
@@ -320,26 +320,27 @@ void* atender_desconexion_query(void* arg){
     t_query* informacion = (t_query*) arg;
   
     char buffer[1];
-
     int ret = recv(informacion->socket, buffer, 1, 0);
 
     if (ret == 0) {
-      
-    
+
         log_warning(informacion->logger, "QUERY SE DESCONECTO ID: %d", informacion->id);
         close(informacion->socket);
         informacion->alive = false;
+
         if(informacion->estado == RUNNING){
-            realizar_desalojo(informacion->id,informacion->logger);
+            realizar_desalojo(informacion->id, informacion->idWorker, informacion->logger);
+            
         }
-        if(strcmp(algoritmo_planificacion, "PRIORIDADES") == 0){
-        pthread_join(informacion->hilo_timer, NULL);}
-        free(informacion);
-        } 
-       
+        informacion->estado=EXIT;
+        if (strcmp(algoritmo_planificacion, "PRIORIDADES") == 0) {
+            pthread_join(informacion->hilo_timer, NULL);
+        }
 
+        free(informacion);   // ← SOLO se libera aquí
+        return NULL;
+    }
     return NULL;
-
 }
 
 
@@ -527,7 +528,7 @@ void atender_Worker(t_hacerConnect* informacion){
             log_info(informacion->logger, "Conexión cerrada con Query %d", idQuery);
 
             eliminar_paquete(paquete);
-            free(errorInstruccion);
+           // free(errorInstruccion);
             list_destroy_and_destroy_elements(paqueteWorker, free);
 
             //reiniciar Worker
@@ -576,7 +577,7 @@ void atender_Worker(t_hacerConnect* informacion){
             log_info(informacion->logger, "Conexión cerrada con Query %d", idQuery);
 
             eliminar_paquete(paquete);
-            free(errorCommit);
+           // free(errorCommit);
             list_destroy_and_destroy_elements(paqueteWorker, free);
 
             //reiniciar Worker
@@ -625,7 +626,7 @@ void atender_Worker(t_hacerConnect* informacion){
             log_info(informacion->logger, "Conexión cerrada con Query %d", idQuery);
 
             eliminar_paquete(paquete);
-            free(errorTamanioEscritura);
+           // free(errorTamanioEscritura);
             list_destroy_and_destroy_elements(paqueteWorker, free);
 
             //reiniciar Worker
@@ -690,13 +691,18 @@ void atender_Worker(t_hacerConnect* informacion){
             queryRecivida = eliminar_por_id(query_en_worker,idQuery );
             queryRecivida->estado= READY;
             pthread_mutex_unlock(&mutexQueryEnWorker);
-             int idWorker = queryRecivida -> idWorker;
+            if(queryRecivida != NULL){
+                
+            
+          //  int idWorker = queryRecivida -> idWorker;
             queryRecivida->programCounter = *(int*)list_get(paqueteWorker, 3);
             pthread_mutex_lock(&mutexColaQuery);
             list_add(cola_queries, queryRecivida);
             pthread_mutex_unlock(&mutexColaQuery);
             log_info(informacion->logger,"se recivbio la query desalojada");
-            comenzar_a_ejecutar(informacion,idWorker);
+            }
+            comenzar_a_ejecutar(informacion,informacion->id);
+            
 
         }
         case WORKER_ERROR_TAMANIO_LECTURA_EXCEDIDO:{
@@ -739,7 +745,7 @@ void atender_Worker(t_hacerConnect* informacion){
             log_info(informacion->logger, "Conexión cerrada con Query %d", idQuery);
 
             eliminar_paquete(paquete);
-            free(errorTamanioEscritura);
+            //free(errorTamanioEscritura);
             list_destroy_and_destroy_elements(paqueteWorker, free);
 
             //reiniciar Worker
