@@ -1439,9 +1439,106 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
 
 //*****************************************************************************
 bool flush_archivo(t_storage* storage, t_list* paquete) {
+    // Verificar parametros mínimos
+    if (!paquete || list_size(paquete) < 5) {
+        log_error(storage->logger, "Parámetros insuficientes para STORAGE_FLUSH");
+        return false;
+    }
 
-    // falta implementar, claramente
-    return true;
+    usleep(storage->retardo_operacion * 1000); // Retardo obligatorio
+
+    int query_id = *(int*)list_get(paquete, 1);
+    char* file = list_get(paquete, 2);
+    char* tag = list_get(paquete, 3);
+
+    // Obtener lock en el diccionario
+    pthread_mutex_t* file_mutex = get_or_create_file_mutex(storage, file, tag);
+    pthread_mutex_lock(file_mutex);
+
+    log_info(storage->logger, "Iniciando FLUSH para %s:%s", file, tag);
+
+    // 1. Verificar existencia del File:Tag
+    char* ruta_tag = string_from_format("%s/files/%s/%s", storage->punto_montaje, file, tag);
+    if (access(ruta_tag, F_OK) != 0) {
+        log_error(storage->logger, "File:Tag %s:%s no existe para FLUSH", file, tag);
+        free(ruta_tag);
+        pthread_mutex_unlock(file_mutex);
+        return false;
+    }
+    free(ruta_tag);
+
+    // 2. Verificar que no este COMMITED
+    if (verificar_si_commited(storage, file, tag)) {
+        log_error(storage->logger, "ERROR: Intento de FLUSH en File:Tag COMMITED: %s:%s", file, tag);
+        pthread_mutex_unlock(file_mutex);
+        return false;
+    }
+
+    // 3. Obtener cantidad de paginas modificadas (ultimo elemento del paquete)
+    int cantidad_paginas = *(int*)list_get(paquete, list_size(paquete) - 1);
+    log_info(storage->logger, "FLUSH para %s:%s - %d bloques a persistir", file, tag, cantidad_paginas);
+
+    // 4. Procesar cada bloque modificado
+    bool todas_exitosas = true;
+    int idx_datos = 4; // Posicion inicial de los datos de los bloques
+
+    for (int i = 0; i < cantidad_paginas; i++) {
+        if (idx_datos + 1 >= list_size(paquete)) {
+            log_error(storage->logger, "Paquete de FLUSH incompleto para bloque %d de %s:%s", 
+                     i, file, tag);
+            todas_exitosas = false;
+            break;
+        }
+
+        // Obtener numero de bloque y contenido
+        int numero_bloque = *(int*)list_get(paquete, idx_datos++);
+        char* contenido = list_get(paquete, idx_datos++);
+
+        // Crear un paquete temporal para usar con escribir_bloque
+        t_list* paquete_write = list_create();
+        
+        // Copiar los parametros necesarios para escribir_bloque
+        int cod_op_write = STORAGE_WRITE_BLOCK;
+        list_add(paquete_write, &cod_op_write); // [0] codigo de operacion
+        list_add(paquete_write, &query_id);     // [1] query_id
+        list_add(paquete_write, string_duplicate(file)); // [2] nombre_file
+        list_add(paquete_write, string_duplicate(tag));  // [3] tag
+        list_add(paquete_write, &numero_bloque);          // [4] bloque_logico
+        
+        // Para el contenido, hacer una copia para evitar problemas de memoria
+        char* contenido_copia = malloc(storage->tamanio_bloque);
+        if (!contenido_copia) {
+            log_error(storage->logger, "Error al asignar memoria para contenido de FLUSH");
+            list_destroy_and_destroy_elements(paquete_write, free);
+            todas_exitosas = false;
+            break;
+        }
+        memcpy(contenido_copia, contenido, storage->tamanio_bloque);
+        list_add(paquete_write, contenido_copia); // [5] contenido
+
+        // Escribir el bloque usando la funcion existente
+        if (!escribir_bloque(storage, paquete_write)) {
+            log_error(storage->logger, "Error al escribir bloque %d durante FLUSH de %s:%s", 
+                     numero_bloque, file, tag);
+            todas_exitosas = false;
+        }
+
+        // Aplicar retardo por acceso a bloque
+        usleep(storage->retardo_acceso_bloque * 1000);
+
+        // Liberar recursos del paquete temporal
+        list_destroy_and_destroy_elements(paquete_write, free);
+        free(contenido_copia);
+    }
+
+    pthread_mutex_unlock(file_mutex);
+
+    if (todas_exitosas) {
+        log_info(storage->logger, "##%d- FLUSH realizado exitosamente para %s:%s", 
+                query_id, file, tag);
+    }
+
+    return todas_exitosas;
 }
 
 // ****************************************************************************
