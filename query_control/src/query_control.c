@@ -5,17 +5,30 @@ t_query_control* inicializar_query_control(int argc, char* argv[])
 {
     t_query_control* qc = malloc(sizeof(t_query_control));
 
-    qc->logger        = iniciar_logger("query_control.log", "[QUERY_CONTROL]", true, LOG_LEVEL_INFO);
-    qc->config        = iniciar_config(qc->logger, argv[1]);
-    qc->ip_master     = config_get_string_value(qc->config, "IP_MASTER");
+    // Logger temporal para inicialización
+    t_log* logger_temp = iniciar_logger("query_control.log", "[QUERY_CONTROL_INIT]", true, LOG_LEVEL_INFO);
+
+    qc->config = iniciar_config(logger_temp, argv[1]);
+
+    // Obtener nivel real del config
+    qc->log_level = config_get_string_value(qc->config, "LOG_LEVEL");
+    t_log_level nivel = obtener_log_level(qc->log_level);
+
+    // Crear logger final con el nivel real
+    qc->logger = iniciar_logger("query_control.log", "[QUERY_CONTROL]", true, nivel);
+
+    // Ya puedo destruir el logger temporal
+    log_destroy(logger_temp);
+
+    qc->ip_master     = strdup(config_get_string_value(qc->config, "IP_MASTER"));
     qc->puerto_master = config_get_int_value(qc->config, "PUERTO_MASTER");
-    qc->log_level     = config_get_string_value(qc->config, "LOG_LEVEL");
     qc->archivo_query = argv[2];
     qc->prioridad     = atoi(argv[3]);
-    qc->master_socket = -1; //valor centinela
+    qc->master_socket = -1;
 
     return qc;
 }
+
 
 
 void verificar_query_control(t_query_control* qc)
@@ -26,6 +39,7 @@ void verificar_query_control(t_query_control* qc)
     log_info(qc->logger, "** Archivo de query: %s", qc->archivo_query);
     log_info(qc->logger, "** Prioridad: %d", qc->prioridad);
     log_info(qc->logger, "** Nivel de log: %s", qc->log_level);
+    log_debug(qc->logger, "** Nivel de log debug anda ");
 }
 
 
@@ -162,6 +176,18 @@ void procesar_respuestas_master(t_query_control* qc)
                 return;
             }
 
+            
+            case QUERY_RESPONSE_ERROR_ARCHIVO_QUERY_NO_ENCONTRADO: {
+                
+
+                char* path = (char*)list_get(paqueteMaster, 1);
+    
+                log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Archivo de Query : %s No Encontrado" COLOR_VERDE, path);
+
+                list_destroy_and_destroy_elements(paqueteMaster, free);
+                return;
+            }
+
             case QUERY_RESPONSE_ERROR_ERROR_EN_INSTRUCCION: {
 
                 char* instruccion = (char*)list_get(paqueteMaster, 1);
@@ -206,6 +232,17 @@ void procesar_respuestas_master(t_query_control* qc)
                 char* file = (char*)list_get(paqueteMaster, 1);
                 char* tag = (char*)list_get(paqueteMaster, 2);
                 log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Tamaño de Escritura Excedido Para el Archivo %s:%s" COLOR_VERDE, file, tag);
+
+                list_destroy_and_destroy_elements(paqueteMaster, free);
+                return;
+
+            }
+
+            case QUERY_RESPONSE_ERROR_TAMANIO_LECTURA_EXCEDIDO: {
+                
+                char* file = (char*)list_get(paqueteMaster, 1);
+                char* tag = (char*)list_get(paqueteMaster, 2);
+                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Tamaño de Lectura Excedido Para el Archivo %s:%s" COLOR_VERDE, file, tag);
 
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
