@@ -30,7 +30,7 @@ t_storage* iniciar_storage(){
     pthread_mutex_init(&storage->mutex_dict_locks, NULL);
     
     PATH_BASE = storage->punto_montaje; //se inicializa la variable global del Papu :p
-    log_info(storage->logger, "El storage se inicializo correctamente");
+    log_debug(storage->logger, "El storage se inicializo correctamente");
     return storage;
 }
 
@@ -38,12 +38,12 @@ t_storage* iniciar_storage(){
 // ****************************************************************************
 void verificar_storage(t_storage* s)
 {
-    log_info(s->logger, "Puerto leido: %s", s->puerto_escucha);
-    log_info(s->logger, "Fresh leido: %d", s->fresh_start);
-    log_info(s->logger, "Punto de montaje leido: %s", s->punto_montaje);
-    log_info(s->logger, "Retardo operacion leido: %d", s->retardo_operacion);
-    log_info(s->logger, "Retardo acceso bloque leido: %d", s->retardo_acceso_bloque);
-    log_info(s->logger, "log level leido: %s", s->log_level);
+    log_debug(s->logger, "Puerto leido: %s", s->puerto_escucha);
+    log_debug(s->logger, "Fresh leido: %d", s->fresh_start);
+    log_debug(s->logger, "Punto de montaje leido: %s", s->punto_montaje);
+    log_debug(s->logger, "Retardo operacion leido: %d", s->retardo_operacion);
+    log_debug(s->logger, "Retardo acceso bloque leido: %d", s->retardo_acceso_bloque);
+    log_debug(s->logger, "log level leido: %s", s->log_level);
 }
 
 
@@ -209,7 +209,7 @@ void crear_initial_file(t_storage* storage){
 
     char* path_logico0 = obtener_ruta_absoluta("files/initial_file/BASE/logical_blocks/000000.dat");
     if(link(path_block0, path_logico0) == 0){
-        log_info(storage->logger, "Se creo el link del bloque inicial con el bloque fisico correctamente");
+        log_debug(storage->logger, "Se creo el link del bloque inicial con el bloque fisico correctamente");
     }else{
         log_error(storage->logger, "No se pudo crear el link del bloque inicial con el bloque fisico");
     }
@@ -252,6 +252,25 @@ void formatear_fs(t_storage* storage){
 
     crear_directorios("files");
     crear_directorios("physical_blocks");
+
+    // Crear TODOS los bloques físicos
+    for (int i = 0; i < cantidad_bloques; i++) {
+        char* bloque_path = string_from_format("physical_blocks/block%04d.dat", i);
+        char* bloque_abs = obtener_ruta_absoluta(bloque_path);
+        
+        FILE* bloque_file = fopen(bloque_abs, "w");
+        if (bloque_file) {
+            // Inicializar con ceros
+            void* ceros = calloc(1, storage->tamanio_bloque);
+            fwrite(ceros, 1, storage->tamanio_bloque, bloque_file);
+            free(ceros);
+            fclose(bloque_file);
+        }
+        
+        free(bloque_path);
+        free(bloque_abs);
+    }
+
     free(path_hash);
     free(path_bmap);
     free(path_files);
@@ -264,16 +283,16 @@ void formatear_fs(t_storage* storage){
 
 // ****************************************************************************
 bool inicializar_file_system(t_storage* storage){
-    log_info(storage->logger, "Inicializando File System...");
+    log_debug(storage->logger, "Inicializando File System...");
 
     PATH_BASE = storage->punto_montaje;
     char* path_bmap = storage->path_bitmap;
 
     if(storage->fresh_start){
-        log_info(storage->logger, "FRESH_START=TRUE → Formateo inicial");
+        log_debug(storage->logger, "FRESH_START=TRUE → Formateo inicial");
         formatear_fs(storage);
     }else{
-        log_info(storage->logger, "FRESH_START=FALSE → Mantiene el contenido preexistente");
+        log_debug(storage->logger, "FRESH_START=FALSE → Mantiene el contenido preexistente");
 
         FILE* f = fopen(path_bmap, "rb");
         if (!f) {
@@ -310,7 +329,7 @@ bool inicializar_file_system(t_storage* storage){
         // Crear el t_bitarray (commons bitarray_create toma ownership del puntero)
     storage->bitmap = bitarray_create_with_mode(bitarray_data, bitmap_size, LSB_FIRST);
     
-        log_info(storage->logger, "Bitmap cargado correctamente (%zu bytes, %d bloques)", 
+        log_debug(storage->logger, "Bitmap cargado correctamente (%zu bytes, %d bloques)", 
                  bitmap_size, cantidad_bloques);
     }
     return true;
@@ -326,7 +345,7 @@ void enviar_tamanio_paquete_aworker(t_storage* storage, int worker_fd)
     int tamanio_paquete = storage->tamanio_bloque; //solo para probar que mande la respuesta
     agregar_a_paquete(paquete, &tamanio_paquete, sizeof(int));
     enviar_paquete(paquete, worker_fd, storage->logger);
-    log_info(storage->logger, "Llegue a enviar");
+    log_debug(storage->logger, "Llegue a enviar");
 }
 
 

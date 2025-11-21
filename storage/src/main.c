@@ -14,7 +14,7 @@ int main(int argc, char* argv[]) {
     inicializar_file_system(storage); // crea el FS si es fresh start
 
     int storage_fd = iniciar_servidor(storage->puerto_escucha);  //socket, bind, listen    inicia el servidor 
-    log_info(storage->logger, "Servidor listo");
+    log_debug(storage->logger, "Servidor listo");
 
     rutina_recepcion(storage, storage_fd); // acepta conexiones y crea hilos para cada worker que se conecte
 

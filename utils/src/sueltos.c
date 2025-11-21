@@ -22,7 +22,7 @@ t_config *iniciar_config(t_log *logger, char *path)
         log_error(logger, "Error al crear el puntero al archivo de configuracion: %s", path);
         exit(EXIT_FAILURE);
     }
-    log_info(logger, "Archivo de configuración cargado correctamente: %s", path);
+    log_debug(logger, "Archivo de configuración cargado correctamente: %s", path);
 
     return new_config;
 }

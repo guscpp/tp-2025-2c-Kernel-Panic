@@ -39,7 +39,7 @@ void marcar_bloque_libre(t_storage* storage, int query_id, int numero_bloque) {
 
     bitarray_clean_bit(storage->bitmap, numero_bloque);
     pthread_mutex_unlock(&storage->mutex_bitmap);
-    log_info(storage->logger, "Bloque físico %d marcado como libre", numero_bloque);
+    log_debug(storage->logger, "Bloque físico %d marcado como libre", numero_bloque);
 }
 
 
@@ -108,7 +108,7 @@ bool crear_file(t_storage* storage, t_list* parametros)
     free(metadata_path);
 
     // Log obligatorio con QUERY_ID
-    log_info(storage->logger, "##%d- File Creado %s:%s", query_id, nombre_file, tag_inicial);
+    log_debug(storage->logger, "##%d- File Creado %s:%s", query_id, nombre_file, tag_inicial);
 
     free(ruta_abs_tag);
     pthread_mutex_unlock(file_mutex);
@@ -247,12 +247,12 @@ bool truncar_file(t_storage* storage, t_list* parametros)
     int bloques_actuales = (tamanio_actual + tamanio_bloque - 1) / tamanio_bloque;
     int bloques_nuevos = (nuevo_tamanio + tamanio_bloque - 1) / tamanio_bloque;
 
-    log_info(storage->logger, "Truncando file %s tag %s de %d a %d bytes", nombre_file, tag, tamanio_actual, nuevo_tamanio);
+    log_debug(storage->logger, "Truncando file %s tag %s de %d a %d bytes", nombre_file, tag, tamanio_actual, nuevo_tamanio);
 
     int cantidad_bloques_fisico = 0;
     int* array_bloques_fisico = leer_bloques_actuales(metadata_config, &cantidad_bloques_fisico);
 
-    log_info(storage->logger, "Truncar %s:%s de %d→%d bytes (%d→%d bloques)",
+    log_debug(storage->logger, "Truncar %s:%s de %d→%d bytes (%d→%d bloques)",
              nombre_file, tag, tamanio_actual, nuevo_tamanio, bloques_actuales, bloques_nuevos);
 
     if(bloques_nuevos > bloques_actuales) { // Aumentar tamaño
@@ -275,7 +275,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
                 pthread_mutex_unlock(file_mutex);
                 return false;
             }
-            log_info(storage->logger, "Bloque logico %d creado y linkeado con el bloque fisico 0", i);
+            log_debug(storage->logger, "Bloque logico %d creado y linkeado con el bloque fisico 0", i);
             free(path_logico);
             free(path_fisico);
         }
@@ -306,7 +306,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
             if (stat(path_fisico, &st) == 0) {
                 if(st.st_nlink == 1) { // Si es el ultimo link
                     marcar_bloque_libre(storage, query_id, array_fisico_id);
-                    log_info(storage->logger, "Bloque fisico %d liberado", array_fisico_id);
+                    log_debug(storage->logger, "Bloque fisico %d liberado", array_fisico_id);
                 }
             }
             free(path_fisico);
@@ -531,7 +531,7 @@ bool tag_file(t_storage* storage, t_list* parametros){
                 char* bloque_destino = string_from_format("%s/%s", ruta_logical_destino, entry->d_name);
 
                 if(link(bloque_origen, bloque_destino) == 0){
-                    log_info(storage->logger, "Bloque lógico %s linkeado a %s", bloque_origen, bloque_destino);
+                    log_debug(storage->logger, "Bloque lógico %s linkeado a %s", bloque_origen, bloque_destino);
                 } else {
                     log_error(storage->logger, "Error al linkear bloque lógico %s a %s", bloque_origen, bloque_destino);
                     free(bloque_origen);
@@ -577,7 +577,7 @@ bool tag_file(t_storage* storage, t_list* parametros){
     free(ruta_logical_origen);
     free(ruta_logical_destino);
 
-    log_info(storage->logger, "##<%d>- Tag creado <%s>:<%s>", query_id, nombre_file, tag_destino);
+    log_debug(storage->logger, "##<%d>- Tag creado <%s>:<%s>", query_id, nombre_file, tag_destino);
 
     pthread_mutex_unlock(mutex_b);
     pthread_mutex_unlock(mutex_a);
@@ -734,7 +734,7 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
     usleep(storage->retardo_acceso_bloque * 1000);
 
     // Log obligatorio
-    log_info(storage->logger, "##%d- Bloque Lógico Leído %s:%s - Número de Bloque: %d", query_id, nombre_file, tag, bloque_logico);
+    log_debug(storage->logger, "##%d- Bloque Lógico Leído %s:%s - Número de Bloque: %d", query_id, nombre_file, tag, bloque_logico);
 
     pthread_mutex_unlock(file_mutex);
     return true;
@@ -918,7 +918,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
 
         pthread_mutex_unlock(&storage->mutex_bitmap);
 
-        log_info(storage->logger, "Bloque físico %d reservado para escritura diferenciada", nuevo_bloque_fisico);
+        log_debug(storage->logger, "Bloque físico %d reservado para escritura diferenciada", nuevo_bloque_fisico);
 
         // c. Obtener rutas de los bloques fisico origen y destino
         char* ruta_fisico_actual = string_from_format("%s/physical_blocks/block%04d.dat", storage->punto_montaje, bloque_fisico_actual);
@@ -963,7 +963,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
             pthread_mutex_unlock(file_mutex);
             return false;
         }
-        log_info(storage->logger, "##%d-%s:%s Se eliminó el hard link del bloque lógico %d al bloque físico %d",
+        log_debug(storage->logger, "##%d-%s:%s Se eliminó el hard link del bloque lógico %d al bloque físico %d",
                  query_id, nombre_file, tag, bloque_logico, bloque_fisico_actual);
 
         // f. Crear nuevo hard link del bloque logico al nuevo bloque físico
@@ -979,7 +979,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
              pthread_mutex_unlock(file_mutex);
              return false;
         }
-        log_info(storage->logger, "##%d-%s:%s Se agregó el hard link del bloque lógico %d al bloque físico %d",
+        log_debug(storage->logger, "##%d-%s:%s Se agregó el hard link del bloque lógico %d al bloque físico %d",
                  query_id, nombre_file, tag, bloque_logico, nuevo_bloque_fisico);
 
         free(ruta_bloque_logico_upd);
@@ -1055,7 +1055,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     free(ruta_fisico_final);
 
     // 5. Log obligatorio
-    log_info(storage->logger, "##%d- Bloque Lógico Escrito %s:%s - Número de Bloque: %d",
+    log_debug(storage->logger, "##%d- Bloque Lógico Escrito %s:%s - Número de Bloque: %d",
              query_id, nombre_file, tag, bloque_logico);
 
     pthread_mutex_unlock(file_mutex);
@@ -1094,7 +1094,7 @@ char* calcular_md5_por_bloque(const char* path_bloque, int tamanio_bloque)
 // Evita duplicidad de bloques al commitear un file:tag.
 // Compara hashes de cada bloque contra blocks_hash_index.config
 void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
-    log_info(storage->logger, "Iniciando proceso de deduplicación para %s:%s", file, tag);
+    log_debug(storage->logger, "Iniciando proceso de deduplicación para %s:%s", file, tag);
 
     // 1. Cargar metadata.config del file:tag
     char* metadata_path = string_from_format("%s/files/%s/%s/metadata.config",
@@ -1119,7 +1119,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
     char** bloques_str = config_get_array_value(metadata, "BLOCKS");
     int cantidad_bloques = get_array_length(bloques_str);
     if (cantidad_bloques == 0 || !bloques_str) {
-        log_info(storage->logger, "No hay bloques para deduplicar en %s:%s", file, tag);
+        log_debug(storage->logger, "No hay bloques para deduplicar en %s:%s", file, tag);
         config_destroy(metadata);
         if (bloques_str) string_array_destroy(bloques_str);
         free(metadata_path);
@@ -1219,7 +1219,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
             }
 
             if (bloque_existente >= 0 && bloque_existente != bloque_fisico_actual) {
-                log_info(storage->logger, "Deduplicación: Bloque lógico %d de %s:%s reasignado de %d a %d (hash: %s)",
+                log_debug(storage->logger, "Deduplicación: Bloque lógico %d de %s:%s reasignado de %d a %d (hash: %s)",
                         i, file, tag, bloque_fisico_actual, bloque_existente, hash);
 
                 // a. Actualizar el bloque en la metadata (nuevo array)
@@ -1266,7 +1266,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
                             if (dst) fclose(dst);
                         }
                     } else {
-                        log_info(storage->logger, "Enlace lógico %d actualizado correctamente en %s:%s", 
+                        log_debug(storage->logger, "Enlace lógico %d actualizado correctamente en %s:%s", 
                                 i, file, tag);
                     }
                     free(path_bloque_existente);
@@ -1281,14 +1281,14 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
                 pthread_mutex_lock(&storage->mutex_bitmap);
                 if (bitarray_test_bit(storage->bitmap, bloque_fisico_actual)) {
                     bitarray_clean_bit(storage->bitmap, bloque_fisico_actual);
-                    log_info(storage->logger, "##0-%s:%s Bloque Físico Liberado- Número de Bloque: %d",
+                    log_debug(storage->logger, "##0-%s:%s Bloque Físico Liberado- Número de Bloque: %d",
                             file, tag, bloque_fisico_actual);
                     
                     // Verificar si el bloque físico no tiene más enlaces y eliminarlo
                     struct stat st;
                     if (stat(path_bloque_fisico, &st) == 0 && st.st_nlink == 1) { // Solo si es el único enlace
                         if (remove(path_bloque_fisico) == 0) {
-                            log_info(storage->logger, "Bloque físico %d eliminado físicamente (sin enlaces)", 
+                            log_debug(storage->logger, "Bloque físico %d eliminado físicamente (sin enlaces)", 
                                     bloque_fisico_actual);
                         }
                     }
@@ -1300,7 +1300,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
                 nuevos_bloques_str[i] = string_duplicate(bloques_str[i]); // Copiar el valor original
             } else {
                  // El bloque ya era el correcto, solo loggear y copiar
-                log_info(storage->logger, "Bloque lógico %d de %s:%s ya estaba correctamente apuntando al bloque físico %d (hash: %s)",
+                log_debug(storage->logger, "Bloque lógico %d de %s:%s ya estaba correctamente apuntando al bloque físico %d (hash: %s)",
                         i, file, tag, bloque_existente, hash);
                 nuevos_bloques_str[i] = string_duplicate(bloque_existente_str); // Copiar el valor correcto
             }
@@ -1308,7 +1308,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
             // No existe, agregarlo al índice
             char* valor_bloque = string_from_format("block%04d", bloque_fisico_actual);
             config_set_value(hash_index, hash, valor_bloque);
-            log_info(storage->logger, "##0-%s:%s Nuevo hash agregado al índice: %s -> %s",
+            log_debug(storage->logger, "##0-%s:%s Nuevo hash agregado al índice: %s -> %s",
                     file, tag, hash, valor_bloque);
             free(valor_bloque);
             nuevos_bloques_str[i] = string_duplicate(bloques_str[i]); // Copiar el valor original
@@ -1330,7 +1330,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
     // 7. Guardar el índice de hashes actualizado
     config_save(hash_index);
 
-    log_info(storage->logger, "Proceso de deduplicación completado para %s:%s", file, tag);
+    log_debug(storage->logger, "Proceso de deduplicación completado para %s:%s", file, tag);
 
     // 8. Liberar recursos
     config_destroy(metadata);
@@ -1363,7 +1363,7 @@ void persistir_bitmap(t_storage* storage) {
     }
     fwrite(storage->bitmap->bitarray, 1, storage->bitmap->size, f);
     fclose(f);
-    log_info(storage->logger, "Bitmap persistido correctamente");
+    log_debug(storage->logger, "Bitmap persistido correctamente");
 
     pthread_mutex_unlock(&storage->mutex_bitmap);
 }
@@ -1430,7 +1430,7 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
         return false;
     }
 
-    log_info(storage->logger, "Iniciando commit para %s:%s", file, tag);
+    log_debug(storage->logger, "Iniciando commit para %s:%s", file, tag);
 
     // 1. Obtener ruta del metadata.config
     char* metadata_path = string_from_format("%s/files/%s/%s/metadata.config",
@@ -1464,7 +1464,7 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
     }
 
     // 4. Realizar deduplicación
-    log_info(storage->logger, "Realizando deduplicación antes del commit para %s:%s", file, tag);
+    log_debug(storage->logger, "Realizando deduplicación antes del commit para %s:%s", file, tag);
     evitar_duplicidad(storage, file, tag); // Llama a la versión corregida
 
     // 5. Actualizar estado a COMMITED
@@ -1472,7 +1472,7 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
     config_save(metadata);
     config_destroy(metadata);
 
-    log_info(storage->logger, "##%d- Commit de File:Tag %s:%s", query_id, file, tag);
+    log_debug(storage->logger, "##%d- Commit de File:Tag %s:%s", query_id, file, tag);
 
     // 6. Persistir bitmap (esto puede hacerse aquí o en otro momento, dependiendo del diseño)
     persistir_bitmap(storage);
@@ -1507,7 +1507,7 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
         return false;
     }
 
-    log_info(storage->logger, "Iniciando FLUSH para %s:%s", file, tag);
+    log_debug(storage->logger, "Iniciando FLUSH para %s:%s", file, tag);
 
     // 1. Verificar existencia del File:Tag
     char* ruta_tag = string_from_format("%s/files/%s/%s", storage->punto_montaje, file, tag);
@@ -1544,7 +1544,7 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
 
     // 4. Obtener cantidad de paginas modificadas (ultimo elemento del paquete)
     int cantidad_paginas = *(int*)list_get(paquete, list_size(paquete) - 1);
-    log_info(storage->logger, "FLUSH para %s:%s - %d bloques a persistir", file, tag, cantidad_paginas);
+    log_debug(storage->logger, "FLUSH para %s:%s - %d bloques a persistir", file, tag, cantidad_paginas);
 
     // 5. Procesar cada bloque modificado
     bool todas_exitosas = true;
@@ -1621,7 +1621,7 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
             // Marcar nuevo bloque como ocupado
             bitarray_set_bit(storage->bitmap, nuevo_bloque_fisico);
             pthread_mutex_unlock(&storage->mutex_bitmap);
-            log_info(storage->logger, "Bloque fisico %d reservado para escritura diferenciada", nuevo_bloque_fisico);
+            log_debug(storage->logger, "Bloque fisico %d reservado para escritura diferenciada", nuevo_bloque_fisico);
 
             // b. Obtener rutas
             char* ruta_fisico_actual = string_from_format("%s/physical_blocks/block%04d.dat", storage->punto_montaje, bloque_fisico_actual);
@@ -1669,7 +1669,7 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
                 todas_exitosas = false;
                 continue; // Pasar al siguiente bloque
             }
-            log_info(storage->logger, "##%d-%s:%s Se elimino el hard link del bloque logico %d al bloque fisico %d",
+            log_debug(storage->logger, "##%d-%s:%s Se elimino el hard link del bloque logico %d al bloque fisico %d",
                      query_id, file, tag, numero_bloque, bloque_fisico_actual);
 
             if (link(ruta_fisico_nuevo, ruta_bloque_logico_upd) != 0) {
@@ -1686,7 +1686,7 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
                  todas_exitosas = false;
                  continue; // Pasar al siguiente bloque
             }
-            log_info(storage->logger, "##%d-%s:%s Se agrego el hard link del bloque logico %d al bloque fisico %d",
+            log_debug(storage->logger, "##%d-%s:%s Se agrego el hard link del bloque logico %d al bloque fisico %d",
                      query_id, file, tag, numero_bloque, nuevo_bloque_fisico);
             free(ruta_bloque_logico_upd);
 
@@ -1721,7 +1721,7 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
         free(ruta_fisico_final);
 
         // 7. Log obligatorio
-        log_info(storage->logger, "##%d- Bloque Logico Escrito %s:%s - Numero de Bloque: %d",
+        log_debug(storage->logger, "##%d- Bloque Logico Escrito %s:%s - Numero de Bloque: %d",
                  query_id, file, tag, numero_bloque);
 
     } // Fin del loop for
@@ -1746,7 +1746,7 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
     pthread_mutex_unlock(file_mutex);
 
     if (todas_exitosas) {
-        log_info(storage->logger, "##%d- FLUSH realizado exitosamente para %s:%s", 
+        log_debug(storage->logger, "##%d- FLUSH realizado exitosamente para %s:%s", 
                 query_id, file, tag);
     }
     return todas_exitosas;
@@ -1821,7 +1821,7 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
     // 5. Obtener bloques
     char** bloques = config_get_array_value(metadata, "BLOCKS"); // <-- Esto devuelve un array de strings dinámicos
     int cantidad_bloques = get_array_length(bloques);
-    log_info(storage->logger, "Eliminando tag %s:%s que tiene %d bloques lógicos", file, tag, cantidad_bloques);
+    log_debug(storage->logger, "Eliminando tag %s:%s que tiene %d bloques lógicos", file, tag, cantidad_bloques);
 
     // 6. Liberar bloques fisicos
     // Primero: unlink de todos los bloques logicos (baja el nlink de los fisicos)
@@ -1829,7 +1829,7 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
         if (!bloques[i] || strlen(bloques[i]) == 0) continue;
         char* path_logico = string_from_format("%s/block%06d.dat", path_logical_dir, i); // <-- Corrección: Formato correcto para bloque lógico
         if (unlink(path_logico) == 0) {
-            log_info(storage->logger, "##%d- %s:%s Se eliminó el hard link del bloque lógico %d", query_id, file, tag, i);
+            log_debug(storage->logger, "##%d- %s:%s Se eliminó el hard link del bloque lógico %d", query_id, file, tag, i);
         }
         free(path_logico);
     }
@@ -1846,7 +1846,7 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
             pthread_mutex_lock(&storage->mutex_bitmap);
             bitarray_clean_bit(storage->bitmap, bloque_fisico_id);
             pthread_mutex_unlock(&storage->mutex_bitmap);
-            log_info(storage->logger, "##%d- Bloque físico %d liberado completamente (nlink=1)", query_id, bloque_fisico_id);
+            log_debug(storage->logger, "##%d- Bloque físico %d liberado completamente (nlink=1)", query_id, bloque_fisico_id);
         }
         free(path_fisico);
     }
@@ -1882,7 +1882,7 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
         pthread_mutex_unlock(file_mutex);
         return false;
     }
-    log_info(storage->logger, "##%d- File Eliminado %s:%s", query_id, file, tag);
+    log_debug(storage->logger, "##%d- File Eliminado %s:%s", query_id, file, tag);
 
     // 11. Liberar memoria temporal
     free(path_tag);

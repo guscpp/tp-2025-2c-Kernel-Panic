@@ -5,7 +5,7 @@ void rutina_recepcion(t_storage* storage, int storage_fd){ // se encarga de acep
     pthread_t hilo_ejecucion;
     int aux_socket_worker_temp;
 
-    log_info(storage->logger, "Hilo recepcion listo");
+    log_debug(storage->logger, "Hilo recepcion listo");
 
     while(1){
         aux_socket_worker_temp = esperar_cliente(storage_fd);//acept
@@ -19,10 +19,10 @@ void rutina_recepcion(t_storage* storage, int storage_fd){ // se encarga de acep
         if (setsockopt(aux_socket_worker_temp, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0) {
             log_error(storage->logger, "setsockopt keepalive falló para socket %d", aux_socket_worker_temp);
         } else {
-             log_info(storage->logger, "Keepalive habilitado para socket %d", aux_socket_worker_temp);
+             log_debug(storage->logger, "Keepalive habilitado para socket %d", aux_socket_worker_temp);
         }
 
-        log_info(storage->logger, "Cliente conectado");
+        log_debug(storage->logger, "Cliente conectado");
 
         args_hilo_worker* args = malloc(sizeof(args_hilo_worker));
         args->socket_cliente = aux_socket_worker_temp;
@@ -32,7 +32,7 @@ void rutina_recepcion(t_storage* storage, int storage_fd){ // se encarga de acep
             log_error(storage->logger, "Error al crear el hilo ejecucion");
         }else{
             pthread_detach(hilo_ejecucion);
-            log_info(storage->logger, "Hilo ejecucion creado");
+            log_debug(storage->logger, "Hilo ejecucion creado");
         }
     }
 }
@@ -46,7 +46,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
     t_list* paquete = recibir_paquete(socket_cliente);
     int codigo_operacion = *(int*) list_get(paquete, 0);
     if (codigo_operacion == WORKER_HANDSHAKE) {
-        log_info(storage->logger, "Handshake recibido, opcode: %d", codigo_operacion);
+        log_debug(storage->logger, "Handshake recibido, opcode: %d", codigo_operacion);
         list_destroy_and_destroy_elements(paquete, free);
     } else if (paquete == NULL) {
         log_error(storage->logger, "Error al recibir paquete del worker en [Socket %d]", socket_cliente);
@@ -55,7 +55,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
         return NULL;
     }
 
-    log_info(storage->logger, "Hilo ejecucion listo para recibir operaciones de worker en [Socket %d]", socket_cliente);
+    log_debug(storage->logger, "Hilo ejecucion listo para recibir operaciones de worker en [Socket %d]", socket_cliente);
 
 
     while(1)
@@ -70,13 +70,13 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
         switch (codigo_operacion)
         {
         case STORAGE_GET_BLOCK_SIZE:
-            log_info(storage->logger, "Operacion STORAGE_GET_BLOCK_SIZE");
+            log_debug(storage->logger, "Operacion STORAGE_GET_BLOCK_SIZE");
             enviar_tamanio_paquete_aworker(storage, socket_cliente);
             break;
             
         case STORAGE_CREATE_FILE:
             if(crear_file(storage, paquete)){
-                log_info(storage->logger, "File creado exitosamente");
+                log_debug(storage->logger, "File creado exitosamente");
                 t_buffer* respuesta_buffer = crear_buffer();
                 t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK_CREATE_FILE, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
@@ -93,7 +93,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
 
         case STORAGE_TRUNCATE:
             if(truncar_file(storage, paquete)){
-                log_info(storage->logger, "File truncado exitosamente");
+                log_debug(storage->logger, "File truncado exitosamente");
                 t_buffer* respuesta_buffer = crear_buffer();
                 t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK_TRUNCATE, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
@@ -109,7 +109,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             
         case STORAGE_TAG:
             if(tag_file(storage, paquete)){
-                log_info(storage->logger, "Tag creado exitosamente");
+                log_debug(storage->logger, "Tag creado exitosamente");
                 t_buffer* respuesta_buffer = crear_buffer();
                 t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK_TAG, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
@@ -125,7 +125,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
 
         case STORAGE_COMMIT:
             if (realizar_commit(storage, paquete)) {
-                log_info(storage->logger, "Commit realizado exitosamente");
+                log_debug(storage->logger, "Commit realizado exitosamente");
                 t_buffer* respuesta_buffer = crear_buffer();
                 t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK_COMMIT, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
@@ -141,7 +141,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
 
         case STORAGE_FLUSH:
             if(flush_archivo(storage, paquete)){
-                log_info(storage->logger, "FLUSH realizado exitosamente");
+                log_debug(storage->logger, "FLUSH realizado exitosamente");
                 t_buffer* respuesta_buffer = crear_buffer();
                 t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK_FLUSH, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
@@ -159,11 +159,11 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             void* contenido_bloque = NULL;
             int tamanio_bloque = storage->tamanio_bloque;
             if (leer_bloque(storage, paquete, &contenido_bloque, &tamanio_bloque)) {
-                log_info(storage->logger, "Contenido leido: %p, tamaño: %d", contenido_bloque, tamanio_bloque);
+                log_debug(storage->logger, "Contenido leido: %p, tamaño: %d", contenido_bloque, tamanio_bloque);
                 t_buffer* buffer_resp = crear_buffer();
                 t_paquete* paquete_resp = crear_paquete(STORAGE_SEND_OK_READ_BLOCK, buffer_resp);
                 agregar_a_paquete(paquete_resp, contenido_bloque, tamanio_bloque);
-                log_info(storage->logger, "Contenido leido: %p, tamaño: %d", contenido_bloque, tamanio_bloque);
+                log_debug(storage->logger, "Contenido leido: %p, tamaño: %d", contenido_bloque, tamanio_bloque);
                 enviar_paquete(paquete_resp, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_resp);
                 free(contenido_bloque);
@@ -177,7 +177,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
 
         case STORAGE_WRITE_BLOCK:
             if(escribir_bloque(storage, paquete)){
-                log_info(storage->logger, "Bloque escrito exitosamente");
+                log_debug(storage->logger, "Bloque escrito exitosamente");
                 t_buffer* respuesta_buffer = crear_buffer();
                 t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK_WRITE_BLOCK, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
@@ -193,7 +193,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
 
         case STORAGE_DELETE:
             if(eliminar_file_tag(storage, paquete)){
-                log_info(storage->logger, "File:Tag eliminado exitosamente");
+                log_debug(storage->logger, "File:Tag eliminado exitosamente");
                 t_buffer* respuesta_buffer = crear_buffer();
                 t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK_DELETE, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
@@ -215,7 +215,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
     }
     
     close(socket_cliente);
-    log_info(storage->logger, "Hilo worker finalizado [Socket %d]", socket_cliente);
+    log_debug(storage->logger, "Hilo worker finalizado [Socket %d]", socket_cliente);
     return NULL;
 
 
