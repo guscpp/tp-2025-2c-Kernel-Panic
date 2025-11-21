@@ -244,6 +244,7 @@ if(strcmp(algoritmo_planificacion, "PRIORIDADES") == 0){
     
     
     sem_post(&sem_queries);
+    printf("\033[35m Hago un sem_signal \033[0m\n");
 
 }
 void* atender_timer_query(void* arg){
@@ -257,7 +258,7 @@ void* atender_timer_query(void* arg){
         sleep(tiempo_aging);
         
         pthread_mutex_lock(&mutexColaQuery);
-        query = obtener_por_id(cola_queries, informacion->id);
+        //query = obtener_por_id(cola_queries, informacion->id);
         if(query->estado == READY && query->prioridad > 0){
            
             int prioridad_ant= query->prioridad;
@@ -699,6 +700,8 @@ void atender_Worker(t_hacerConnect* informacion){
             pthread_mutex_lock(&mutexColaQuery);
             list_add(cola_queries, queryRecivida);
             pthread_mutex_unlock(&mutexColaQuery);
+            sem_post(&sem_queries);
+            printf("\033[35m Hago un sem_signal \033[0m\n");
             log_info(informacion->logger,"se recivbio la query desalojada");
             }
             comenzar_a_ejecutar(informacion,informacion->id);
@@ -799,7 +802,9 @@ void query_completado_con_exito(t_query* query,t_hacerConnect* informacion ){
 }
 void comenzar_a_ejecutar(t_hacerConnect* informacion, int idWorker){
     
+    printf("\033[35m EStoy esperando el wait \033[0m\n");
     sem_wait(&sem_queries); // ESPERO A QUE HAYA UNA QUERY
+    printf("\033[35m Pude pasar el wait \033[0m\n");
     t_query* query;
     // MANDAR UN SEND DE COMO VOY A MANDARTE UNA QUERY PARA SABER SI ESTA VIVO
     pthread_mutex_lock(&mutexColaQuery);

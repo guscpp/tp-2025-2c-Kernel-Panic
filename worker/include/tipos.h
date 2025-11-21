@@ -78,17 +78,7 @@ typedef struct{
 
 extern bool error_memoria;
 
-/*
-typedef enum {
-    CREATE,
-    TRUNCATE,
-    WRITE,
-    READ,
-    TAG,
-    COMMIT,
-    FLUSH,
-    DELETE
-} instruccion_procedencia;
-*/
+extern pthread_mutex_t mutex_interrupt;
+
 
 #endif

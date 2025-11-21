@@ -5,6 +5,8 @@
 
 
 int socket_distpach;
+pthread_mutex_t mutex_interrupt; 
+
 t_worker* inicializar_worker(int id_worker)
 {
     t_worker *w = malloc(sizeof(t_worker));
@@ -147,13 +149,7 @@ void* ejecutar_query(void* arg){
         //retorna el pcb con los datos del proceso a ejecutar
 
         log_info(datos_ejecucion->w->logger, "Llego el path_query: %s", dt_archivo->nombre_archivo);
-        /* creo que ya no va, pero quiero probar mas cosas dsp
-        if(dt_archivo == NULL){
-            log_info(datos_ejecucion->w->logger, "Error al abrir query, estoy en worker.c");
-            query_interpreter_ciclo(dt_archivo, datos_ejecucion->w); 
-            return NULL;
-        }
-        */
+
         query_interpreter_ciclo(dt_archivo, datos_ejecucion->w); 
     
     }
@@ -175,9 +171,9 @@ void* hilo_atender_interrupcion(void* arg){ //Cuando me lleguen interrupciones, 
     hay_interrupcion = recibir_interrupciones(dt_atender_master->master_socket, dt_atender_master->w);//solo devuelve true si es cierto
         
         if (hay_interrupcion) {
-            //comento-mutex pthread_mutex_lock(&mutex_interrupt);
+            pthread_mutex_lock(&mutex_interrupt);
             dt_atender_master->w->interpreter->hay_interrupcion = true; //aca marcamos en true la interrupcion para verificarlo despues en el ciclo de instrucciones  
-            //comento-mutex pthread_mutex_unlock(&mutex_interrupt);
+            pthread_mutex_unlock(&mutex_interrupt);
             log_info(dt_atender_master->w->logger, "Me llego una interrupcion");
         } else {
             log_warning(dt_atender_master->w->logger, "Se desconectó del master o hubo error. Se rOmpio el hilo de interrupciones");
@@ -390,4 +386,15 @@ void loggerError(t_log* logger, op_code etiqueta){
     log_info(logger, "default");
         break;
     }
+}
+
+void semaforos (t_worker* w){
+    
+    if(pthread_mutex_init(&mutex_interrupt, NULL) != 0){
+        log_warning(w->logger,"Error al inicializar el mutex cantWorkers");
+
+    }
+
+    log_info(w->logger, "Inice bien los semaforos");
+
 }

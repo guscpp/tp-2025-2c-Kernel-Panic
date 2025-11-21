@@ -20,7 +20,7 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
     w->interpreter->pc = pcb->pc;
     int i = 1;
 
-    log_info(w->logger, "El archivo_query que se esta ejecutando es %s. Query ID: %d, PC: %d", pcb->nombre_archivo, pcb->query_id, pcb->pc);
+    log_warning(w->logger, "El archivo_query que se esta ejecutando es %s. Query ID: %d, PC: %d", pcb->nombre_archivo, pcb->query_id, pcb->pc);
     char* instruccion;
     t_decode* instruccion_decf = malloc(sizeof(t_decode));
 
@@ -53,17 +53,17 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
         //free(instruccion_decf->parametros);   revisar con valgrind
         
         //checkInterrupt
-        //comento-mutex pthread_mutex_lock(&mutex_interrupt); 
+        pthread_mutex_lock(&mutex_interrupt); 
         if(w->interpreter->hay_interrupcion){ //no entra aca porque al crear query_interpreter se le pone false al hay interrupcion y este cambia recien cuando le llega al hilo de interrupciones
             w->interpreter->hay_interrupcion =false; 
-            //comento-mutex pthread_mutex_unlock(&mutex_interrupt); 
+            pthread_mutex_unlock(&mutex_interrupt); 
 
             interrupt_envio_a_master(pcb, w); //MAndo el PCB para poder actualizarlo con el PC del w (y mandarlo a master)
             
             break;
         }
          else {
-            //comento-mutex pthread_mutex_unlock(&mutex_interrupt);
+            pthread_mutex_unlock(&mutex_interrupt);
         }
 
     }
