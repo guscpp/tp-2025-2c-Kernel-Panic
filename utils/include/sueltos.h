@@ -5,6 +5,7 @@
 #include <commons/config.h>  // Para t_config
 #include <stdlib.h>          // Para exit
 #include <pthread.h>    // para los hilos
+#include <strings.h>
 
 /**
  * @brief Crea e inicializa un logger con configuración específica
@@ -39,6 +40,8 @@
 t_log *iniciar_logger(char *logger, char *process_name, bool visible, t_log_level log_level);
 
 t_config *iniciar_config(t_log *logger, char *path); 
+
+t_log_level obtener_log_level(char* level);
 
 void terminar_programa(t_log *logger, t_config *config);
 

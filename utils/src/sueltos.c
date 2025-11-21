@@ -27,6 +27,18 @@ t_config *iniciar_config(t_log *logger, char *path)
     return new_config;
 }
 
+t_log_level obtener_log_level(char* level)
+{
+    if (strcasecmp(level, "TRACE") == 0) return LOG_LEVEL_TRACE;
+    if (strcasecmp(level, "DEBUG") == 0) return LOG_LEVEL_DEBUG;
+    if (strcasecmp(level, "INFO") == 0)  return LOG_LEVEL_INFO;
+    if (strcasecmp(level, "WARNING") == 0) return LOG_LEVEL_WARNING;
+    if (strcasecmp(level, "ERROR") == 0) return LOG_LEVEL_ERROR;
+
+    // Si viene algo mal, default:
+    return LOG_LEVEL_INFO;
+}
+
 void terminar_programa(t_log *logger, t_config *config)
 {
     log_destroy(logger);
