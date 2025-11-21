@@ -4,6 +4,7 @@
 #include "../include/worker.h"
 #include "../include/tipos.h"
 
+extern bool query_desconectado;
 // Dejo esto de modelo
 
 t_query_interpreter* query_interpreter_crear(t_log* logger){
@@ -506,7 +507,12 @@ void interrupt_envio_a_master(Pcb* pcb_dsp_de_interrupt, t_worker* w){  //Se env
     log_info(w->logger, "Llego una interrupcion, el proceso fue interrumpido. Espero uno nuevo");
     
     t_buffer* buffer_generico = crear_buffer();
-    t_paquete* devuelvo_pcb_master = crear_paquete(WORKER_PC_UPDATE, buffer_generico);
+    t_paquete* devuelvo_pcb_master;
+    if(query_desconectado){
+        devuelvo_pcb_master = crear_paquete(WORKER_QUERY_DESCONECTADO, buffer_generico);
+    }else{
+        devuelvo_pcb_master = crear_paquete(WORKER_PC_UPDATE, buffer_generico);
+    }
     //TAl vez este no haga falta:
     agregar_a_paquete(devuelvo_pcb_master, pcb_dsp_de_interrupt->nombre_archivo, strlen(pcb_dsp_de_interrupt->nombre_archivo)+1);
     

@@ -283,17 +283,17 @@ void chequeador_desalojo(int prioridad,t_hacerConnect* info){
     t_query* queryMayor =  list_get_maximum(query_en_worker, _max_prioridad);
     pthread_mutex_lock(&mutexCantWorkers);
     if(list_size(query_en_worker) == cantidadWorkers && prioridad< queryMayor->prioridad){
-       realizar_desalojo( queryMayor->id,queryMayor->idWorker,info->logger);
+       realizar_desalojo( queryMayor->id,queryMayor->idWorker,info->logger,WORKER_DESALOJO);
     }
     pthread_mutex_unlock(&mutexCantWorkers);
     pthread_mutex_unlock(&mutexQueryEnWorker);
  
 }
 
-void realizar_desalojo(int idQuery,int idWorker,t_log* logger){
+void realizar_desalojo(int idQuery,int idWorker,t_log* logger, int codOp){
  log_info(logger, "Se va realizar el desalojo de query id: %d", idQuery);
         t_buffer* buffer=crear_buffer();
-        t_paquete* paquete = crear_paquete(WORKER_DESALOJO,buffer);
+        t_paquete* paquete = crear_paquete(codOp,buffer);
         int a2 = 5;
         agregar_a_paquete(paquete, &a2, sizeof(int));
         pthread_mutex_lock(&mutexListaWorkers);
@@ -330,7 +330,7 @@ void* atender_desconexion_query(void* arg){
         informacion->alive = false;
 
         if(informacion->estado == RUNNING){
-            realizar_desalojo(informacion->id, informacion->idWorker, informacion->logger);
+            realizar_desalojo(informacion->id, informacion->idWorker, informacion->logger,WORKER_QUERY_DESCONECTADO );
             
         }
         informacion->estado=EXIT;
@@ -685,6 +685,7 @@ void atender_Worker(t_hacerConnect* informacion){
 
         }
         */
+
         case WORKER_PC_UPDATE:{
             // tengo funcion obtener y eliminar por id... 
             t_query* queryRecivida;
@@ -707,8 +708,23 @@ void atender_Worker(t_hacerConnect* informacion){
             log_info(informacion->logger,"se recivbio la query desalojada");
             }
             comenzar_a_ejecutar(informacion,informacion->id);
-            
+            break;
 
+        }
+         case WORKER_QUERY_DESCONECTADO:{
+            // tengo funcion obtener y eliminar por id... 
+            t_query* queryRecivida;
+            int idQuery = *(int*)list_get(paqueteWorker, 2);
+           
+            pthread_mutex_lock(&mutexQueryEnWorker);
+            queryRecivida = eliminar_por_id(query_en_worker,idQuery );
+            queryRecivida->estado= EXIT;
+            pthread_mutex_unlock(&mutexQueryEnWorker);
+          
+            log_info(informacion->logger,"se recivbio la query desalojada por desconexion de query");
+            
+            comenzar_a_ejecutar(informacion,informacion->id);
+            break;
         }
         case WORKER_ERROR_TAMANIO_LECTURA_EXCEDIDO:{
             

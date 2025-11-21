@@ -3,7 +3,7 @@
 #include "../include/tipos.h"
 #include <unistd.h>
 
-
+bool query_desconectado ;
 int socket_distpach;
 pthread_mutex_t mutex_interrupt; 
 
@@ -206,9 +206,15 @@ bool recibir_interrupciones(int master_socket, t_worker* w){ //SOlo se encarga d
     if (*codigo_operacion == WORKER_DESALOJO) {
         log_info(w->logger, "Llegó interrupción WORKER_DESALOJO del Master.");
         list_destroy(paquete_interrupcion);
+        query_desconectado = false;
         return true; 
     }
-
+    if(*codigo_operacion == WORKER_QUERY_DESCONECTADO ){
+        log_info(w->logger, "Llegó interrupción WORKER_QUERY_DESCONECTADO del Master.");
+        list_destroy(paquete_interrupcion);
+        query_desconectado = true;
+        return true; 
+    }
     list_destroy(paquete_interrupcion);
     return false; 
 }

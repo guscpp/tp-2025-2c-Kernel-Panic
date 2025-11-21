@@ -33,6 +33,9 @@ typedef enum
     WORKER_DESALOJO,        // Pedir desalojo de query
     RETENER_WORKER,
     
+    // WORKER ↔ MASTER
+    WORKER_QUERY_DESCONECTADO,
+    
     // WORKER → MASTER
 
     WORKER_ID,              // Enviar ID

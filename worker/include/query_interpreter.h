@@ -30,4 +30,5 @@ void executeEnd(t_worker* w, Pcb* pcb);
 
 void interrupt_envio_a_master(Pcb* pcb_dsp_de_interrupt, t_worker* w);
 void error_instruccion_malformada(t_log* logger,int id_query, char* instruccion);
+extern bool query_desconectado;
 #endif

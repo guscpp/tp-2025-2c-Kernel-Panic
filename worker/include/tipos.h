@@ -43,7 +43,7 @@ typedef struct {
 
 } t_ejecucion;
 
-extern pthread_mutex_t mutex_interrupt;
+//extern pthread_mutex_t mutex_interrupt;
 
 //EN QUERY INTERPRETER
 
@@ -79,6 +79,5 @@ typedef struct{
 extern bool error_memoria;
 
 extern pthread_mutex_t mutex_interrupt;
-
 
 #endif
