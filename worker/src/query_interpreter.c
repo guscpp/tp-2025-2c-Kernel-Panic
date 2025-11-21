@@ -32,7 +32,7 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
             break;
         }
         instruccion = fetch(pcb, w); //aca me llega la instruccion completa
-        printf("printf - i = %d", i++);
+        printf("Numero de linea del archivo query - i = %d \n", i++);
 
         w->interpreter->pc++;  //el pc que avanza es el del interpreter
 

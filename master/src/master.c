@@ -637,6 +637,7 @@ void atender_Worker(t_hacerConnect* informacion){
 
 
         }
+        /*
         case WORKER_ERROR_STORAGE_DESCONECTADO:{
 
              // Datos del paquete recibido desde el Worker
@@ -683,6 +684,7 @@ void atender_Worker(t_hacerConnect* informacion){
 
 
         }
+        */
         case WORKER_PC_UPDATE:{
             // tengo funcion obtener y eliminar por id... 
             t_query* queryRecivida;
@@ -731,7 +733,7 @@ void atender_Worker(t_hacerConnect* informacion){
 
             // respuesta al Query Control
             t_buffer* infoQuery = crear_buffer();
-            t_paquete* paquete = crear_paquete(QUERY_RESPONSE_ERROR_TAMANIO_ESCRITURA_EXCEDIDO, infoQuery);
+            t_paquete* paquete = crear_paquete(QUERY_RESPONSE_ERROR_TAMANIO_LECTURA_EXCEDIDO, infoQuery);
 
             agregar_a_paquete(paquete, file, strlen(file) + 1);
             agregar_a_paquete(paquete, tag, strlen(tag) + 1);
