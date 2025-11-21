@@ -197,7 +197,7 @@ void crear_initial_file(t_storage* storage){
     if (block0){
         int tamanio_bloque = storage->tamanio_bloque;
         void* ceros = calloc(1, tamanio_bloque); 
-        memset(ceros, 0, tamanio_bloque);
+        memset(ceros, '0', tamanio_bloque);
         fwrite(ceros, 1, tamanio_bloque, block0);
         fclose(block0);
         free(ceros);

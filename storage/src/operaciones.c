@@ -51,7 +51,7 @@ bool crear_file(t_storage* storage, t_list* parametros)
         return false;
     }
 
-    usleep(storage->retardo_operacion * 1000);  //retardo olbigatorio
+    usleep(storage->retardo_operacion * 1000);  //retardo de operacion va al principio
 
     int query_id = *(int*)list_get(parametros, 1);
     char* nombre_file = list_get(parametros, 2);
@@ -195,6 +195,9 @@ bool truncar_file(t_storage* storage, t_list* parametros)
         log_error(storage->logger, "Parametros invalidos para truncar_file");
         return false;
     }
+
+    usleep(storage->retardo_operacion * 1000);  //retardo de operacion va al principio
+
     int query_id = *(int*)list_get(parametros, 1);
     char* nombre_file = list_get(parametros, 2);
     char* tag = list_get(parametros, 3);
@@ -203,6 +206,13 @@ bool truncar_file(t_storage* storage, t_list* parametros)
     // Obtener lock en el diccionario
     pthread_mutex_t* file_mutex = get_or_create_file_mutex(storage, nombre_file, tag);
     pthread_mutex_lock(file_mutex);
+
+    // Proteccion para initial_file:BASE - no permitir truncado
+    if (string_equals_ignore_case(nombre_file, "initial_file") && string_equals_ignore_case(tag, "BASE")) {
+        log_error(storage->logger, "ERROR: Intento de truncar File:Tag protegido: %s:%s. Este archivo no se puede modificar.", nombre_file, tag);
+        pthread_mutex_unlock(file_mutex);
+        return false;
+    }
 
     // No modificar el archivo si ya esta COMMITED
     if (verificar_si_commited(storage, nombre_file, tag)) {
@@ -353,10 +363,14 @@ bool truncar_file(t_storage* storage, t_list* parametros)
 // Crea un nuevo Tag como copia exacta de un Tag existente dentro del mismo File
 // duplicando su metadata y hard links a bloques físicos.
 bool tag_file(t_storage* storage, t_list* parametros){
+    
     if(!parametros || list_size(parametros) < 5){
         log_error(storage->logger, "Parametros invalidos para tag_file");
         return false;
     }
+
+    usleep(storage->retardo_operacion * 1000);  //retardo de operacion va al principio
+
     int query_id = *(int*)list_get(parametros, 1);
     char* nombre_file = list_get(parametros, 2);
     char* tag_origen = list_get(parametros, 3);
@@ -371,6 +385,16 @@ bool tag_file(t_storage* storage, t_list* parametros){
     pthread_mutex_t* mutex_b = NULL;
     char* key_a = NULL; //no borrar, GE
     char* key_b = NULL; //no borrar, GE
+
+    // Proteccion para initial_file:BASE como origen - no permitir crear tags derivados
+    if (string_equals_ignore_case(nombre_file, "initial_file") && string_equals_ignore_case(tag_origen, "BASE")) {
+        log_error(storage->logger, "ERROR: Intento de crear tag a partir de File:Tag protegido: %s:%s. Este archivo no se puede usar como origen.", nombre_file, tag_origen);
+        pthread_mutex_unlock(mutex_b);
+        pthread_mutex_unlock(mutex_a);
+        free(lock_origen);
+        free(lock_destino);
+        return false;
+    }
     
     if(strcmp(lock_origen, lock_destino) < 0) {
         // lock_origen viene primero alfabéticamente
@@ -563,10 +587,13 @@ bool tag_file(t_storage* storage, t_list* parametros){
 
 // ****************************************************************************
 bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* tamanio_bloque) {
+
     if (!parametros || list_size(parametros) < 5) {
         log_error(storage->logger, "Parámetros insuficientes para STORAGE_READ_BLOCK");
         return false;
     }
+
+    usleep(storage->retardo_operacion * 1000);  //retardo de operacion va al principio
 
     int query_id = *(int*)list_get(parametros, 1);
     char* nombre_file = list_get(parametros, 2);
@@ -703,8 +730,7 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
 
     *tamanio_bloque = storage->tamanio_bloque;
 
-    // Aplicar retardos
-    usleep(storage->retardo_operacion * 1000);
+    // Aplicar retardo
     usleep(storage->retardo_acceso_bloque * 1000);
 
     // Log obligatorio
@@ -716,11 +742,14 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
 
 //*****************************************************************************
 bool escribir_bloque(t_storage* storage, t_list* parametros) {
+
     if (!parametros || list_size(parametros) < 6) { 
         // 0:cod_op, 1:query_id, 2:file, 3:tag, 4:bloque_logico, 5:contenido
         log_error(storage->logger, "Parámetros insuficientes para STORAGE_WRITE_BLOCK");
         return false;
     }
+
+    usleep(storage->retardo_operacion * 1000);  //retardo de operacion va al principio
 
     int query_id = *(int*)list_get(parametros, 1);
     char* nombre_file = list_get(parametros, 2);
@@ -732,6 +761,13 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     // Obtener lock en el diccionario
     pthread_mutex_t* file_mutex = get_or_create_file_mutex(storage, nombre_file, tag);
     pthread_mutex_lock(file_mutex);
+
+    // Proteccion para initial_file:BASE - no permitir escritura
+    if (string_equals_ignore_case(nombre_file, "initial_file") && string_equals_ignore_case(tag, "BASE")) {
+        log_error(storage->logger, "ERROR: Intento de escritura en File:Tag protegido: %s:%s. Este archivo no se puede modificar.", nombre_file, tag);
+        pthread_mutex_unlock(file_mutex);
+        return false;
+    }
 
     // No modificar el archivo/bloque si ya esta COMMITED
     if (verificar_si_commited(storage, nombre_file, tag)) {
@@ -1002,9 +1038,8 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
         return false;
     }
 
-    // Aplicar retardos
-    usleep(storage->retardo_operacion * 1000);
-    //usleep(storage->retardo_acceso_bloque * 1000);
+    // Aplicar retardo
+    usleep(storage->retardo_acceso_bloque * 1000);
 
     // Escribir el nuevo contenido
     fseek(f_bloque_final, 0, SEEK_SET); // Ir al inicio del bloque
@@ -1372,10 +1407,13 @@ bool verificar_si_commited(t_storage* storage, const char* file, const char* tag
 
 //*****************************************************************************
 bool realizar_commit(t_storage* storage, t_list* parametros) {
+
     if (!parametros || list_size(parametros) < 4) { // [op, query_id, file, tag]
         log_error(storage->logger, "Parámetros insuficientes para STORAGE_COMMIT");
         return false;
     }
+
+    usleep(storage->retardo_operacion * 1000);  //retardo de operacion va al principio
 
     int query_id = *(int*)list_get(parametros, 1);
     char* file = (char*)list_get(parametros, 2);
@@ -1384,6 +1422,13 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
     // Obtener lock en el diccionario
     pthread_mutex_t* file_mutex = get_or_create_file_mutex(storage, file, tag);
     pthread_mutex_lock(file_mutex);
+
+    // Proteccion para initial_file:BASE - no permitir otro commit
+    if (string_equals_ignore_case(file, "initial_file") && string_equals_ignore_case(tag, "BASE")) {
+        log_error(storage->logger, "ERROR: Intento de COMMIT en File:Tag protegido: %s:%s. Este archivo ya esta commited y no se puede modificar.", file, tag);
+        pthread_mutex_unlock(file_mutex);
+        return false;
+    }
 
     log_info(storage->logger, "Iniciando commit para %s:%s", file, tag);
 
@@ -1438,13 +1483,15 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
 }
 
 //*****************************************************************************
-bool flush_archivo(t_storage* storage, t_list* paquete) {
-    // Verificar parametros minimos
+bool flush_archivo(t_storage* storage, t_list* paquete)
+{    // Verificar parametros minimos
     if (!paquete || list_size(paquete) < 5) {
         log_error(storage->logger, "Parametros insuficientes para STORAGE_FLUSH");
         return false;
     }
-    usleep(storage->retardo_operacion * 1000); // Retardo obligatorio
+
+    usleep(storage->retardo_operacion * 1000);  //retardo de operacion va al principio
+
     int query_id = *(int*)list_get(paquete, 1);
     char* file = list_get(paquete, 2);
     char* tag = list_get(paquete, 3);
@@ -1452,6 +1499,13 @@ bool flush_archivo(t_storage* storage, t_list* paquete) {
     // Obtener lock en el diccionario
     pthread_mutex_t* file_mutex = get_or_create_file_mutex(storage, file, tag);
     pthread_mutex_lock(file_mutex);
+
+    // Proteccion para initial_file:BASE - no permitir flush
+    if (string_equals_ignore_case(file, "initial_file") && string_equals_ignore_case(tag, "BASE")) {
+        log_error(storage->logger, "ERROR: Intento de FLUSH en File:Tag protegido: %s:%s. Este archivo no se puede modificar.", file, tag);
+        pthread_mutex_unlock(file_mutex);
+        return false;
+    }
 
     log_info(storage->logger, "Iniciando FLUSH para %s:%s", file, tag);
 
@@ -1699,15 +1753,15 @@ bool flush_archivo(t_storage* storage, t_list* paquete) {
 }
 
 // ****************************************************************************
-bool eliminar_file_tag(t_storage* storage, t_list* parametros) {
-    
-    usleep(storage->retardo_operacion * 1000); // Retardo obligatorio
-
-
+bool eliminar_file_tag(t_storage* storage, t_list* parametros)
+{    
     if (!parametros || list_size(parametros) < 4) { // [op, query_id, file, tag
         log_error(storage->logger, "Parámetros insuficientes para STORAGE_DELETE");
         return false;
     }
+
+    usleep(storage->retardo_operacion * 1000);  //retardo de operacion va al principio
+
     int query_id = *(int*)list_get(parametros, 1);
     char* file = (char*)list_get(parametros, 2);
     char* tag  = (char*)list_get(parametros, 3);
