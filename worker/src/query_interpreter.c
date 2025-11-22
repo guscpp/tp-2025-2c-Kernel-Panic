@@ -74,90 +74,169 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
 }
 
 char* fetch(Pcb* pcb, t_worker* w){
-
-    /*
-    NO es posible simplificarlo solamente en un solo caso (osea, no puedo generalizar todos los casos y poner un solo for que itere incluso si el pc=0), porque si hago eso, siempre que entre a fetch va volver a entrar al ciclo y voy a leer siempre la misma linea despues del desplazamiento
-    */
-   //Puede ser posible: posible mejora
-
-    char* buffer_autoselc =  NULL;
+    char* buffer_autoselc = NULL;
     size_t tam_autoselc = 0;
+    ssize_t leido;
+
+    // LOG AL INICIO DE FETCH
+    log_debug(w->logger, "Fetch: pc=%d, interpreter_pc=%d", pcb->pc, w->interpreter->pc);
 
     //por aca va entrar solamente un proceso que fue interrumpido antes (porque el PC del PCB que me pasaron no va cambiar). POr lo tanto, el getline que va tomar al hacer fetch siempre va ser este, no hay forma de que entre por el de abajo(**) porque se va chequear el PC del PCB que siempre va ser != 0 porque ese nunca se va modificar (ese no es el PC que se avanza, es el que te viene de master)
-    if(pcb->pc !=0){
+    if(pcb->pc != 0){
+        
+        // LOG PARA CASO INTERRUMPIDO
+        log_debug(w->logger, "Caso: proceso interrumpido (pc != 0)");
 
-        if(w->interpreter->pc  == pcb->pc){//SI esto ocurre significa que es el primer fetch de mi ciclo, porque no avance mi PC de interpreter respecto del pc del PCB
-        int i = 0;
-        for(; i < pcb->pc; i++)  
-            {
-            ssize_t leido = getline(&buffer_autoselc, &tam_autoselc, pcb->archivo);
+        if(w->interpreter->pc == pcb->pc){//SI esto ocurre significa que es el primer fetch de mi ciclo, porque no avance mi PC de interpreter respecto del pc del PCB
+            
+            // LOG PARA PRIMER FETCH DESPUÉS DE INTERRUPCIÓN
+            log_debug(w->logger, "Primer fetch después de interrupción");
+            
+            int i = 0;
+            for(; i < pcb->pc; i++) {
+                do {
+                    // Liberar buffer anterior si existe
+                    if(buffer_autoselc) {
+                        free(buffer_autoselc);
+                        buffer_autoselc = NULL;
+                        tam_autoselc = 0;
+                    }
+                    
+                    leido = getline(&buffer_autoselc, &tam_autoselc, pcb->archivo);
+                    
+                    // LOG DESPUÉS DE GETLINE
+                    log_debug(w->logger, "Getline iteracion %d: leido=%ld, buffer='%s'", i, leido, buffer_autoselc ? buffer_autoselc : "NULL");
+                    
+                    if(leido == -1) {
+                        if(feof(pcb->archivo)) {
+                            free(buffer_autoselc);
+                            return strdup("END");
+                        } else {
+                            log_error(w->logger, "Error de lectura en el archivo de query");
+                            free(buffer_autoselc);
+                            return NULL;
+                        }
+                    }
+                    
+                    // Procesar la línea
+                    if(buffer_autoselc) {
+                        buffer_autoselc[strcspn(buffer_autoselc, "\n")] = '\0';
+                        string_trim(&buffer_autoselc);
+                        
+                        // LOG DESPUÉS DE PROCESAR LÍNEA
+                        log_debug(w->logger, "Linea procesada: '%s'", buffer_autoselc);
+                    }
+                    
+                    // Continuar si es comentario o línea vacía
+                } while(buffer_autoselc && (buffer_autoselc[0] == '#' || buffer_autoselc[0] == '\0'));
+            }
+        }
+
+        //SI es falso que estoy en el PC inicial (con PC inicial nos referimos al que nos pasa el master), osea que estoy en mi segundo fetch
+        
+        // LOG PARA FETCHES SUBSECUENTES
+        log_debug(w->logger, "Fetch subsiguiente después de interrupción");
+        
+        do {
+            // Liberar buffer anterior si existe
+            if(buffer_autoselc) {
+                free(buffer_autoselc);
+                buffer_autoselc = NULL;
+                tam_autoselc = 0;
+            }
+            
+            leido = getline(&buffer_autoselc, &tam_autoselc, pcb->archivo);
+
+            // LOG DESPUÉS DE GETLINE
+            log_debug(w->logger, "Getline subsiguiente: leido=%ld, buffer='%s'", leido, buffer_autoselc ? buffer_autoselc : "NULL");
             
             if(leido == -1) {
                 if(feof(pcb->archivo)) {
-                    // se llego al final del archivo
                     free(buffer_autoselc);
-                    return strdup("END"); // devolver END explícitamente
+                    return strdup("END");
                 } else {
-                    // error de lectura
                     log_error(w->logger, "Error de lectura en el archivo de query");
                     free(buffer_autoselc);
                     return NULL;
                 }
             }
-
+            
+            // Procesar la línea
+            if(buffer_autoselc) {
+                buffer_autoselc[strcspn(buffer_autoselc, "\n")] = '\0';
+                string_trim(&buffer_autoselc);
+                
+                // LOG DESPUÉS DE PROCESAR LÍNEA
+                log_debug(w->logger, "Linea procesada subsiguiente: '%s'", buffer_autoselc);
             }
-        }
-
-        //SI es falso que estoy en el PC inicial (con PC inicial nos referimos al que nos pasa el master), osea que estoy en mi segundo fetch, no entro al for otra vez porque me va tirar lineas abajo en el .txt, entro aca para retomar desde donde me adelanto el for
+            
+            // Continuar si es comentario o línea vacía
+        } while(buffer_autoselc && (buffer_autoselc[0] == '#' || buffer_autoselc[0] == '\0'));
         
-        //Ahora, este ultimo getline va retormar la ultima posicion en la que quedo el anterior getline. BAsicamente va comenzar a leer el archivo desde el PC indicado, ignorando las primeras lineas que logre ignorar con el for. NO hay manera de que se confunda con el getline de abajo(**) porque no puede entrar a este y al de abajo a la vez, estan separados por el if del PCB que nunca cambia
-        ssize_t leido = getline(&buffer_autoselc, &tam_autoselc, pcb->archivo);
-
-        buffer_autoselc[strcspn(buffer_autoselc, "\n")] = '\0'; //encuentra un \n en el buffer que lee la linea de instruccion y lo cambio por \0(c)
-        string_trim(&buffer_autoselc); //elimina espacios vacios a derecha e izquierda, todos los que pueda encontrar (commins)
-
-        if(leido == -1) {
-            if(feof(pcb->archivo)) {
-                // se llego al final del archivo
-                free(buffer_autoselc);
-                return strdup("END"); // devolver END explícitamente
-            } else {
-                // error de lectura
-                log_error(w->logger, "Error de lectura en el archivo de query");
-                free(buffer_autoselc);
-                return NULL;
-            }
-        }
+        // LOG ANTES DE RETORNAR
+        log_debug(w->logger, "Retornando linea: '%s'", buffer_autoselc ? buffer_autoselc : "NULL");
+        
         return buffer_autoselc;
-        
     }
-
     else{ //est es el de abajo (**)
-    //por aca va entrar solamente un proceso que NO fue interrupido (PC = 0), EL PC DEL PCB NUNCA CAMBIA. ENtonces, cuando llegue al getline, no va confundirse con el getline de la linea de arriba, porque siempre va entrar por aca y va tomar este getline
-    ssize_t leido = getline(&buffer_autoselc, &tam_autoselc, pcb->archivo);
-
-    buffer_autoselc[strcspn(buffer_autoselc, "\n")] = '\0'; //encuentra un \n en el buffer que lee la linea de instruccion y lo cambio por \0 (c)
-    string_trim(&buffer_autoselc); //elimina espacios vacios a derecha e izquierda, todos los que pueda encontrar (commins) :D
-
-        if(leido == -1) {
-            if(feof(pcb->archivo)) {
-                // se llego al final del archivo
+    //por aca va entrar solamente un proceso que NO fue interrupido (PC = 0)
+    
+        // LOG PARA PROCESO NUEVO
+        log_debug(w->logger, "Caso: proceso nuevo (pc = 0)");
+        
+        do {
+            // Liberar buffer anterior si existe
+            if(buffer_autoselc) {
                 free(buffer_autoselc);
-                return strdup("END"); // devolver END explícitamente
-            } else {
-                // error de lectura
-                log_error(w->logger, "Error de lectura en el archivo de query");
-                free(buffer_autoselc);
-                return NULL;
+                buffer_autoselc = NULL;
+                tam_autoselc = 0;
             }
-        }
+            
+            leido = getline(&buffer_autoselc, &tam_autoselc, pcb->archivo);
+
+            // LOG DESPUÉS DE GETLINE
+            log_debug(w->logger, "Getline proceso nuevo: leido=%ld, buffer='%s'", leido, buffer_autoselc ? buffer_autoselc : "NULL");
+            
+            if(leido == -1) {
+                if(feof(pcb->archivo)) {
+                    free(buffer_autoselc);
+                    return strdup("END");
+                } else {
+                    log_error(w->logger, "Error de lectura en el archivo de query");
+                    free(buffer_autoselc);
+                    return NULL;
+                }
+            }
+            
+            // Procesar la línea
+            if(buffer_autoselc) {
+                buffer_autoselc[strcspn(buffer_autoselc, "\n")] = '\0';
+                string_trim(&buffer_autoselc);
+                
+                // LOG DESPUÉS DE PROCESAR LÍNEA
+                log_debug(w->logger, "Linea procesada nuevo: '%s'", buffer_autoselc);
+            }
+            
+            // Continuar si es comentario o línea vacía
+        } while(buffer_autoselc && (buffer_autoselc[0] == '#' || buffer_autoselc[0] == '\0'));
+        
+        // LOG ANTES DE RETORNAR
+        log_debug(w->logger, "Retornando linea nuevo proceso: '%s'", buffer_autoselc ? buffer_autoselc : "NULL");
+        
         return buffer_autoselc;
     }
 }
 
-
 t_decode* decode(char* instruccion, t_worker* w){
     char** parametros;
+
+    // Elimina comentarios que comienzan en una linea con codigo
+    char* comentario = strchr(instruccion, '#');
+    if (comentario != NULL) {
+        *comentario = '\0';  // Truncar la línea en el comentario
+        string_trim(&instruccion);  // Eliminar espacios sobrantes
+    }
+
     parametros = string_n_split(instruccion, 2, " "); 
     //me devuelve un array: parametros[0] = primer elemento de la cadena instruccion, parametros[1] toda el resto de la tira de parametros. El 2 porque lo divido en 2 partes y el " " porque se separa por un espacio
     t_decode* paquete_decode = malloc(sizeof(t_decode));

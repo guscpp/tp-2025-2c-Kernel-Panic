@@ -1,15 +1,180 @@
+# --------------------------------------------------------------
+# FASE 1: INICIALIZACIÓN Y CREACIÓN DE ESTRUCTURAS BÁSICAS
+# --------------------------------------------------------------
+
+# Crear archivo principal para materias
 CREATE MATERIAS:BASE
-TRUNCATE MATERIAS:BASE 1024
-WRITE MATERIAS:BASE 0 SISTEMAS_OPERATIVOS
-FLUSH MATERIAS:BASE
-COMMIT MATERIAS:BASE
-READ MATERIAS:BASE 0 8
-TAG MATERIAS:BASE MATERIAS:V2
+TRUNCATE MATERIAS:BASE 512  # 4 bloques de 128 bytes
+
+# Escribir contenido inicial en diferentes posiciones para probar acceso aleatorio
+WRITE MATERIAS:BASE 0 Sistemas_Operativos:Kernel_Panic
+WRITE MATERIAS:BASE 128 Algoritmos:Planificacion_FIFO
+WRITE MATERIAS:BASE 256 Memoria:Paginacion_Basica
+WRITE MATERIAS:BASE 384 Estructuras:Arboles_Binarios
+
+# Verificar escrituras con lecturas
+READ MATERIAS:BASE 0 32
+READ MATERIAS:BASE 128 25
+READ MATERIAS:BASE 256 20
+READ MATERIAS:BASE 384 22
+
+# --------------------------------------------------------------
+# FASE 2: MANEJO DE VERSIONES Y TAGS
+# --------------------------------------------------------------
+
+# Crear primera versión (V1) a partir de BASE
+TAG MATERIAS:BASE MATERIAS:V1
+
+# Modificar V1 con nuevos contenidos
+WRITE MATERIAS:V1 0 Sistemas_Operativos:Planificador_Master
+WRITE MATERIAS:V1 128 Algoritmos:Planificacion_Prioridades
+FLUSH MATERIAS:V1  # FLUSH explícito para persistir cambios
+
+# Crear archivo de estudiantes independiente
+CREATE ESTUDIANTES:BASE
+TRUNCATE ESTUDIANTES:BASE 256  # 2 bloques
+
+WRITE ESTUDIANTES:BASE 0 11111-Juan_Perez-Soporte
+WRITE ESTUDIANTES:BASE 128 22222-Maria_Garcia-Desarrollo
+READ ESTUDIANTES:BASE 0 30
+READ ESTUDIANTES:BASE 128 33
+
+# --------------------------------------------------------------
+# FASE 3: PRUEBAS DE DEDUPLICACIÓN Y OPTIMIZACIÓN
+# --------------------------------------------------------------
+
+# Crear archivo con contenido repetitivo para probar deduplicación
+CREATE DATOS:REPETITIVOS
+TRUNCATE DATOS:REPETITIVOS 384  # 3 bloques
+
+# Escribir el mismo contenido en múltiples bloques
+WRITE DATOS:REPETITIVOS 0 CONTENIDO_DUPLICADO_12345
+WRITE DATOS:REPETITIVOS 128 CONTENIDO_DUPLICADO_12345
+WRITE DATOS:REPETITIVOS 256 CONTENIDO_DUPLICADO_12345
+FLUSH DATOS:REPETITIVOS
+
+# Verificar que la deduplicación funciona correctamente
+READ DATOS:REPETITIVOS 0 25
+READ DATOS:REPETITIVOS 128 25
+READ DATOS:REPETITIVOS 256 25
+
+# --------------------------------------------------------------
+# FASE 4: PRUEBAS DE CONSISTENCIA Y ESTADOS
+# --------------------------------------------------------------
+
+# Commit de MATERIAS:V1 para probar estado COMMITED
+COMMIT MATERIAS:V1
+
+# Intentar operación inválida: escribir en un archivo COMMITED
+WRITE MATERIAS:V1 256 Memoria:Memoria_Virtual  # Debe fallar - log de error esperado
+
+# Crear nueva versión a partir de V1 (hereda estado COMMITED pero permite modificaciones)
+TAG MATERIAS:V1 MATERIAS:V2
+
+# Modificar V2 y probar FLUSH implícito antes de COMMIT
+WRITE MATERIAS:V2 0 Sistemas_Operativos:Kernel_Panic_v2
+WRITE MATERIAS:V2 128 Algoritmos:Planificacion_con_Aging
+WRITE MATERIAS:V2 256 Memoria:Paginacion_Demandante
+COMMIT MATERIAS:V2  # FLUSH implícito antes del COMMIT
+
+# --------------------------------------------------------------
+# FASE 5: PRUEBAS DE LÍMITES Y MANEJO DE ERRORES
+# --------------------------------------------------------------
+
+# Probar lectura fuera de límites
+READ MATERIAS:BASE 512 10  # Debe fallar - fuera del tamaño del archivo
+
+# Probar escritura fuera de límites
+WRITE MATERIAS:BASE 600 Fuera_De_Limites  # Debe fallar - fuera del tamaño del archivo
+
+# Crear archivo temporal para probar eliminación
+CREATE TEMPORAL:PRUEBA
+TRUNCATE TEMPORAL:PRUEBA 128
+WRITE TEMPORAL:PRUEBA 0 Datos_Temporales
+FLUSH TEMPORAL:PRUEBA
+
+# Intentar eliminar un tag inexistente (debe fallar)
+DELETE TEMPORAL:INEXISTENTE  # Debe fallar - tag no existe
+
+# Eliminar correctamente el tag temporal
+DELETE TEMPORAL:PRUEBA
+
+# Intentar operar sobre un tag eliminado (debe fallar)
+READ TEMPORAL:PRUEBA 0 10  # Debe fallar - tag eliminado
+
+# --------------------------------------------------------------
+# FASE 6: ESCENARIOS COMPLEJOS Y ANIDADOS
+# --------------------------------------------------------------
+
+# Crear estructura anidada de tags para pruebas de concurrencia
+CREATE PROYECTOS:V1
+TRUNCATE PROYECTOS:V1 256
+WRITE PROYECTOS:V1 0 TP_Sistemas:Kernel_Panic
+WRITE PROYECTOS:V1 128 TP_BaseDeDatos:Query_Optimizer
+FLUSH PROYECTOS:V1
+
+# Crear múltiples versiones derivadas
+TAG PROYECTOS:V1 PROYECTOS:V2
+TAG PROYECTOS:V1 PROYECTOS:V3
+
+# Modificar cada versión de forma independiente
+WRITE PROYECTOS:V2 0 TP_Sistemas:Kernel_Panic_v2
+WRITE PROYECTOS:V2 128 TP_BaseDeDatos:Query_Optimizer_v2
+
+WRITE PROYECTOS:V3 0 TP_Sistemas:Kernel_Panic_v3
+WRITE PROYECTOS:V3 128 TP_BaseDeDatos:Query_Optimizer_v3
+
+# Probar escritura en una versión y lectura en otra
+READ PROYECTOS:V1 0 25  # Versión original
+READ PROYECTOS:V2 0 25  # Versión modificada
+READ PROYECTOS:V3 0 25  # Otra versión modificada
+
+# --------------------------------------------------------------
+# FASE 7: PRUEBAS DE ALTO VOLUMEN Y RENDIMIENTO
+# --------------------------------------------------------------
+
+# Crear archivo grande para probar rendimiento
+CREATE GRANDE:PRUEBA
+TRUNCATE GRANDE:PRUEBA 1024  # 8 bloques
+
+# Escribir contenido en todos los bloques
+WRITE GRANDE:PRUEBA 0 Bloque_0_Datos_de_prueba_para_rendimiento
+WRITE GRANDE:PRUEBA 128 Bloque_1_Datos_de_prueba_para_rendimiento
+WRITE GRANDE:PRUEBA 256 Bloque_2_Datos_de_prueba_para_rendimiento
+WRITE GRANDE:PRUEBA 384 Bloque_3_Datos_de_prueba_para_rendimiento
+WRITE GRANDE:PRUEBA 512 Bloque_4_Datos_de_prueba_para_rendimiento
+WRITE GRANDE:PRUEBA 640 Bloque_5_Datos_de_prueba_para_rendimiento
+WRITE GRANDE:PRUEBA 768 Bloque_6_Datos_de_prueba_para_rendimiento
+WRITE GRANDE:PRUEBA 896 Bloque_7_Datos_de_prueba_para_rendimiento
+
+# Leer selectivamente bloques no consecutivos para probar caching
+READ GRANDE:PRUEBA 256 20
+READ GRANDE:PRUEBA 768 20
+READ GRANDE:PRUEBA 0 15
+READ GRANDE:PRUEBA 896 15
+
+# FLUSH y COMMIT para probar rendimiento en persistencia
+FLUSH GRANDE:PRUEBA
+COMMIT GRANDE:PRUEBA
+
+# --------------------------------------------------------------
+# FASE 8: LIMPIEZA Y FINALIZACIÓN
+# --------------------------------------------------------------
+
+# Eliminar archivos temporales y versiones no necesarias
 DELETE MATERIAS:BASE
-CREATE MATERIAS:V1
-TRUNCATE MATERIAS:V1 1024
-WRITE MATERIAS:V1 0 SISTEMAS_OPERATIVOS
-DELETE MATERIAS:V1
-WRITE MATERIAS:V2 0 SISTEMAS_OPERATIVOS_2
-COMMIT MATERIAS:V2
+DELETE ESTUDIANTES:BASE
+DELETE DATOS:REPETITIVOS
+DELETE PROYECTOS:V1
+DELETE PROYECTOS:V2
+DELETE PROYECTOS:V3
+DELETE GRANDE:PRUEBA
+
+# Mantener solo las versiones finales como prueba de integridad
+# (MATERIAS:V1 y MATERIAS:V2 permanecen como archivos COMMITED)
+
+# Verificación final de los archivos que deben permanecer
+READ MATERIAS:V1 0 35
+READ MATERIAS:V2 0 35
+
 END
