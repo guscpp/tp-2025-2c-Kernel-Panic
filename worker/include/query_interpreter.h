@@ -1,11 +1,8 @@
 #ifndef QUERY_INTERPRETER_H_
 #define QUERY_INTERPRETER_H_
 
-//#include "worker.h"
 #include "../../utils/include/utils.h"
-#include "worker.h"
-#include "memoria.h"
-#include "tipos.h"
+#include "tipos.h" //porque usa t_worker sus funciones
 
 // Modelo para que haya algo, 
 t_query_interpreter*    query_interpreter_crear(t_log* logger);

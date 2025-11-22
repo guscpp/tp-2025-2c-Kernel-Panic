@@ -1,8 +1,7 @@
-// worker/src/query_interpreter.c
+
 #include "../include/query_interpreter.h"
-#include "../include/memoria.h"
-#include "../include/worker.h"
-//#include "../include/tipos.h"
+#include "../include/memoria.h" //por acceder_memoria
+#include "../include/worker.h"// por manejo de errores
 
 extern bool query_desconectado;
 // Dejo esto de modelo

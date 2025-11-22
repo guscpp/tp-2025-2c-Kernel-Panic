@@ -1,6 +1,5 @@
 #include "../include/worker.h"
-#include "../include/query_interpreter.h"
-#include "../include/tipos.h"
+#include "../include/query_interpreter.h" //por la funcion que llama al ciclo
 #include <unistd.h>
 
 bool query_desconectado ;

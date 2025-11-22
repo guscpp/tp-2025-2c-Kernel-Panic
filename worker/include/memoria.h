@@ -1,17 +1,16 @@
 #ifndef MEMORIA_H_
 #define MEMORIA_H_
 
-//#include "tipos.h"
+#include "tipos.h" // se que memoria no tiene en sus parametros cosas de tipos.h pero si usa t_instr_param* que esta en tipos, por eso lo necesita
 #include <commons/log.h>
 #include <commons/config.h>
 #include <commons/collections/dictionary.h>
 #include <commons/collections/list.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h> // para los usleep
-#include <time.h>   // para los timestamps en LRU
-#include "../../utils/include/utils.h" //agrego utils para enviar un opcode
-typedef struct t_worker t_worker; 
+#include <unistd.h>
+#include <time.h>
+#include "../../utils/include/utils.h"
 
 typedef enum {
     LRU,
@@ -46,7 +45,7 @@ typedef struct {
 } t_clock_m;
 
 // Estructura principal de la Memoria Interna
-typedef struct {
+typedef struct t_memoria_interna {
     int tamanio_memoria;     // TAM_MEMORIA del config en bytes
     int tamanio_pagina;      // BLOCK_SIZE (viene del Storage) en bytes
     int cantidad_marcos;     // = tamanio_memoria / tamanio_pagina

@@ -1,4 +1,4 @@
-// worker/src/memoria.c
+
 #include "memoria.h"
 #include <commons/string.h>
 #include <string.h>
@@ -6,7 +6,6 @@
 #include <time.h>
 #include "../../utils/include/utils.h"
 #include <semaphore.h>
-#include "../include/tipos.h"
 
 
 char* clave_file_tag(char* file, char* tag) {

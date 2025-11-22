@@ -2,10 +2,10 @@
 #define TIPOS_H_
 
 #include "../../utils/include/utils.h"
-//#include "query_interpreter.h"
 #include <semaphore.h>
-#include "memoria.h"
+//NO puede ir nunca ningun include de submodulo.h, porque aca NO hay funciones que necesiten parametros de otros modulos
  
+typedef struct t_memoria_interna t_memoria_interna;
 
 // Struct modelo: borrala, cambiala o lo que haga falta
 
