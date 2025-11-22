@@ -231,25 +231,31 @@ t_decode* decode(char* instruccion, t_worker* w){
     }
     if(string_equals_ignore_case(parametros[0], "TAG")){
 
-        
-        char** tag_params;
-        char** file_tag_org;
-        char** file_tag_dest;
+		char** tag_params;
+		char** file_tag_org;
+		char** file_tag_dest;
+	
+		tag_params = string_n_split(parametros[1], 2, " ");
 
-        tag_params = string_n_split(parametros[1], 2, " ");
-        file_tag_org = aux_separar_file_tag(tag_params[0]);
-        paquete_decode->parametros->nombre_file_org = file_tag_org[0];
-        paquete_decode->parametros->tag_origen = file_tag_org[1];
-
-        file_tag_dest = aux_separar_file_tag(tag_params[1]);
-        paquete_decode->parametros->nombre_file_destino = file_tag_dest[0];
-        paquete_decode->parametros->tag_destino = file_tag_dest[1];
-        paquete_decode->ejecuta_instruccion = executeTag;
-
-        paquete_decode->fin = false;  //para poner que al principio es falso que sea fin
-        paquete_decode->instruccion_malformada = false;
-        return paquete_decode;
-    }   
+		file_tag_org = aux_separar_file_tag(tag_params[0]);
+		file_tag_dest = aux_separar_file_tag(tag_params[1]);
+		
+		paquete_decode->parametros->nombre_file_org = string_duplicate(file_tag_org[0]);
+		paquete_decode->parametros->tag_origen = string_duplicate(file_tag_org[1]);
+		paquete_decode->parametros->nombre_file_destino = string_duplicate(file_tag_dest[0]);
+		paquete_decode->parametros->tag_destino = string_duplicate(file_tag_dest[1]);
+		
+		paquete_decode->ejecuta_instruccion = executeTag;
+		paquete_decode->fin = false;
+		paquete_decode->instruccion_malformada = false;
+		
+		// Liberar memoria temporal
+		string_array_destroy(tag_params);
+		string_array_destroy(file_tag_org);
+		string_array_destroy(file_tag_dest);
+		
+		return paquete_decode;
+	}   
     if(string_equals_ignore_case(parametros[0], "COMMIT")){
 
         
@@ -407,10 +413,14 @@ void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 }
 
 void executeTag(t_instr_param* parametros, t_worker* w, Pcb* pcb){
+    log_debug(w->logger, "Query<%d>: FETCH - Program Counter:%d - TAG %s:%s %s:%s", 
+             pcb->query_id, w->interpreter->pc, 
+             parametros->nombre_file_org, parametros->tag_origen,
+             parametros->nombre_file_destino, parametros->tag_destino);
     
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_nuevo_tag = crear_paquete(STORAGE_TAG, buffer_generico);
-
+    
     agregar_a_paquete(paquete_nuevo_tag, &(pcb->query_id), sizeof(pcb->query_id));
     agregar_a_paquete(paquete_nuevo_tag, parametros->nombre_file_org, strlen(parametros->nombre_file_org)+1);
     agregar_a_paquete(paquete_nuevo_tag, parametros->tag_origen, strlen(parametros->tag_origen)+1);
@@ -420,12 +430,11 @@ void executeTag(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     enviar_paquete(paquete_nuevo_tag, w->storage_socket, w->logger);
     eliminar_paquete(paquete_nuevo_tag);
     
-    //rtas_storage(w->storage_socket, w, TAG);
     rtas_storage(w->storage_socket, w);
-    log_info(w->logger, "Query<%d>: Instrucción realizada: TAG %s:%s -> %s:%s", 
-            pcb->query_id, parametros->nombre_file_org, parametros->tag_origen,
-            parametros->nombre_file_destino, parametros->tag_destino);
     
+    log_info(w->logger, "Query<%d>: Instrucción realizada: TAG %s:%s -> %s:%s", 
+             pcb->query_id, parametros->nombre_file_org, parametros->tag_origen,
+             parametros->nombre_file_destino, parametros->tag_destino);
 }
 
 void executeCommit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
