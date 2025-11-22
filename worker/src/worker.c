@@ -1,5 +1,5 @@
 #include "../include/worker.h"
-//#include "../include/query_interpreter.h"
+#include "../include/query_interpreter.h"
 #include "../include/tipos.h"
 #include <unistd.h>
 

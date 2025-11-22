@@ -60,6 +60,7 @@ typedef struct {
     t_dictionary* tablas_paginas;  // Clave = "file:tag", valor = t_list* de entrada_pagina_t*
     int socket_storage;
     void* tmp_bloque;
+    void* memoria_contexto;  //Para mantener el contexto durante operaciones multibloque
 } t_memoria_interna;
 
 // Funciones publicas
@@ -67,7 +68,7 @@ t_memoria_interna* crear_memoria(t_log* logger, int tam_memoria, int retardo_mem
 void destruir_memoria(t_memoria_interna* memoria);
 
 // Acceso principal desde el Query Interpreter
-void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* tag, int offset, size_t tam, bool es_escritura, t_worker* w);
+void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* tag, int offset, size_t tam, bool es_escritura);
 
 // Funciones para los algoritmos de reemplazo
 int encontrar_marco_libre(t_memoria_interna* mem);

@@ -1,4 +1,5 @@
 #include "../include/worker.h"
+t_query_interpreter* query_interpreter_crear(t_log* logger);
 
 int main(int argc, char* argv[]) {
 //Lo comente para poder hacer debug de lo ultimo que agregue
@@ -96,6 +97,7 @@ int main(int argc, char* argv[]) {
     w->mem = m;  
     m->socket_storage = w->storage_socket;  
     m->tmp_bloque = NULL;
+    m->memoria_contexto = NULL;
 
     //MAster: escuchar querys
     t_ejecucion* datos_ejecucion = malloc(sizeof(t_ejecucion));

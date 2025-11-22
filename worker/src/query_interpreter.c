@@ -370,49 +370,51 @@ void executeTruncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 
 void executeWrite(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     size_t tam = strlen(parametros->contenido);
-    void* dir = acceder_memoria(w->mem, pcb->query_id, parametros->nombre_file, parametros->tag,
-                                parametros->direccion_base, tam, true, w);
-        if (dir) {
-        memcpy(dir, parametros->contenido, tam);
-        log_info(w->logger, "Query<%d>: Accion:ESCRIBIR - Direccion Fisica:%p - Valor:%s", 
-            pcb->query_id, dir, parametros->contenido);
-        log_info(w->logger, "Query<%d>: Instrucción realizada: WRITE", pcb->query_id);
-    }
-    if(!dir){
+    
+    // Establecer contexto para acceder_memoria
+    w->mem->memoria_contexto = parametros;
+    
+    // La funcion acceder_memoria ahora maneja multiples paginas
+    void* resultado = acceder_memoria(w->mem, pcb->query_id, parametros->nombre_file, parametros->tag,
+                            parametros->direccion_base, tam, true);
+    if (resultado) {
+        log_info(w->logger, "Query<%d>: Instrucción realizada: WRITE %s:%s %d %s", 
+                pcb->query_id, parametros->nombre_file, parametros->tag,
+                parametros->direccion_base, parametros->contenido);
+    } else {
         log_error(w->logger, "Query<%d>: Escritura fallida - File:%s - Tag:%s - Offset:%d",
                  pcb->query_id, parametros->nombre_file, parametros->tag, parametros->direccion_base);
     }
-
+    
+    w->mem->memoria_contexto = NULL; // Limpiar contexto
 }
 
-void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){
+void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb) {
     void* dir = acceder_memoria(w->mem, pcb->query_id, parametros->nombre_file, parametros->tag,
-                                parametros->direccion_base, parametros->tamanio, false, w);
+                                parametros->direccion_base, parametros->tamanio, false);
     if (!dir) {
         log_error(w->logger, "Query<%d>: Lectura fallida - File:%s - Tag:%s - Offset:%d",
                   pcb->query_id, parametros->nombre_file, parametros->tag, parametros->direccion_base);
-        log_info(w->logger, "Intente hacer algo que no puedo en memoria o storage no me dio la pagina que le pedi. ESte es el de query_interpreter");
         return;
     }
-
+    
     char* contenido = string_substring(dir, 0, parametros->tamanio);
     log_info(w->logger, "Contenido leído: %s", contenido);
-
+    
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_read = crear_paquete(WORKER_READ_RESULT, buffer_generico);
-
-    agregar_a_paquete(paquete_read, &(pcb->query_id), sizeof(int)); //envio querID a master
-    agregar_a_paquete(paquete_read, contenido, strlen(contenido)+1); //envio contrenido leido a master
-    agregar_a_paquete(paquete_read, parametros->nombre_file, strlen(parametros->nombre_file)+1); //envio file a master para loggear en querycontrol
-    agregar_a_paquete(paquete_read, parametros->tag, strlen(parametros->tag)+1); //envio tag a master para loggear en querycontrol
-    agregar_a_paquete(paquete_read, &(w->interpreter->pc), sizeof(int));  //envio el pc por las dudas
-
+    agregar_a_paquete(paquete_read, &(pcb->query_id), sizeof(int)); // envío queryID a master
+    agregar_a_paquete(paquete_read, contenido, strlen(contenido)+1); // envío contenido leído a master
+    agregar_a_paquete(paquete_read, parametros->nombre_file, strlen(parametros->nombre_file)+1); // para loggear en QueryControl
+    agregar_a_paquete(paquete_read, parametros->tag, strlen(parametros->tag)+1); // para loggear en QueryControl
+    agregar_a_paquete(paquete_read, &(w->interpreter->pc), sizeof(int)); // envío el PC actual
+    
     enviar_paquete(paquete_read, w->master_socket_distpach, w->logger);
     eliminar_paquete(paquete_read);
-
     free(contenido);
-    log_info(w->logger, "Query<%d>: Instrucción realizada: READ", pcb->query_id);
+    free(dir); // Liberar el buffer total para lecturas
     
+    log_info(w->logger, "Query<%d>: Instrucción realizada: READ", pcb->query_id);
 }
 
 void executeTag(t_instr_param* parametros, t_worker* w, Pcb* pcb){
