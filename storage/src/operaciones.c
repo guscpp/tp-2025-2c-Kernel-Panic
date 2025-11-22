@@ -94,7 +94,7 @@ bool crear_file(t_storage* storage, t_list* parametros)
     char* metadata_path = string_from_format("%s/metadata.config", ruta_abs_tag);
     FILE* metadata_file = fopen(metadata_path, "w");
     if (!metadata_file) {
-        log_error(storage->logger, "Error al crear metadata.config para %s:%s", nombre_file, tag_inicial);
+        log_error(storage->logger, "Error al crear metadata.config para <%s>:<%s>", nombre_file, tag_inicial);
         free(ruta_abs_tag);
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
@@ -108,7 +108,7 @@ bool crear_file(t_storage* storage, t_list* parametros)
     free(metadata_path);
 
     // Log obligatorio con QUERY_ID
-    log_debug(storage->logger, "##%d- File Creado %s:%s", query_id, nombre_file, tag_inicial);
+    log_info(storage->logger, "##<%d>- File Creado <%s>:<%s>", query_id, nombre_file, tag_inicial);
 
     free(ruta_abs_tag);
     pthread_mutex_unlock(file_mutex);
@@ -209,14 +209,14 @@ bool truncar_file(t_storage* storage, t_list* parametros)
 
     // Proteccion para initial_file:BASE - no permitir truncado
     if (string_equals_ignore_case(nombre_file, "initial_file") && string_equals_ignore_case(tag, "BASE")) {
-        log_error(storage->logger, "ERROR: Intento de truncar File:Tag protegido: %s:%s. Este archivo no se puede modificar.", nombre_file, tag);
+        log_error(storage->logger, "ERROR: Intento de truncar File:Tag protegido: <%s>:<%s>. Este archivo no se puede modificar.", nombre_file, tag);
         pthread_mutex_unlock(file_mutex);
         return false;
     }
 
     // No modificar el archivo si ya esta COMMITED
     if (verificar_si_commited(storage, nombre_file, tag)) {
-        log_error(storage->logger, "ERROR: Intento de escritura en File:Tag COMMITED: %s:%s", nombre_file, tag);
+        log_error(storage->logger, "ERROR: Intento de escritura en File:Tag COMMITED: <%s>:<%s>", nombre_file, tag);
         pthread_mutex_unlock(file_mutex);
         return false; // Denegar la escritura
     }
@@ -252,7 +252,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
     int cantidad_bloques_fisico = 0;
     int* array_bloques_fisico = leer_bloques_actuales(metadata_config, &cantidad_bloques_fisico);
 
-    log_debug(storage->logger, "Truncar %s:%s de %d→%d bytes (%d→%d bloques)",
+    log_debug(storage->logger, "Truncar <%s>:<%s> de %d→%d bytes (%d→%d bloques)",
              nombre_file, tag, tamanio_actual, nuevo_tamanio, bloques_actuales, bloques_nuevos);
 
     if(bloques_nuevos > bloques_actuales) { // Aumentar tamaño
@@ -377,8 +377,8 @@ bool tag_file(t_storage* storage, t_list* parametros){
     char* tag_destino = list_get(parametros, 4);
 
     // Obtener lock en el diccionario, pero... (ver mas abajo)
-    char* lock_origen = string_from_format("%s:%s", nombre_file, tag_origen);
-    char* lock_destino = string_from_format("%s:%s", nombre_file, tag_destino);
+    char* lock_origen = string_from_format("<%s>:<%s>", nombre_file, tag_origen);
+    char* lock_destino = string_from_format("<%s>:<%s>", nombre_file, tag_destino);
     
     // Determinar orden alfabético
     pthread_mutex_t* mutex_a = NULL;
@@ -388,7 +388,7 @@ bool tag_file(t_storage* storage, t_list* parametros){
 
     // Proteccion para initial_file:BASE como origen - no permitir crear tags derivados
     if (string_equals_ignore_case(nombre_file, "initial_file") && string_equals_ignore_case(tag_origen, "BASE")) {
-        log_error(storage->logger, "ERROR: Intento de crear tag a partir de File:Tag protegido: %s:%s. Este archivo no se puede usar como origen.", nombre_file, tag_origen);
+        log_error(storage->logger, "ERROR: Intento de crear tag a partir de File:Tag protegido: <%s>:<%s>. Este archivo no se puede usar como origen.", nombre_file, tag_origen);
         pthread_mutex_unlock(mutex_b);
         pthread_mutex_unlock(mutex_a);
         free(lock_origen);
@@ -459,7 +459,7 @@ bool tag_file(t_storage* storage, t_list* parametros){
     char* ruta_metadata_origen = string_from_format("%s/metadata.config", ruta_tag_origen);
     t_config* metadata_origen = config_create(ruta_metadata_origen);
     if(!metadata_origen){
-        log_error(storage->logger, "No se pudo abrir el metadata.config origen para tag_file %s:%s", nombre_file, tag_origen);
+        log_error(storage->logger, "No se pudo abrir el metadata.config origen para tag_file <%s>:<%s>", nombre_file, tag_origen);
         free(metadata_origen);
         free(ruta_tag_origen);
         free(ruta_tag_destino);
@@ -473,7 +473,7 @@ bool tag_file(t_storage* storage, t_list* parametros){
     char* ruta_metadata_destino = string_from_format("%s/metadata.config", ruta_tag_destino);
     FILE* metadata_nuevo_file = fopen(ruta_metadata_destino, "w");
     if(!metadata_nuevo_file){
-        log_error(storage->logger, "Error al crear metadata.config para %s:%s", nombre_file, tag_destino);
+        log_error(storage->logger, "Error al crear metadata.config para <%s>:<%s>", nombre_file, tag_destino);
         config_destroy(metadata_origen);
         free(ruta_tag_origen);
         free(ruta_tag_destino);
@@ -488,7 +488,7 @@ bool tag_file(t_storage* storage, t_list* parametros){
     // 5. Cargar metadata del tag destino recién creado
     t_config* metadata_destino = config_create(ruta_metadata_destino);
     if(!metadata_destino){
-        log_error(storage->logger, "No se pudo abrir el metadata.config destino para tag_file %s:%s", nombre_file, tag_destino);
+        log_error(storage->logger, "No se pudo abrir el metadata.config destino para tag_file <%s>:<%s>", nombre_file, tag_destino);
         config_destroy(metadata_origen);
         free(metadata_destino);
         free(ruta_tag_origen);
@@ -555,7 +555,7 @@ bool tag_file(t_storage* storage, t_list* parametros){
         }
         closedir(dir);
     } else {
-        log_error(storage->logger, "Error al abrir el directorio de bloques lógicos para tag_file %s:%s", nombre_file, tag_origen);
+        log_error(storage->logger, "Error al abrir el directorio de bloques lógicos para tag_file <%s>:<%s>", nombre_file, tag_origen);
 
         // Liberar recursos antes de retornar
         free(ruta_tag_origen);
@@ -577,7 +577,7 @@ bool tag_file(t_storage* storage, t_list* parametros){
     free(ruta_logical_origen);
     free(ruta_logical_destino);
 
-    log_debug(storage->logger, "##<%d>- Tag creado <%s>:<%s>", query_id, nombre_file, tag_destino);
+    log_info(storage->logger, "##<%d>- Tag creado <%s>:<%s>", query_id, nombre_file, tag_destino);
 
     pthread_mutex_unlock(mutex_b);
     pthread_mutex_unlock(mutex_a);
@@ -607,7 +607,7 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
 
     pthread_mutex_t* file_mutex = get_or_create_file_mutex(storage, nombre_file, tag);
     if (!file_mutex) {
-        log_error(storage->logger, "No se pudo obtener el mutex para %s:%s", nombre_file, tag);
+        log_error(storage->logger, "No se pudo obtener el mutex para <%s>:<%s>", nombre_file, tag);
         return false;
     }
     pthread_mutex_lock(file_mutex);
@@ -615,7 +615,7 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
     // 1. Verificar existencia del archivo de metadata
     char* metadata_path = string_from_format("%s/files/%s/%s/metadata.config", storage->punto_montaje, nombre_file, tag);
     if (access(metadata_path, F_OK) != 0) {
-        log_error(storage->logger, "No existe metadata para %s:%s", nombre_file, tag);
+        log_error(storage->logger, "No existe metadata para <%s>:<%s>", nombre_file, tag);
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
         return false;
@@ -623,7 +623,7 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
 
     t_config* metadata = config_create(metadata_path);
     if (!metadata) {
-        log_error(storage->logger, "No se pudo cargar metadata de %s:%s", nombre_file, tag);
+        log_error(storage->logger, "No se pudo cargar metadata de <%s>:<%s>", nombre_file, tag);
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
         return false;
@@ -734,7 +734,7 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
     usleep(storage->retardo_acceso_bloque * 1000);
 
     // Log obligatorio
-    log_debug(storage->logger, "##%d- Bloque Lógico Leído %s:%s - Número de Bloque: %d", query_id, nombre_file, tag, bloque_logico);
+    log_info(storage->logger, "##<%d> - Bloque Lógico Leído <%s>::<%s> - Número de Bloque: <%d>", query_id, nombre_file, tag, bloque_logico);
 
     pthread_mutex_unlock(file_mutex);
     return true;
@@ -764,14 +764,14 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
 
     // Proteccion para initial_file:BASE - no permitir escritura
     if (string_equals_ignore_case(nombre_file, "initial_file") && string_equals_ignore_case(tag, "BASE")) {
-        log_error(storage->logger, "ERROR: Intento de escritura en File:Tag protegido: %s:%s. Este archivo no se puede modificar.", nombre_file, tag);
+        log_error(storage->logger, "ERROR: Intento de escritura en File:Tag protegido: <%s>:<%s>. Este archivo no se puede modificar.", nombre_file, tag);
         pthread_mutex_unlock(file_mutex);
         return false;
     }
 
     // No modificar el archivo/bloque si ya esta COMMITED
     if (verificar_si_commited(storage, nombre_file, tag)) {
-        log_error(storage->logger, "ERROR: Intento de escritura en File:Tag COMMITED: %s:%s", nombre_file, tag);
+        log_error(storage->logger, "ERROR: Intento de escritura en File:Tag COMMITED: <%s>:<%s>", nombre_file, tag);
         pthread_mutex_unlock(file_mutex);
         return false; // Denegar la escritura
     }
@@ -785,7 +785,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     // 1. Verificar existencia del File:Tag
     char* ruta_tag = string_from_format("%s/files/%s/%s", storage->punto_montaje, nombre_file, tag);
     if (access(ruta_tag, F_OK) != 0) {
-        log_error(storage->logger, "Intento de escritura en File:Tag inexistente: %s:%s", nombre_file, tag);
+        log_error(storage->logger, "Intento de escritura en File:Tag inexistente: <%s>:<%s>", nombre_file, tag);
         free(ruta_tag);
         pthread_mutex_unlock(file_mutex);
         return false;
@@ -797,7 +797,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
                                             storage->punto_montaje, nombre_file, tag);
     t_config* metadata = config_create(metadata_path);
     if (!metadata) {
-        log_error(storage->logger, "No se pudo cargar metadata de %s:%s", nombre_file, tag);
+        log_error(storage->logger, "No se pudo cargar metadata de <%s>:<%s>", nombre_file, tag);
         free(metadata);
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
@@ -806,7 +806,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
 
     char* estado_str = config_get_string_value(metadata, "ESTADO");
     if (strcmp(estado_str, "COMMITED") == 0) {
-        log_error(storage->logger, "Intento de escritura en File:Tag COMMITED: %s:%s", nombre_file, tag);
+        log_error(storage->logger, "Intento de escritura en File:Tag COMMITED: <%s>:<%s>", nombre_file, tag);
         config_destroy(metadata);
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
@@ -829,7 +829,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     char** bloques_fisicos_array = config_get_array_value(metadata, "BLOCKS");
     if (!bloques_fisicos_array) { 
         // Verificar si la lista está vacia ~~o es NULL~~
-        log_error(storage->logger, "Metadata de %s:%s no tiene bloques físicos asignados", nombre_file, tag);
+        log_error(storage->logger, "Metadata de <%s>:<%s> no tiene bloques físicos asignados", nombre_file, tag);
         config_destroy(metadata);
         if (bloques_fisicos_array) string_array_destroy(bloques_fisicos_array); //liberar el array de strings
         free(metadata_path);
@@ -963,7 +963,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
             pthread_mutex_unlock(file_mutex);
             return false;
         }
-        log_debug(storage->logger, "##%d-%s:%s Se eliminó el hard link del bloque lógico %d al bloque físico %d",
+        log_info(storage->logger, "##<%d> - <%s>:<%s> Se eliminó el hard link del bloque lógico <%d> al bloque físico <%d>",
                  query_id, nombre_file, tag, bloque_logico, bloque_fisico_actual);
 
         // f. Crear nuevo hard link del bloque logico al nuevo bloque físico
@@ -979,7 +979,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
              pthread_mutex_unlock(file_mutex);
              return false;
         }
-        log_debug(storage->logger, "##%d-%s:%s Se agregó el hard link del bloque lógico %d al bloque físico %d",
+        log_info(storage->logger, "##<%d> - <%s>:<%s> Se agregó el hard link del bloque lógico <%d> al bloque físico <%d>",
                  query_id, nombre_file, tag, bloque_logico, nuevo_bloque_fisico);
 
         free(ruta_bloque_logico_upd);
@@ -1055,8 +1055,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     free(ruta_fisico_final);
 
     // 5. Log obligatorio
-    log_debug(storage->logger, "##%d- Bloque Lógico Escrito %s:%s - Número de Bloque: %d",
-             query_id, nombre_file, tag, bloque_logico);
+    log_info(storage->logger, "##<%d> - Bloque Lógico Escrito <%s>:<%s> - Número de Bloque: <%d>", query_id, nombre_file, tag, bloque_logico);
 
     pthread_mutex_unlock(file_mutex);
     return true;
@@ -1094,20 +1093,20 @@ char* calcular_md5_por_bloque(const char* path_bloque, int tamanio_bloque)
 // Evita duplicidad de bloques al commitear un file:tag.
 // Compara hashes de cada bloque contra blocks_hash_index.config
 void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
-    log_debug(storage->logger, "Iniciando proceso de deduplicación para %s:%s", file, tag);
+    log_debug(storage->logger, "Iniciando proceso de deduplicación para <%s>:<%s>", file, tag);
 
     // 1. Cargar metadata.config del file:tag
     char* metadata_path = string_from_format("%s/files/%s/%s/metadata.config",
                                            storage->punto_montaje, file, tag);
     if (access(metadata_path, F_OK) != 0) {
-        log_error(storage->logger, "No se puede deduplicar, metadata.config no existe para %s:%s", file, tag);
+        log_error(storage->logger, "No se puede deduplicar, metadata.config no existe para <%s>:<%s>", file, tag);
         free(metadata_path);
         return;
     }
 
     t_config* metadata = config_create(metadata_path);
     if (!metadata) {
-        log_error(storage->logger, "No se pudo cargar metadata.config para %s:%s", file, tag);
+        log_error(storage->logger, "No se pudo cargar metadata.config para <%s>:<%s>", file, tag);
         free(metadata_path);
         return;
     }
@@ -1119,7 +1118,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
     char** bloques_str = config_get_array_value(metadata, "BLOCKS");
     int cantidad_bloques = get_array_length(bloques_str);
     if (cantidad_bloques == 0 || !bloques_str) {
-        log_debug(storage->logger, "No hay bloques para deduplicar en %s:%s", file, tag);
+        log_debug(storage->logger, "No hay bloques para deduplicar en <%s>:<%s>", file, tag);
         config_destroy(metadata);
         if (bloques_str) string_array_destroy(bloques_str);
         free(metadata_path);
@@ -1134,7 +1133,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
     if (access(hash_index_path, F_OK) != 0) {
         FILE* f = fopen(hash_index_path, "w");
         if (!f) {
-            log_error(storage->logger, "No se pudo crear el archivo blocks_hash_index.config en %s", hash_index_path);
+            log_error(storage->logger, "No se pudo crear el archivo blocks_hash_index.config en <%s>", hash_index_path);
             config_destroy(metadata);
             string_array_destroy(bloques_str);
             free(metadata_path);
@@ -1173,14 +1172,14 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
     
     for (int i = 0; i < cantidad_bloques; i++) {
         if (!bloques_str[i] || strlen(bloques_str[i]) == 0) {
-            log_warning(storage->logger, "Bloque lógico %d tiene valor vacío en %s:%s", i, file, tag);
+            log_warning(storage->logger, "Bloque lógico %d tiene valor vacío en <%s>:<%s>", i, file, tag);
             nuevos_bloques_str[i] = string_duplicate(bloques_str[i]); // Copiar el vacío o NULL
             continue;
         }
         
         int bloque_fisico_actual = atoi(bloques_str[i]);
         if (bloque_fisico_actual < 0) {
-            log_warning(storage->logger, "Bloque lógico %d tiene valor inválido (%d) en %s:%s", 
+            log_warning(storage->logger, "Bloque lógico %d tiene valor inválido (%d) en <%s>:<%s>", 
                         i, bloque_fisico_actual, file, tag);
             nuevos_bloques_str[i] = string_duplicate(bloques_str[i]); // Copiar el valor inválido
             continue;
@@ -1191,7 +1190,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
                                                     storage->punto_montaje, bloque_fisico_actual);
         
         if (access(path_bloque_fisico, F_OK) != 0) {
-            log_warning(storage->logger, "Bloque físico %d no existe en el filesystem para %s:%s", 
+            log_warning(storage->logger, "Bloque físico %d no existe en el filesystem para <%s>:<%s>", 
                         bloque_fisico_actual, file, tag);
             free(path_bloque_fisico);
             nuevos_bloques_str[i] = string_duplicate(bloques_str[i]); // Copiar el valor original
@@ -1200,7 +1199,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
         
         char* hash = calcular_md5_por_bloque(path_bloque_fisico, storage->tamanio_bloque);
         if (!hash) {
-            log_error(storage->logger, "No se pudo calcular hash para bloque físico %d en %s:%s", 
+            log_error(storage->logger, "No se pudo calcular hash para bloque físico %d en <%s>:<%s>", 
                      bloque_fisico_actual, file, tag);
             free(path_bloque_fisico);
             nuevos_bloques_str[i] = string_duplicate(bloques_str[i]); // Copiar el valor original
@@ -1219,8 +1218,8 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
             }
 
             if (bloque_existente >= 0 && bloque_existente != bloque_fisico_actual) {
-                log_debug(storage->logger, "Deduplicación: Bloque lógico %d de %s:%s reasignado de %d a %d (hash: %s)",
-                        i, file, tag, bloque_fisico_actual, bloque_existente, hash);
+                log_info(storage->logger, "##0 - %s::%s Bloque Lógico %d se reasigna de %d a %d", 
+                         file, tag, i, bloque_fisico_actual, bloque_existente);
 
                 // a. Actualizar el bloque en la metadata (nuevo array)
                 nuevos_bloques_str[i] = string_itoa(bloque_existente);
@@ -1237,7 +1236,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
                                                                    storage->punto_montaje, bloque_existente);
                     
                     if (link(path_bloque_existente, ruta_logico) != 0) {
-                        log_error(storage->logger, "Error al crear nuevo enlace para el bloque lógico %d en %s:%s", 
+                        log_error(storage->logger, "Error al crear nuevo enlace para el bloque lógico %d en <%s>:<%s>", 
                                  i, file, tag);
                         // Intentar restaurar el enlace original
                         char* path_bloque_original = string_from_format("%s/physical_blocks/block%04d.dat",
@@ -1266,12 +1265,12 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
                             if (dst) fclose(dst);
                         }
                     } else {
-                        log_debug(storage->logger, "Enlace lógico %d actualizado correctamente en %s:%s", 
+                        log_debug(storage->logger, "Enlace lógico %d actualizado correctamente en <%s>:<%s>", 
                                 i, file, tag);
                     }
                     free(path_bloque_existente);
                 } else {
-                    log_error(storage->logger, "Error al eliminar enlace original para el bloque lógico %d en %s:%s", 
+                    log_error(storage->logger, "Error al eliminar enlace original para el bloque lógico %d en <%s>:<%s>", 
                              i, file, tag);
                     nuevos_bloques_str[i] = string_duplicate(bloques_str[i]); // Copiar el valor original
                 }
@@ -1281,7 +1280,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
                 pthread_mutex_lock(&storage->mutex_bitmap);
                 if (bitarray_test_bit(storage->bitmap, bloque_fisico_actual)) {
                     bitarray_clean_bit(storage->bitmap, bloque_fisico_actual);
-                    log_debug(storage->logger, "##0-%s:%s Bloque Físico Liberado- Número de Bloque: %d",
+                    log_debug(storage->logger, "##<QUERY_ID>-<%s>:<%s> Bloque Físico Liberado - Número de Bloque: %d",
                             file, tag, bloque_fisico_actual);
                     
                     // Verificar si el bloque físico no tiene más enlaces y eliminarlo
@@ -1295,12 +1294,12 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
                 }
                 pthread_mutex_unlock(&storage->mutex_bitmap);
             } else if (bloque_existente < 0) {
-                log_warning(storage->logger, "Valor inválido para bloque existente en hash %s: %s", 
+                log_warning(storage->logger, "Valor inválido para bloque existente en hash <%s>: %s", 
                            hash, bloque_existente_str);
                 nuevos_bloques_str[i] = string_duplicate(bloques_str[i]); // Copiar el valor original
             } else {
                  // El bloque ya era el correcto, solo loggear y copiar
-                log_debug(storage->logger, "Bloque lógico %d de %s:%s ya estaba correctamente apuntando al bloque físico %d (hash: %s)",
+                log_debug(storage->logger, "Bloque lógico %d de <%s>:<%s> ya estaba correctamente apuntando al bloque físico %d (hash: %s)",
                         i, file, tag, bloque_existente, hash);
                 nuevos_bloques_str[i] = string_duplicate(bloque_existente_str); // Copiar el valor correcto
             }
@@ -1308,7 +1307,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
             // No existe, agregarlo al índice
             char* valor_bloque = string_from_format("block%04d", bloque_fisico_actual);
             config_set_value(hash_index, hash, valor_bloque);
-            log_debug(storage->logger, "##0-%s:%s Nuevo hash agregado al índice: %s -> %s",
+            log_debug(storage->logger, "##0-<%s>:<%s> Nuevo hash agregado al índice: %s -> %s",
                     file, tag, hash, valor_bloque);
             free(valor_bloque);
             nuevos_bloques_str[i] = string_duplicate(bloques_str[i]); // Copiar el valor original
@@ -1330,7 +1329,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
     // 7. Guardar el índice de hashes actualizado
     config_save(hash_index);
 
-    log_debug(storage->logger, "Proceso de deduplicación completado para %s:%s", file, tag);
+    log_debug(storage->logger, "Proceso de deduplicación completado para <%s>:<%s>", file, tag);
 
     // 8. Liberar recursos
     config_destroy(metadata);
@@ -1393,7 +1392,7 @@ bool verificar_si_commited(t_storage* storage, const char* file, const char* tag
     if (status != NULL && string_equals_ignore_case((char*)status, "COMMITED")) {
         esta_commited = true;
         log_warning(storage->logger,
-                    "El archivo %s:%s está COMMITED. Operación no permitida.",
+                    "El archivo <%s>:<%s> está COMMITED. Operación no permitida.",
                     file, tag);
     }
 
@@ -1425,19 +1424,19 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
 
     // Proteccion para initial_file:BASE - no permitir otro commit
     if (string_equals_ignore_case(file, "initial_file") && string_equals_ignore_case(tag, "BASE")) {
-        log_error(storage->logger, "ERROR: Intento de COMMIT en File:Tag protegido: %s:%s. Este archivo ya esta commited y no se puede modificar.", file, tag);
+        log_error(storage->logger, "ERROR: Intento de COMMIT en File:Tag protegido: <%s>:<%s>. Este archivo ya esta commited y no se puede modificar.", file, tag);
         pthread_mutex_unlock(file_mutex);
         return false;
     }
 
-    log_debug(storage->logger, "Iniciando commit para %s:%s", file, tag);
+    log_debug(storage->logger, "Iniciando commit para <%s>:<%s>", file, tag);
 
     // 1. Obtener ruta del metadata.config
     char* metadata_path = string_from_format("%s/files/%s/%s/metadata.config",
                                            storage->punto_montaje, file, tag);
 
     if (access(metadata_path, F_OK) != 0) {
-        log_error(storage->logger, "File:Tag %s:%s no existe para commit", file, tag);
+        log_error(storage->logger, "File:Tag <%s>:<%s> no existe para commit", file, tag);
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
         return false;
@@ -1446,7 +1445,7 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
     // 2. Cargar metadata
     t_config* metadata = config_create(metadata_path);
     if (!metadata) {
-        log_error(storage->logger, "No se pudo abrir metadata.config para commit de %s:%s", file, tag);
+        log_error(storage->logger, "No se pudo abrir metadata.config para commit de <%s>:<%s>", file, tag);
         free(metadata);
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
@@ -1456,7 +1455,7 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
     // 3. Verificar estado actual
     char* estado_actual = config_get_string_value(metadata, "ESTADO");
     if (estado_actual && string_equals_ignore_case((char*)estado_actual, "COMMITED")) {
-        log_warning(storage->logger, "El File:Tag %s:%s ya está COMMITED", file, tag);
+        log_warning(storage->logger, "El File:Tag <%s>:<%s> ya está COMMITED", file, tag);
         config_destroy(metadata);
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
@@ -1464,7 +1463,7 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
     }
 
     // 4. Realizar deduplicación
-    log_debug(storage->logger, "Realizando deduplicación antes del commit para %s:%s", file, tag);
+    log_debug(storage->logger, "Realizando deduplicación antes del commit para <%s>:<%s>", file, tag);
     evitar_duplicidad(storage, file, tag); // Llama a la versión corregida
 
     // 5. Actualizar estado a COMMITED
@@ -1472,7 +1471,7 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
     config_save(metadata);
     config_destroy(metadata);
 
-    log_debug(storage->logger, "##%d- Commit de File:Tag %s:%s", query_id, file, tag);
+    log_info(storage->logger, "##<%d> - Commit de File:Tag <%s>::<%s>", query_id, file, tag);
 
     // 6. Persistir bitmap (esto puede hacerse aquí o en otro momento, dependiendo del diseño)
     persistir_bitmap(storage);
@@ -1502,17 +1501,17 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
 
     // Proteccion para initial_file:BASE - no permitir flush
     if (string_equals_ignore_case(file, "initial_file") && string_equals_ignore_case(tag, "BASE")) {
-        log_error(storage->logger, "ERROR: Intento de FLUSH en File:Tag protegido: %s:%s. Este archivo no se puede modificar.", file, tag);
+        log_error(storage->logger, "ERROR: Intento de FLUSH en File:Tag protegido: <%s>:<%s>. Este archivo no se puede modificar.", file, tag);
         pthread_mutex_unlock(file_mutex);
         return false;
     }
 
-    log_debug(storage->logger, "Iniciando FLUSH para %s:%s", file, tag);
+    log_debug(storage->logger, "Iniciando FLUSH para <%s>:<%s>", file, tag);
 
     // 1. Verificar existencia del File:Tag
     char* ruta_tag = string_from_format("%s/files/%s/%s", storage->punto_montaje, file, tag);
     if (access(ruta_tag, F_OK) != 0) {
-        log_error(storage->logger, "File:Tag %s:%s no existe para FLUSH", file, tag);
+        log_error(storage->logger, "File:Tag <%s>:<%s> no existe para FLUSH", file, tag);
         free(ruta_tag);
         pthread_mutex_unlock(file_mutex);
         return false;
@@ -1521,7 +1520,7 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
 
     // 2. Verificar que no este COMMITED
     if (verificar_si_commited(storage, file, tag)) {
-        log_error(storage->logger, "ERROR: Intento de FLUSH en File:Tag COMMITED: %s:%s", file, tag);
+        log_error(storage->logger, "ERROR: Intento de FLUSH en File:Tag COMMITED: <%s>:<%s>", file, tag);
         pthread_mutex_unlock(file_mutex);
         return false;
     }
@@ -1531,7 +1530,7 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
                                             storage->punto_montaje, file, tag);
     t_config* metadata = config_create(metadata_path);
     if (!metadata) {
-        log_error(storage->logger, "No se pudo cargar metadata de %s:%s para flush", file, tag);
+        log_error(storage->logger, "No se pudo cargar metadata de <%s>:<%s> para flush", file, tag);
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
         return false;
@@ -1544,14 +1543,14 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
 
     // 4. Obtener cantidad de paginas modificadas (ultimo elemento del paquete)
     int cantidad_paginas = *(int*)list_get(paquete, list_size(paquete) - 1);
-    log_debug(storage->logger, "FLUSH para %s:%s - %d bloques a persistir", file, tag, cantidad_paginas);
+    log_debug(storage->logger, "FLUSH para <%s>:<%s> - %d bloques a persistir", file, tag, cantidad_paginas);
 
     // 5. Procesar cada bloque modificado
     bool todas_exitosas = true;
     int idx_datos = 4; // Posicion inicial de los datos de los bloques
     for (int i = 0; i < cantidad_paginas; i++) {
         if (idx_datos + 1 >= list_size(paquete)) {
-            log_error(storage->logger, "Paquete de FLUSH incompleto para bloque %d de %s:%s", 
+            log_error(storage->logger, "Paquete de FLUSH incompleto para bloque %d de <%s>:<%s>", 
                      i, file, tag);
             todas_exitosas = false;
             break;
@@ -1563,7 +1562,7 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
 
         // --- Validaciones ---
         if (numero_bloque < 0 || numero_bloque >= bloques_logicos_totales) {
-            log_error(storage->logger, "Bloque logico %d fuera de rango (0 - %d) para escritura en %s:%s",
+            log_error(storage->logger, "Bloque logico %d fuera de rango (0 - %d) para escritura en <%s>:<%s>",
                       numero_bloque, bloques_logicos_totales - 1, file, tag);
             todas_exitosas = false;
             continue; // Pasar al siguiente bloque en lugar de salir del loop
@@ -1669,7 +1668,7 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
                 todas_exitosas = false;
                 continue; // Pasar al siguiente bloque
             }
-            log_debug(storage->logger, "##%d-%s:%s Se elimino el hard link del bloque logico %d al bloque fisico %d",
+            log_info(storage->logger, "##<%d> - <%s>:<%s> Se elimino el hard link del bloque logico <%d> al bloque fisico <%d>",
                      query_id, file, tag, numero_bloque, bloque_fisico_actual);
 
             if (link(ruta_fisico_nuevo, ruta_bloque_logico_upd) != 0) {
@@ -1686,7 +1685,7 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
                  todas_exitosas = false;
                  continue; // Pasar al siguiente bloque
             }
-            log_debug(storage->logger, "##%d-%s:%s Se agrego el hard link del bloque logico %d al bloque fisico %d",
+            log_info(storage->logger, "##<%d> - <%s>:<%s> Se agrego el hard link del bloque logico <%d> al bloque fisico <%d>",
                      query_id, file, tag, numero_bloque, nuevo_bloque_fisico);
             free(ruta_bloque_logico_upd);
 
@@ -1721,7 +1720,7 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
         free(ruta_fisico_final);
 
         // 7. Log obligatorio
-        log_debug(storage->logger, "##%d- Bloque Logico Escrito %s:%s - Numero de Bloque: %d",
+        log_info(storage->logger, "##<%d> - Bloque Logico Escrito <%s>:<%s> - Numero de Bloque: <%d>",
                  query_id, file, tag, numero_bloque);
 
     } // Fin del loop for
@@ -1746,7 +1745,7 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
     pthread_mutex_unlock(file_mutex);
 
     if (todas_exitosas) {
-        log_debug(storage->logger, "##%d- FLUSH realizado exitosamente para %s:%s", 
+        log_debug(storage->logger, "##<%d> - FLUSH realizado exitosamente para <%s>:<%s>", 
                 query_id, file, tag);
     }
     return todas_exitosas;
@@ -1768,7 +1767,7 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
     
     // 1. Verificar si es initial_file:BASE antes de cualquier otra cosa
     if (string_equals_ignore_case((char*)file, "initial_file") && string_equals_ignore_case((char*)tag, "BASE")) {
-        log_error(storage->logger, "ERROR: Intento de eliminar File:Tag protegido: %s:%s. Este archivo no se puede borrar.", file, tag);
+        log_error(storage->logger, "ERROR: Intento de eliminar File:Tag protegido: <%s>:<%s>. Este archivo no se puede borrar.", file, tag);
         return false;
     }
 
@@ -1784,7 +1783,7 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
 
     // 3. Verificar existencia
     if (access(path_tag, F_OK) != 0) {
-        log_warning(storage->logger, "Intento de eliminar File:Tag inexistente %s:%s", file, tag);
+        log_warning(storage->logger, "Intento de eliminar File:Tag inexistente <%s>:<%s>", file, tag);
         free(path_tag);
         free(path_metadata);
         free(path_bitmap);
@@ -1796,7 +1795,7 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
     // 4. Abrir metadata
     t_config* metadata = config_create(path_metadata);
     if (metadata == NULL) {
-        log_error(storage->logger, "No se pudo abrir metadata de %s:%s", file, tag);
+        log_error(storage->logger, "No se pudo abrir metadata de <%s>:<%s>", file, tag);
         free(path_tag);
         free(path_metadata);
         free(path_bitmap);
@@ -1808,7 +1807,7 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
     // impedir si estado COMMITED
     const char* estado_actual = config_get_string_value(metadata, "ESTADO");
     if (estado_actual && string_equals_ignore_case((char*)estado_actual, "COMMITED")) {
-        log_error(storage->logger, "ERROR: Intento de eliminar File:Tag COMMITED: %s:%s", file, tag);
+        log_error(storage->logger, "ERROR: Intento de eliminar File:Tag COMMITED: <%s>:<%s>", file, tag);
         config_destroy(metadata);
         free(path_tag);
         free(path_metadata);
@@ -1821,7 +1820,7 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
     // 5. Obtener bloques
     char** bloques = config_get_array_value(metadata, "BLOCKS"); // <-- Esto devuelve un array de strings dinámicos
     int cantidad_bloques = get_array_length(bloques);
-    log_debug(storage->logger, "Eliminando tag %s:%s que tiene %d bloques lógicos", file, tag, cantidad_bloques);
+    log_debug(storage->logger, "Eliminando tag <%s>:<%s> que tiene %d bloques lógicos", file, tag, cantidad_bloques);
 
     // 6. Liberar bloques fisicos
     // Primero: unlink de todos los bloques logicos (baja el nlink de los fisicos)
@@ -1829,7 +1828,7 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
         if (!bloques[i] || strlen(bloques[i]) == 0) continue;
         char* path_logico = string_from_format("%s/block%06d.dat", path_logical_dir, i); // <-- Corrección: Formato correcto para bloque lógico
         if (unlink(path_logico) == 0) {
-            log_debug(storage->logger, "##%d- %s:%s Se eliminó el hard link del bloque lógico %d", query_id, file, tag, i);
+            log_info(storage->logger, "##<%d> - <%s>:<%s> Se eliminó el hard link del bloque lógico <%d>", query_id, file, tag, i);
         }
         free(path_logico);
     }
@@ -1846,7 +1845,7 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
             pthread_mutex_lock(&storage->mutex_bitmap);
             bitarray_clean_bit(storage->bitmap, bloque_fisico_id);
             pthread_mutex_unlock(&storage->mutex_bitmap);
-            log_debug(storage->logger, "##%d- Bloque físico %d liberado completamente (nlink=1)", query_id, bloque_fisico_id);
+            log_debug(storage->logger, "##<%d>- Bloque físico %d liberado completamente (nlink=1)", query_id, bloque_fisico_id);
         }
         free(path_fisico);
     }
@@ -1882,7 +1881,7 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
         pthread_mutex_unlock(file_mutex);
         return false;
     }
-    log_debug(storage->logger, "##%d- File Eliminado %s:%s", query_id, file, tag);
+    log_info(storage->logger, "##<%d> - Tag Eliminado <%s>::<%s>", query_id, file, tag);
 
     // 11. Liberar memoria temporal
     free(path_tag);
@@ -1926,7 +1925,7 @@ char* serializar_bloques_array(char** bloques) {
 
 //*****************************************************************************
 pthread_mutex_t* get_or_create_file_mutex(t_storage* storage, const char* file, const char* tag) {
-    char* file_tag_id = string_from_format("%s:%s", file, tag);
+    char* file_tag_id = string_from_format("<%s>:<%s>", file, tag);
     
     pthread_mutex_lock(&storage->mutex_dict_locks);
     
@@ -1950,7 +1949,7 @@ pthread_mutex_t* get_or_create_file_mutex(t_storage* storage, const char* file, 
 
 //*****************************************************************************
 void remove_file_mutex(t_storage* storage, const char* file, const char* tag) {
-    char* file_tag_id = string_from_format("%s:%s", file, tag);
+    char* file_tag_id = string_from_format("<%s>:<%s>", file, tag);
     
     pthread_mutex_lock(&storage->mutex_dict_locks);
     

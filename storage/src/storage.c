@@ -1,5 +1,6 @@
 #include "storage.h"
 #include <commons/collections/dictionary.h>
+#include <strings.h>
 
 
 char* PATH_BASE = NULL;
@@ -9,7 +10,14 @@ char* PATH_BASE = NULL;
 t_storage* iniciar_storage(){
     t_storage* storage = malloc(sizeof(t_storage));
 
-    storage->logger = iniciar_logger("storage.log", "STORAGE", 1, LOG_LEVEL_INFO);
+    // ********* hack para poder cargar log_level del archivo config **********
+    t_config* temp_config = config_create("storage.config");
+    char* log_level_str = config_get_string_value(temp_config, "LOG_LEVEL");
+    t_log_level log_level = obtener_log_level(log_level_str);
+    storage->logger = iniciar_logger("storage.log", "STORAGE", 1, log_level);
+    config_destroy(temp_config);
+    // ********* hack para poder cargar log_level del archivo config **********
+
     storage->config = iniciar_config(storage->logger, "storage.config");
     storage->superblock = iniciar_config(storage->logger, "superblock.config");
     storage->puerto_escucha = config_get_string_value(storage->config, "PUERTO_ESCUCHA");
