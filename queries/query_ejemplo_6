@@ -1,0 +1,19 @@
+# --------------------------------------------------------------
+# FASE 3: PRUEBAS DE DEDUPLICACIÓN Y OPTIMIZACIÓN
+# --------------------------------------------------------------
+
+# Crear archivo con contenido repetitivo para probar deduplicación
+CREATE DATOS:REPETITIVOS
+TRUNCATE DATOS:REPETITIVOS 384  # 3 bloques
+
+# Escribir el mismo contenido en múltiples bloques
+WRITE DATOS:REPETITIVOS 0 CONTENIDO_DUPLICADO_12345
+WRITE DATOS:REPETITIVOS 128 CONTENIDO_DUPLICADO_12345
+WRITE DATOS:REPETITIVOS 256 CONTENIDO_DUPLICADO_12345
+COMMIT DATOS:REPETITIVOS
+#FLUSH DATOS:REPETITIVOS
+
+# Verificar que la deduplicación funciona correctamente
+READ DATOS:REPETITIVOS 0 25
+READ DATOS:REPETITIVOS 128 25
+READ DATOS:REPETITIVOS 256 25

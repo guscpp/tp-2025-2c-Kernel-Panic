@@ -74,7 +74,7 @@ FLUSH documentacion:base
 FLUSH datos_sensibles:backup_001
 
 # Fase 14: Eliminación final
-DELETE temporal:cache
+# DELETE temporal:cache
 
 # Fase 15: Finalización
 END
