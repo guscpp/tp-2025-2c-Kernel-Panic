@@ -33,15 +33,12 @@ t_query_control* inicializar_query_control(int argc, char* argv[])
 
 void verificar_query_control(t_query_control* qc)
 {
-    log_info(qc->logger, "** Query Control inicializado correctamente");
-    log_info(qc->logger, "** IP Master: %s", qc->ip_master);
-    log_info(qc->logger, "** Puerto Master: %d", qc->puerto_master);
-    log_info(qc->logger, "** Archivo de query: %s", qc->archivo_query);
-    log_info(qc->logger, "** Prioridad: %d", qc->prioridad);
-    log_info(qc->logger, "** Nivel de log: %s", qc->log_level);
-    log_debug(qc->logger, "** Nivel de log debug anda ");
+    log_debug(qc->logger, "** Query Control inicializado correctamente");
+    log_debug(qc->logger, "** IP Master: %s", qc->ip_master);
+    log_debug(qc->logger, "** Puerto Master: %d", qc->puerto_master);
+    log_debug(qc->logger, "** Archivo de query: %s", qc->archivo_query);
+    log_debug(qc->logger, "** Prioridad: %d", qc->prioridad);
 }
-
 
 void liberar_query_control(t_query_control* qc)
 {
@@ -56,39 +53,24 @@ void liberar_query_control(t_query_control* qc)
 
 int conectar_al_master(t_query_control* qc)
 {    
-    int intentos = 0;
-    const int max_intentos = 5;
-    const int delay_segundos = 2;
     
-    while (intentos < max_intentos) {
-        log_info(qc->logger, "** Intentando conectar al Master (intento %d/%d)...", 
-                intentos + 1, max_intentos);
-        
-        qc->master_socket = crear_conexion(qc->logger, qc->ip_master, string_itoa(qc->puerto_master));
-        
-        if (qc->master_socket != -1) {
-            log_info(qc->logger,COLOR_VERDE "## Conexión al Master exitosa. IP: %s, Puerto: %d" COLOR_VERDE, 
-                     qc->ip_master, qc->puerto_master);
-            return 0;
-        }
-        
-        intentos++;
-        if (intentos < max_intentos) {
-            log_warning(qc->logger, "** Intento %d/%d fallado. Reintentando en %d segundos...", 
-                       intentos, max_intentos, delay_segundos);
-            sleep(delay_segundos);
-        }
+    qc->master_socket = crear_conexion(qc->logger, qc->ip_master, string_itoa(qc->puerto_master));
+    
+    if (qc->master_socket != -1) {
+        log_info(qc->logger,"## Conexión al Master exitosa. IP: %s, Puerto: %d", qc->ip_master, qc->puerto_master);
+        return 0;
+
+    }else{
+        log_error(qc->logger, "** Error al Conectar al Master");
+        return -1; 
     }
-    
-    log_error(qc->logger, "** No se pudo conectar al Master después de %d intentos", max_intentos);
-    return -1;
 }
 
 void enviar_handshake(t_query_control* qc) {
     t_paquete* paquete = crear_paquete(QC_HANDSHAKE, crear_buffer());
     enviar_paquete(paquete, qc->master_socket, qc->logger);
     eliminar_paquete(paquete);
-    log_info(qc->logger, "** HANDSHAKE MASTER");
+    log_debug(qc->logger, "** HANDSHAKE MASTER");
 }
 void enviar_path_y_prioridad(t_query_control *qc)
 {
@@ -109,8 +91,7 @@ void enviar_path_y_prioridad(t_query_control *qc)
     int resultado = enviar_paquete(paquete, qc->master_socket, qc->logger);
     
     if (resultado == 0) {
-        log_info(qc->logger,COLOR_VERDE "## Solicitud de ejecución de Query: %s, prioridad: %d" COLOR_VERDE , 
-                nombre_archivo, qc->prioridad);
+        log_info(qc->logger,"## Solicitud de ejecución de Query: %s, prioridad: %d", nombre_archivo, qc->prioridad);
     } else {
         log_error(qc->logger, "** Error al enviar query al Master");
     }
@@ -121,13 +102,13 @@ void enviar_path_y_prioridad(t_query_control *qc)
 void procesar_respuestas_master(t_query_control* qc)
 {    
     while (1) {
-        log_info(qc->logger, "** Esperando respuesta del Master...");
+        log_warning(qc->logger, "** Esperando respuesta del Master...");
         
         t_list* paqueteMaster = recibir_paquete(qc->master_socket);
         
         // Verificar si el paquete es NULL (conexión cerrada)
         if (paqueteMaster == NULL) {
-            log_info(qc->logger, COLOR_VERDE"## Query Finalizada - Query Desconectada de Master" COLOR_VERDE);
+            log_error(qc->logger,"## Query Finalizada - Query Desconectada de Master");
             break;
         }
         
@@ -139,7 +120,7 @@ void procesar_respuestas_master(t_query_control* qc)
         }
         
         int codigo_operacion = *codigo_operacion_ptr;
-        log_info(qc->logger, "** Código de operación recibido: %d", codigo_operacion);
+        log_debug(qc->logger, "** Código de operación recibido: %d", codigo_operacion);
 
         switch (codigo_operacion) {
 
@@ -159,7 +140,7 @@ void procesar_respuestas_master(t_query_control* qc)
             }
 
             case QUERY_RESPONSE_ERROR: {
-                log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: No Especificado" COLOR_VERDE);
+                log_error(qc->logger, "## Query Finalizada - Error: No Especificado");
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
             }
@@ -170,7 +151,7 @@ void procesar_respuestas_master(t_query_control* qc)
                 char* file = (char*)list_get(paqueteMaster, 1);
                 char* tag = (char*)list_get(paqueteMaster, 2);
     
-                log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Archivo %s:%s No Encontrado" COLOR_VERDE, file, tag);
+                log_error(qc->logger, "## Query Finalizada - Error: Archivo %s:%s No Encontrado", file, tag);
 
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
@@ -182,7 +163,7 @@ void procesar_respuestas_master(t_query_control* qc)
 
                 char* path = (char*)list_get(paqueteMaster, 1);
     
-                log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Archivo de Query : %s No Encontrado" COLOR_VERDE, path);
+                log_error(qc->logger,"## Query Finalizada - Error: Archivo de Query : %s No Encontrado", path);
 
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
@@ -191,7 +172,7 @@ void procesar_respuestas_master(t_query_control* qc)
             case QUERY_RESPONSE_ERROR_ERROR_EN_INSTRUCCION: {
 
                 char* instruccion = (char*)list_get(paqueteMaster, 1);
-                log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Error Al Ejecutar la Instrucción: %s" COLOR_VERDE, instruccion);
+                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Error Al Ejecutar la Instrucción: %s", instruccion);
 
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
@@ -201,7 +182,7 @@ void procesar_respuestas_master(t_query_control* qc)
                 
                 char* file = (char*)list_get(paqueteMaster, 1);
                 char* tag = (char*)list_get(paqueteMaster, 2);
-                log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Lectura Inválida del Archivo : %s:%s" COLOR_VERDE, file, tag);
+                log_error(qc->logger, "## Query Finalizada - Error: Lectura Inválida del Archivo : %s:%s", file, tag);
 
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
@@ -210,7 +191,7 @@ void procesar_respuestas_master(t_query_control* qc)
             case QUERY_RESPONSE_ERROR_WORKER_DESCONECTADO: {
                 
                 char* worker_id = (char*)list_get(paqueteMaster, 1);
-                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Worker con ID : %s Desconectado" COLOR_VERDE, worker_id);
+                log_error(qc->logger, "## Query Finalizada - Error: Worker con ID : %s Desconectado", worker_id);
 
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
@@ -220,7 +201,7 @@ void procesar_respuestas_master(t_query_control* qc)
                 
                 char* file = (char*)list_get(paqueteMaster, 1);
                 char* tag = (char*)list_get(paqueteMaster, 2);
-                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Se Intento Modifical al Archivo %s:%s que se Encuentra en estado de COMMITED" COLOR_VERDE, file, tag);
+                log_error(qc->logger, "## Query Finalizada - Error: Se Intento Modifical al Archivo %s:%s que se Encuentra en estado de COMMITED", file, tag);
 
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
@@ -231,7 +212,7 @@ void procesar_respuestas_master(t_query_control* qc)
                 
                 char* file = (char*)list_get(paqueteMaster, 1);
                 char* tag = (char*)list_get(paqueteMaster, 2);
-                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Tamaño de Escritura Excedido Para el Archivo %s:%s" COLOR_VERDE, file, tag);
+                log_error(qc->logger, "## Query Finalizada - Error: Tamaño de Escritura Excedido Para el Archivo %s:%s", file, tag);
 
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
@@ -242,7 +223,7 @@ void procesar_respuestas_master(t_query_control* qc)
                 
                 char* file = (char*)list_get(paqueteMaster, 1);
                 char* tag = (char*)list_get(paqueteMaster, 2);
-                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Tamaño de Lectura Excedido Para el Archivo %s:%s" COLOR_VERDE, file, tag);
+                log_error(qc->logger, "## Query Finalizada - Error: Tamaño de Lectura Excedido Para el Archivo %s:%s", file, tag);
 
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
@@ -251,7 +232,7 @@ void procesar_respuestas_master(t_query_control* qc)
 
             case QUERY_RESPONSE_ERROR_STORAGE_DESCONECTADO: {
                 
-                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Storage Desconectado" COLOR_VERDE);
+                log_error(qc->logger,"## Query Finalizada - Error: Storage Desconectado");
 
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;

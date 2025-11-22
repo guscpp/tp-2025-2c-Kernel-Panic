@@ -1,4 +1,5 @@
 #include "../include/worker.h"
+
 t_query_interpreter* query_interpreter_crear(t_log* logger);
 
 int main(int argc, char* argv[]) {

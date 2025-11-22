@@ -4,6 +4,7 @@
 #include "../../utils/include/utils.h"
 #include "tipos.h" //por t_worker
 #include <semaphore.h>
+#include "memoria.h"
 
 
 t_worker* inicializar_worker(int id_worker);
