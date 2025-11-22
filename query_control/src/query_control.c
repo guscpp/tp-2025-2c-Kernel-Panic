@@ -57,7 +57,7 @@ int conectar_al_master(t_query_control* qc)
     qc->master_socket = crear_conexion(qc->logger, qc->ip_master, string_itoa(qc->puerto_master));
     
     if (qc->master_socket != -1) {
-        log_info(qc->logger,"## Conexión al Master exitosa. IP: %s, Puerto: %d", qc->ip_master, qc->puerto_master);
+        log_info(qc->logger, COLOR_VERDE "## Conexión al Master exitosa. IP: %s, Puerto: %d" COLOR_VERDE, qc->ip_master, qc->puerto_master);
         return 0;
 
     }else{
@@ -118,28 +118,33 @@ void procesar_respuestas_master(t_query_control* qc)
             list_destroy(paqueteMaster);
             continue;
         }
-        
+
         int codigo_operacion = *codigo_operacion_ptr;
         log_debug(qc->logger, "** Código de operación recibido: %d", codigo_operacion);
-
+        
         switch (codigo_operacion) {
 
+
             case QUERY_RESPONSE_READ: {
+
                 char* file = (char*)list_get(paqueteMaster, 1);
                 char* tag = (char*)list_get(paqueteMaster, 2);
                 char* contenido = (char*)list_get(paqueteMaster, 3);
                 
                 log_info(qc->logger, COLOR_VERDE "## Lectura realizada: File %s:%s, contenido: %s" COLOR_VERDE, file, tag, contenido);
+                
                 break;
             }
 
             case QUERY_RESPONSE_END: {
+
                 log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Query Finalizada Con Éxito" COLOR_VERDE);
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
             }
 
             case QUERY_RESPONSE_ERROR: {
+
                 log_error(qc->logger, "## Query Finalizada - Error: No Especificado");
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
@@ -152,7 +157,6 @@ void procesar_respuestas_master(t_query_control* qc)
                 char* tag = (char*)list_get(paqueteMaster, 2);
     
                 log_error(qc->logger, "## Query Finalizada - Error: Archivo %s:%s No Encontrado", file, tag);
-
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
             }
@@ -164,7 +168,6 @@ void procesar_respuestas_master(t_query_control* qc)
                 char* path = (char*)list_get(paqueteMaster, 1);
     
                 log_error(qc->logger,"## Query Finalizada - Error: Archivo de Query : %s No Encontrado", path);
-
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
             }
@@ -172,8 +175,8 @@ void procesar_respuestas_master(t_query_control* qc)
             case QUERY_RESPONSE_ERROR_ERROR_EN_INSTRUCCION: {
 
                 char* instruccion = (char*)list_get(paqueteMaster, 1);
-                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Error Al Ejecutar la Instrucción: %s", instruccion);
 
+                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Error Al Ejecutar la Instrucción: %s", instruccion);
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
             }
@@ -182,8 +185,8 @@ void procesar_respuestas_master(t_query_control* qc)
                 
                 char* file = (char*)list_get(paqueteMaster, 1);
                 char* tag = (char*)list_get(paqueteMaster, 2);
-                log_error(qc->logger, "## Query Finalizada - Error: Lectura Inválida del Archivo : %s:%s", file, tag);
 
+                log_error(qc->logger, "## Query Finalizada - Error: Lectura Inválida del Archivo : %s:%s", file, tag);
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
             }
@@ -191,8 +194,8 @@ void procesar_respuestas_master(t_query_control* qc)
             case QUERY_RESPONSE_ERROR_WORKER_DESCONECTADO: {
                 
                 char* worker_id = (char*)list_get(paqueteMaster, 1);
-                log_error(qc->logger, "## Query Finalizada - Error: Worker con ID : %s Desconectado", worker_id);
 
+                log_error(qc->logger, "## Query Finalizada - Error: Worker con ID : %s Desconectado", worker_id);
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
             }
@@ -201,8 +204,8 @@ void procesar_respuestas_master(t_query_control* qc)
                 
                 char* file = (char*)list_get(paqueteMaster, 1);
                 char* tag = (char*)list_get(paqueteMaster, 2);
-                log_error(qc->logger, "## Query Finalizada - Error: Se Intento Modifical al Archivo %s:%s que se Encuentra en estado de COMMITED", file, tag);
 
+                log_error(qc->logger, "## Query Finalizada - Error: Se Intento Modifical al Archivo %s:%s que se Encuentra en estado de COMMITED", file, tag);
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
 
@@ -212,8 +215,8 @@ void procesar_respuestas_master(t_query_control* qc)
                 
                 char* file = (char*)list_get(paqueteMaster, 1);
                 char* tag = (char*)list_get(paqueteMaster, 2);
-                log_error(qc->logger, "## Query Finalizada - Error: Tamaño de Escritura Excedido Para el Archivo %s:%s", file, tag);
 
+                log_error(qc->logger, "## Query Finalizada - Error: Tamaño de Escritura Excedido Para el Archivo %s:%s", file, tag);
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
 
@@ -223,8 +226,8 @@ void procesar_respuestas_master(t_query_control* qc)
                 
                 char* file = (char*)list_get(paqueteMaster, 1);
                 char* tag = (char*)list_get(paqueteMaster, 2);
-                log_error(qc->logger, "## Query Finalizada - Error: Tamaño de Lectura Excedido Para el Archivo %s:%s", file, tag);
 
+                log_error(qc->logger, "## Query Finalizada - Error: Tamaño de Lectura Excedido Para el Archivo %s:%s", file, tag);
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
 
@@ -233,7 +236,6 @@ void procesar_respuestas_master(t_query_control* qc)
             case QUERY_RESPONSE_ERROR_STORAGE_DESCONECTADO: {
                 
                 log_error(qc->logger,"## Query Finalizada - Error: Storage Desconectado");
-
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
 
