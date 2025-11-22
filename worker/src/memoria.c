@@ -5,8 +5,9 @@
 #include <unistd.h>
 #include <time.h>
 #include "../../utils/include/utils.h"
+#include <semaphore.h>
+#include "../include/tipos.h"
 
-bool error_memoria = false;
 
 char* clave_file_tag(char* file, char* tag) {
     return string_from_format("%s:%s", file, tag);
@@ -283,13 +284,15 @@ int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, i
     return marco;
 }
 
-void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* tag, int offset, size_t tam, bool es_escritura) {
+void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* tag, int offset, size_t tam, bool es_escritura, t_worker* w) {
     if (!mem || !file || !tag || tam == 0) return NULL; //no se si haria falta mandar como error el motivo de que no quiera escribir nada
     int num_pagina = offset / mem->tamanio_pagina;
     int despl = offset % mem->tamanio_pagina;
     if (despl + tam > mem->tamanio_pagina) { //SI Inetna leer en algo que esta fuera del tamanio de pagina 
         log_info(mem->logger, "Query<%d>: Acceso cruza limite de pagina - Offset: %d, Tamaño: %zu", query_id, offset, tam);
-        error_memoria = true;
+        pthread_mutex_lock(&mutex_error_memoria);
+        w->error_memoria = true;
+        pthread_mutex_unlock(&mutex_error_memoria);
         if(es_escritura){
         error_tamanio_escrLectura_excedido(mem->logger, WORKER_ERROR_TAMANIO_ESCRITURA_EXCEDIDO, query_id, file, tag);
         return NULL;

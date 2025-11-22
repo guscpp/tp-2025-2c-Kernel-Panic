@@ -1,11 +1,12 @@
 #include "../include/worker.h"
-#include "../include/query_interpreter.h"
+//#include "../include/query_interpreter.h"
 #include "../include/tipos.h"
 #include <unistd.h>
 
 bool query_desconectado ;
 int socket_distpach;
 pthread_mutex_t mutex_interrupt; 
+pthread_mutex_t mutex_error_memoria; 
 
 t_worker* inicializar_worker(int id_worker)
 {
@@ -25,6 +26,7 @@ t_worker* inicializar_worker(int id_worker)
     w->master_socket_distpach= -1;
     w->master_socket_interrupt = -1;
     w->storage_socket = -1;
+    w->error_memoria = false;
 
     return w;
 }
@@ -106,7 +108,7 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
             }
 
             list_destroy(paquete_path);
-            error_path_not_found(w->logger, WORKER_ERROR_QUERY_NO_ENCONTRADA, dt_archivo->query_id);
+            error_path_not_found(w->logger, WORKER_ERROR_QUERY_NO_ENCONTRADA, dt_archivo->query_id, dt_archivo->nombre_archivo);
 
             return NULL;
             //free(path_query); //?
@@ -315,11 +317,12 @@ void rtas_storage(int storage_socket, t_worker* w) {
 
 
 //ERRORES
-void error_path_not_found(t_log* logger, op_code etiqueta, int id_query){ //descomentar para el envio
+void error_path_not_found(t_log* logger, op_code etiqueta, int id_query, char* path){ //descomentar para el envio
     
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError = crear_paquete(etiqueta, buffer1);
     agregar_a_paquete(paqueteError, &id_query, sizeof(int));
+    agregar_a_paquete(paqueteError, path, strlen(path) +1);
     enviar_paquete(paqueteError, socket_distpach, logger);
     eliminar_paquete(paqueteError);
     loggerError(logger, etiqueta);
@@ -401,6 +404,10 @@ void semaforos (t_worker* w){
 
     }
 
+    if(pthread_mutex_init(&mutex_error_memoria, NULL) != 0){
+        log_warning(w->logger,"Error al inicializar el mutex cantWorkers");
+
+    }
     log_info(w->logger, "Inice bien los semaforos");
 
 }

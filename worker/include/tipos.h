@@ -2,10 +2,10 @@
 #define TIPOS_H_
 
 #include "../../utils/include/utils.h"
-//#include "memoria.h"  
-#include "query_interpreter.h"
+//#include "query_interpreter.h"
 #include <semaphore.h>
-
+#include "memoria.h"
+ 
 
 // Struct modelo: borrala, cambiala o lo que haga falta
 
@@ -15,7 +15,7 @@ typedef struct {
     bool hay_interrupcion;
 } t_query_interpreter;
 //--------------------------------
-typedef struct
+typedef struct t_worker 
 {
     t_log*               logger;
     t_config*            config;
@@ -35,6 +35,7 @@ typedef struct
     t_query_interpreter* interpreter;
     int                  tamanio_bloque;
     int                  cantidad_bloques;
+    bool                 error_memoria;
 } t_worker;
 
 typedef struct {
@@ -43,7 +44,6 @@ typedef struct {
 
 } t_ejecucion;
 
-//extern pthread_mutex_t mutex_interrupt;
 
 //EN QUERY INTERPRETER
 
@@ -76,8 +76,8 @@ typedef struct{
     bool instruccion_malformada; 
 }t_decode; //solo para que haya execute
 
-extern bool error_memoria;
-
 extern pthread_mutex_t mutex_interrupt;
+
+extern pthread_mutex_t mutex_error_memoria;
 
 #endif

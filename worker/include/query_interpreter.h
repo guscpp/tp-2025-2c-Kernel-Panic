@@ -1,9 +1,10 @@
 #ifndef QUERY_INTERPRETER_H_
 #define QUERY_INTERPRETER_H_
 
-#include "worker.h"
+//#include "worker.h"
 #include "../../utils/include/utils.h"
-//#include "memoria.h"
+#include "worker.h"
+#include "memoria.h"
 #include "tipos.h"
 
 // Modelo para que haya algo, 

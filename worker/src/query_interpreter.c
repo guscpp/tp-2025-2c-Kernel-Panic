@@ -2,7 +2,7 @@
 #include "../include/query_interpreter.h"
 #include "../include/memoria.h"
 #include "../include/worker.h"
-#include "../include/tipos.h"
+//#include "../include/tipos.h"
 
 extern bool query_desconectado;
 // Dejo esto de modelo
@@ -27,11 +27,14 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
 
     for(;;){
 
-        if(error_memoria){
+        pthread_mutex_lock(&mutex_error_memoria);
+        if(w->error_memoria){
         log_info(w->logger, "Me estoy por salir del ciclo, porque alguna cosa extrania intento hacer la query en memoria");
-            error_memoria = false; 
+            w->error_memoria = false;
+            pthread_mutex_unlock(&mutex_error_memoria);
             break;
         }
+        pthread_mutex_unlock(&mutex_error_memoria);
         instruccion = fetch(pcb, w); //aca me llega la instruccion completa
         printf("Numero de linea del archivo query - i = %d \n", i++);
 
@@ -368,7 +371,7 @@ void executeTruncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 void executeWrite(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     size_t tam = strlen(parametros->contenido);
     void* dir = acceder_memoria(w->mem, pcb->query_id, parametros->nombre_file, parametros->tag,
-                                parametros->direccion_base, tam, true);
+                                parametros->direccion_base, tam, true, w);
         if (dir) {
         memcpy(dir, parametros->contenido, tam);
         log_info(w->logger, "Query<%d>: Accion:ESCRIBIR - Direccion Fisica:%p - Valor:%s", 
@@ -384,7 +387,7 @@ void executeWrite(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 
 void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     void* dir = acceder_memoria(w->mem, pcb->query_id, parametros->nombre_file, parametros->tag,
-                                parametros->direccion_base, parametros->tamanio, false);
+                                parametros->direccion_base, parametros->tamanio, false, w);
     if (!dir) {
         log_error(w->logger, "Query<%d>: Lectura fallida - File:%s - Tag:%s - Offset:%d",
                   pcb->query_id, parametros->nombre_file, parametros->tag, parametros->direccion_base);
