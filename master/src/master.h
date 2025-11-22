@@ -26,6 +26,7 @@ typedef struct {
     bool alive; //son solo para queries
     pthread_t hilo_timer; //son solo para queries
      t_log* logger;
+     sem_t timer_query;
     } t_query;
 
 typedef struct {
@@ -78,6 +79,6 @@ void* atender_desconexion_worker(void* );
 void* atender_timer_query(void* );
 t_query* obtener_query_por_id_worker(t_list* , int );
 
-void realizar_desalojo(int,int,t_log*,int );
+void realizar_desalojo(int,int,int,t_log*,int );
 t_worker* eliminar_worker_por_id(t_list* , int );
 #endif /* CLIENTE_H_ */
