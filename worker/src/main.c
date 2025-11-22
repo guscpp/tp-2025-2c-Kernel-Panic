@@ -58,6 +58,13 @@ int main(int argc, char* argv[]) {
     
     //Storge: crear la conexion
     w->storage_socket = crear_conexion(w->logger, w->ip_storage, w->puerto_storage); //socket y connect
+    // creo esto para mandarle el ID del worker a storage (papu)
+    t_buffer* buffer_para_id_a_storage = crear_buffer();
+    t_paquete* paquete_id_a_storage = crear_paquete(WORKER_ID, buffer_para_id_a_storage); // reutilizo el codigo WORKER_ID para mandar el id del worker a storage
+    agregar_a_paquete(paquete_id_a_storage, &w->id_worker, sizeof(int));
+    enviar_paquete(paquete_id_a_storage, w->storage_socket, w->logger);
+
+    eliminar_paquete(paquete_id_a_storage);
     t_buffer* buffer2 = crear_buffer();
     t_paquete* packetHandshake2 = crear_paquete(WORKER_HANDSHAKE, buffer2);
     //int a = 12;

@@ -107,7 +107,7 @@ bool crear_file(t_storage* storage, t_list* parametros)
     fclose(metadata_file);
     free(metadata_path);
 
-    // Log obligatorio con QUERY_ID
+    // Log obligatorio de crear file
     log_info(storage->logger, "##<%d>- File Creado <%s>:<%s>", query_id, nombre_file, tag_inicial);
 
     free(ruta_abs_tag);
@@ -353,6 +353,10 @@ bool truncar_file(t_storage* storage, t_list* parametros)
     if(array_bloques_fisico) free(array_bloques_fisico);
 
     config_destroy(metadata_config);
+
+
+    //log obligatorio de truncate
+    log_info(storage->logger, "##<%d>- File Truncado <%s>:<%s> - Tamaño: <%d>", query_id, nombre_file, tag, nuevo_tamanio);
     free(ruta_metadata);
     pthread_mutex_unlock(file_mutex);
     return true;
@@ -733,8 +737,8 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
     // Aplicar retardo
     usleep(storage->retardo_acceso_bloque * 1000);
 
-    // Log obligatorio
-    log_info(storage->logger, "##<%d> - Bloque Lógico Leído <%s>::<%s> - Número de Bloque: <%d>", query_id, nombre_file, tag, bloque_logico);
+    // Log obligatorio de leer bloque
+    log_info(storage->logger, "##<%d> - Bloque Lógico Leído <%s>:<%s> - Número de Bloque: <%d>", query_id, nombre_file, tag, bloque_logico);
 
     pthread_mutex_unlock(file_mutex);
     return true;
@@ -1054,7 +1058,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     fclose(f_bloque_final);
     free(ruta_fisico_final);
 
-    // 5. Log obligatorio
+    // 5. Log obligatorio de escribir bloque
     log_info(storage->logger, "##<%d> - Bloque Lógico Escrito <%s>:<%s> - Número de Bloque: <%d>", query_id, nombre_file, tag, bloque_logico);
 
     pthread_mutex_unlock(file_mutex);
@@ -1092,7 +1096,7 @@ char* calcular_md5_por_bloque(const char* path_bloque, int tamanio_bloque)
 //*****************************************************************************
 // Evita duplicidad de bloques al commitear un file:tag.
 // Compara hashes de cada bloque contra blocks_hash_index.config
-void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
+void evitar_duplicidad(t_storage* storage, char* file, char* tag, int query_id) {
     log_debug(storage->logger, "Iniciando proceso de deduplicación para <%s>:<%s>", file, tag);
 
     // 1. Cargar metadata.config del file:tag
@@ -1218,8 +1222,12 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
             }
 
             if (bloque_existente >= 0 && bloque_existente != bloque_fisico_actual) {
-                log_info(storage->logger, "##0 - %s::%s Bloque Lógico %d se reasigna de %d a %d", 
+                log_debug(storage->logger, "##0 - %s::%s Bloque Lógico %d se reasigna de %d a %d", 
                          file, tag, i, bloque_fisico_actual, bloque_existente);
+
+                // log obligatorio de deduplicacion de bloque (no estoy seguro si va aca)
+                log_info(storage->logger, "##<%d> - <%s>::<%s> Bloque Lógico %d se reasigna de %d a %d",
+                         query_id, file, tag, i, bloque_fisico_actual, bloque_existente);
 
                 // a. Actualizar el bloque en la metadata (nuevo array)
                 nuevos_bloques_str[i] = string_itoa(bloque_existente);
@@ -1280,9 +1288,11 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag) {
                 pthread_mutex_lock(&storage->mutex_bitmap);
                 if (bitarray_test_bit(storage->bitmap, bloque_fisico_actual)) {
                     bitarray_clean_bit(storage->bitmap, bloque_fisico_actual);
-                    log_debug(storage->logger, "##<QUERY_ID>-<%s>:<%s> Bloque Físico Liberado - Número de Bloque: %d",
-                            file, tag, bloque_fisico_actual);
-                    
+
+                    // log obligatorio de liberacion de bloque fisico (no estoy seguro si va aca)
+                    log_info(storage->logger, "##<%d>-<%s>:<%s> Bloque Físico Liberado - Número de Bloque: %d",
+                            query_id, file, tag, bloque_fisico_actual);
+
                     // Verificar si el bloque físico no tiene más enlaces y eliminarlo
                     struct stat st;
                     if (stat(path_bloque_fisico, &st) == 0 && st.st_nlink == 1) { // Solo si es el único enlace
@@ -1464,13 +1474,15 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
 
     // 4. Realizar deduplicación
     log_debug(storage->logger, "Realizando deduplicación antes del commit para <%s>:<%s>", file, tag);
-    evitar_duplicidad(storage, file, tag); // Llama a la versión corregida
+    evitar_duplicidad(storage, file, tag, query_id); // Llama a la versión corregida
+    
 
     // 5. Actualizar estado a COMMITED
     config_set_value(metadata, "ESTADO", "COMMITED");
     config_save(metadata);
     config_destroy(metadata);
 
+    // log obligatorio de commitear
     log_info(storage->logger, "##<%d> - Commit de File:Tag <%s>::<%s>", query_id, file, tag);
 
     // 6. Persistir bitmap (esto puede hacerse aquí o en otro momento, dependiendo del diseño)
@@ -1668,7 +1680,8 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
                 todas_exitosas = false;
                 continue; // Pasar al siguiente bloque
             }
-            log_info(storage->logger, "##<%d> - <%s>:<%s> Se elimino el hard link del bloque logico <%d> al bloque fisico <%d>",
+            // log obligatorio de hard link eliminado
+            log_info(storage->logger, "##<%d> - <%s>:<%s> Se eliminó el hard link del bloque logico <%d> al bloque fisico <%d>",
                      query_id, file, tag, numero_bloque, bloque_fisico_actual);
 
             if (link(ruta_fisico_nuevo, ruta_bloque_logico_upd) != 0) {
@@ -1828,6 +1841,7 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
         if (!bloques[i] || strlen(bloques[i]) == 0) continue;
         char* path_logico = string_from_format("%s/block%06d.dat", path_logical_dir, i); // <-- Corrección: Formato correcto para bloque lógico
         if (unlink(path_logico) == 0) {
+            // log obligatorio de eliminacion de hard link
             log_info(storage->logger, "##<%d> - <%s>:<%s> Se eliminó el hard link del bloque lógico <%d>", query_id, file, tag, i);
         }
         free(path_logico);
@@ -1881,7 +1895,7 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
         pthread_mutex_unlock(file_mutex);
         return false;
     }
-    log_info(storage->logger, "##<%d> - Tag Eliminado <%s>::<%s>", query_id, file, tag);
+    log_info(storage->logger, "##<%d> - Tag Eliminado <%s>:<%s>", query_id, file, tag);
 
     // 11. Liberar memoria temporal
     free(path_tag);

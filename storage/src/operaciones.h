@@ -21,7 +21,7 @@ char* path_fisico_para_truncate(const char* punto_montaje, int bloque_fisico_id)
 int* leer_bloques_actuales(t_config* metadata_config, int* cantidad_bloques_fisico);
 char* serializar_bloques(const int* bloques, int cantidad_bloques);
 char* calcular_md5_por_bloque(const char* path_bloque, int tamanio_bloque);
-void evitar_duplicidad(t_storage* storage, char* file, char* tag);
+void evitar_duplicidad(t_storage* storage, char* file, char* tag, int query_id);
 void persistir_bitmap(t_storage* storage);
 bool verificar_si_commited(t_storage* storage, const char* file, const char* tag);
 char* serializar_bloques_array(char** bloques);

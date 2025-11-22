@@ -28,6 +28,8 @@ typedef struct {
     int tamanio_filesystem;
     t_bitarray* bitmap;
     char* path_bitmap;
+    int cantidad_workers;
+    int id_worker;
 
     pthread_mutex_t mutex_bitmap;       //protege al bitmap
     pthread_mutex_t mutex_hash_index;   //protege al archivo blocks_hash_index.config

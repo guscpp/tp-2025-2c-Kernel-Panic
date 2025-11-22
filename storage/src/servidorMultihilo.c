@@ -21,7 +21,23 @@ void rutina_recepcion(t_storage* storage, int storage_fd){ // se encarga de acep
         } else {
              log_debug(storage->logger, "Keepalive habilitado para socket %d", aux_socket_worker_temp);
         }
+        t_list* paquete_para_id = recibir_paquete(aux_socket_worker_temp);
+        if(!paquete_para_id){
+            log_error(storage->logger, "Error al recibir paquete de ID del worker en [Socket %d]", aux_socket_worker_temp);
+            close(aux_socket_worker_temp);
+            continue;
+        }
+        int codigo_operacion = *(int*) list_get(paquete_para_id, 0);
+        if(codigo_operacion != WORKER_ID){
+            log_error(storage->logger, "Operacion invalida al recibir ID del worker en [Socket %d]", aux_socket_worker_temp);
+            list_destroy_and_destroy_elements(paquete_para_id, free);
+            close(aux_socket_worker_temp);
+            continue;
+        }
+        storage->id_worker = *(int*) list_get(paquete_para_id, 1);
+        storage->cantidad_workers++;
 
+        log_info(storage->logger, "##Se conecta el Worker <%d> - Cantidad de Workers: <%d>", storage->id_worker, storage->cantidad_workers);
         log_debug(storage->logger, "Cliente conectado");
 
         args_hilo_worker* args = malloc(sizeof(args_hilo_worker));
@@ -216,6 +232,8 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
     
     close(socket_cliente);
     log_debug(storage->logger, "Hilo worker finalizado [Socket %d]", socket_cliente);
+    storage->cantidad_workers--;
+    log_info(storage->logger, "##Se desconecta el Worker <%d> - Cantidad de Workers: <%d>", storage->id_worker, storage->cantidad_workers);
     return NULL;
 
 

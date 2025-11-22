@@ -23,3 +23,11 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
+
+
+
+
+
+/////// OJOOOO //////// 
+// FALTA EL LOG OBLIGATORIO DE BLOQUE FISICO RESERVADO HAY QUE VER A DONDE PONERLO  //
+
