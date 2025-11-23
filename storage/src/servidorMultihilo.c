@@ -46,6 +46,8 @@ void rutina_recepcion(t_storage* storage, int storage_fd){ // se encarga de acep
 
         if(pthread_create(&hilo_ejecucion, NULL, rutina_operaciones, args) != 0){
             log_error(storage->logger, "Error al crear el hilo ejecucion");
+            free(args);
+            close(aux_socket_worker_temp);
         }else{
             pthread_detach(hilo_ejecucion);
             log_debug(storage->logger, "Hilo ejecucion creado");
