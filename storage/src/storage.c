@@ -34,6 +34,7 @@ t_storage* iniciar_storage(){
 
     pthread_mutex_init(&storage->mutex_bitmap, NULL);
     pthread_mutex_init(&storage->mutex_hash_index, NULL); 
+    pthread_mutex_init(&storage->mutex_workers, NULL);
     storage->dict_locks_files = dictionary_create();
     pthread_mutex_init(&storage->mutex_dict_locks, NULL);
     
@@ -64,6 +65,7 @@ void destruir_storage(t_storage* storage){
         pthread_mutex_destroy(&storage->mutex_bitmap);
         dictionary_iterator(storage->dict_locks_files, destruir_mutex);
         dictionary_destroy(storage->dict_locks_files);
+        pthread_mutex_destroy(&storage->mutex_workers);
         
         pthread_mutex_destroy(&storage->mutex_dict_locks);
         log_destroy(storage->logger);

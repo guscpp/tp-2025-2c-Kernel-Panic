@@ -34,17 +34,21 @@ void rutina_recepcion(t_storage* storage, int storage_fd){ // se encarga de acep
             close(aux_socket_worker_temp);
             continue;
         }
-        storage->id_worker = *(int*) list_get(paquete_para_id, 1);
+        int worker_id = *(int*) list_get(paquete_para_id, 1);
+        
+        pthread_mutex_lock(&storage->mutex_workers);
         storage->cantidad_workers++;
+        pthread_mutex_unlock(&storage->mutex_workers);
 
-        log_info(storage->logger, "##Se conecta el Worker <%d> - Cantidad de Workers: <%d>", storage->id_worker, storage->cantidad_workers);
+        log_info(storage->logger, "##Se conecta el Worker <%d> - Cantidad de Workers: <%d>", worker_id, storage->cantidad_workers);
         log_debug(storage->logger, "Cliente conectado");
 
-        args_hilo_worker* args = malloc(sizeof(args_hilo_worker));
-        args->socket_cliente = aux_socket_worker_temp;
-        args->storage = storage;
+        t_worker_context* contexto = malloc(sizeof(t_worker_context));
+        contexto->socket_cliente = aux_socket_worker_temp;
+        contexto->storage = storage;
+        contexto->worker_id = worker_id;
 
-        if(pthread_create(&hilo_ejecucion, NULL, rutina_operaciones, args) != 0){
+        if(pthread_create(&hilo_ejecucion, NULL, rutina_operaciones, contexto) != 0){
             log_error(storage->logger, "Error al crear el hilo ejecucion");
         }else{
             pthread_detach(hilo_ejecucion);
@@ -54,10 +58,11 @@ void rutina_recepcion(t_storage* storage, int storage_fd){ // se encarga de acep
 }
 
 void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones de los workers y ejecutar la logica correspondiente
-    args_hilo_worker* argumentos = (args_hilo_worker*) args;
-    int socket_cliente = argumentos->socket_cliente;
-    t_storage* storage = argumentos->storage;
-    free(argumentos);
+    t_worker_context* contexto = (t_worker_context*) args;
+    int socket_cliente = contexto->socket_cliente;
+    t_storage* storage = contexto->storage;
+    int worker_id = contexto->worker_id;
+    free(args);
     
     t_list* paquete = recibir_paquete(socket_cliente);
     int codigo_operacion = *(int*) list_get(paquete, 0);
@@ -76,7 +81,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
 
     while(1)
     {
-        printf("Inicio del while(1)\n"); //debug        
+        //printf("Inicio del while(1)\n"); //debug        
         t_list* paquete = recibir_paquete(socket_cliente); // segundo recibe que hace es recibir la operacion
         if(!paquete) break;
         int codigo_operacion = *(int*) list_get(paquete, 0);
@@ -229,20 +234,14 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
 
         list_destroy_and_destroy_elements(paquete, free);
     }
-    
+
     close(socket_cliente);
     log_debug(storage->logger, "Hilo worker finalizado [Socket %d]", socket_cliente);
-    storage->cantidad_workers--;
-    log_info(storage->logger, "##Se desconecta el Worker <%d> - Cantidad de Workers: <%d>", storage->id_worker, storage->cantidad_workers);
+    
+    pthread_mutex_lock(&storage->mutex_workers);
+    storage->cantidad_workers++;
+    pthread_mutex_unlock(&storage->mutex_workers);
+
+    log_info(storage->logger, "##Se desconecta el Worker <%d> - Cantidad de Workers: <%d>", worker_id, storage->cantidad_workers);
     return NULL;
-
-
 }
-
-
-
-
-
-
-
- 
