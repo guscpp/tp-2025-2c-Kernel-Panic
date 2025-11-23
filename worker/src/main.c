@@ -121,6 +121,7 @@ int main(int argc, char* argv[]) {
     t_ejecucion* recibir_interrupciones = malloc(sizeof(t_ejecucion));
     recibir_interrupciones->master_socket = w->master_socket_interrupt; //RECORDAR que recibir_interrupciones tiene master_socket pero se refiere al socket del interrupt
     recibir_interrupciones->w = w;
+
     int error_h2 = pthread_create(&hilo_interrupciones,
                             NULL,
                             hilo_atender_interrupcion,

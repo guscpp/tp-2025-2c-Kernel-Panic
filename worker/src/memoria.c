@@ -283,7 +283,7 @@ int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, i
     return marco;
 }
 
-void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* tag, int offset, size_t tam, bool es_escritura) {
+void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* tag, int offset, size_t tam, bool es_escritura, t_worker* w) {
     if (!mem || !file || !tag || tam == 0) return NULL;
     
     int num_pagina_inicial = offset / mem->tamanio_pagina;
@@ -318,6 +318,11 @@ void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* ta
         error_tamanio_escrLectura_excedido(mem->logger, 
                                          es_escritura ? WORKER_ERROR_TAMANIO_ESCRITURA_EXCEDIDO : WORKER_ERROR_TAMANIO_LECTURA_EXCEDIDO,
                                          query_id, file, tag);
+                                         
+        pthread_mutex_lock(&w->flag_error_storage->mutex_error_storage);
+        w->flag_error_storage->error_storage = true;
+        pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
+
         return NULL;
     }
     

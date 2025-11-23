@@ -448,7 +448,7 @@ void executeWrite(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     
     // La funcion acceder_memoria ahora maneja multiples paginas
     void* resultado = acceder_memoria(w->mem, pcb->query_id, parametros->nombre_file, parametros->tag,
-                            parametros->direccion_base, tam, true);
+                            parametros->direccion_base, tam, true, w);
     if (resultado) {
         log_info(w->logger, "Query<%d>: Instrucción realizada: WRITE %s:%s %d %s", 
                 pcb->query_id, parametros->nombre_file, parametros->tag,
@@ -463,7 +463,7 @@ void executeWrite(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 
 void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb) {
     void* dir = acceder_memoria(w->mem, pcb->query_id, parametros->nombre_file, parametros->tag,
-                                parametros->direccion_base, parametros->tamanio, false);
+                                parametros->direccion_base, parametros->tamanio, false, w);
     if (!dir) {
         log_error(w->logger, "Query<%d>: Lectura fallida - File:%s - Tag:%s - Offset:%d",
                   pcb->query_id, parametros->nombre_file, parametros->tag, parametros->direccion_base);

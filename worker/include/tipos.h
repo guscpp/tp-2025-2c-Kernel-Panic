@@ -42,6 +42,7 @@ typedef struct t_worker
     int                  tamanio_bloque;
     int                  cantidad_bloques;
     storage_error*       flag_error_storage;
+    void*         datos_interrupcion_sin_ejecucion; //para poder llamar ejecutar_query(arg) sin tener arg en el hilo de interrupciones
 } t_worker;
 
 

@@ -145,13 +145,21 @@ void* ejecutar_query(void* arg){
     log_info(datos_ejecucion->w->logger, "Por lo menos entre a ejecutar_query");
     Pcb* dt_archivo;
 
-    while((dt_archivo = recibir_path_de_query(datos_ejecucion->master_socket, datos_ejecucion->w))){ 
+    while(1){ 
+
+        dt_archivo = recibir_path_de_query(datos_ejecucion->master_socket, datos_ejecucion->w);
         //retorna el pcb con los datos del proceso a ejecutar
+        if(dt_archivo == NULL){
+        continue;
+        }
 
         log_info(datos_ejecucion->w->logger, "Llego el path_query: %s", dt_archivo->nombre_archivo);
 
         query_interpreter_ciclo(dt_archivo, datos_ejecucion->w); 
     
+        if(query_desconectado){
+        continue;
+    }
     }
     ejecutar_query(arg);
     return NULL;
@@ -175,6 +183,8 @@ void* hilo_atender_interrupcion(void* arg){ //Cuando me lleguen interrupciones, 
             dt_atender_master->w->interpreter->hay_interrupcion = true; //aca marcamos en true la interrupcion para verificarlo despues en el ciclo de instrucciones  
             pthread_mutex_unlock(&mutex_interrupt);
             log_info(dt_atender_master->w->logger, "Me llego una interrupcion");
+            
+            
         } else {
             log_warning(dt_atender_master->w->logger, "Se desconectó del master o hubo error. Se rOmpio el hilo de interrupciones");
             break;
@@ -319,15 +329,10 @@ void rtas_storage(int storage_socket, t_worker* w, t_instr_param* parametros, Pc
             pcb->query_id, parametros->nombre_file, parametros->tag);
 
             break;
-            
+
         //errores 
         case STORAGE_SEND_ERROR_CREATE_FILE:
             log_error(w->logger, "Storage no pudo hacer create");
-
-            printf("flag_error_storage = %p\n", w->flag_error_storage);
-                if(w->flag_error_storage == NULL){
-            log_error(w->logger, "FLAG_ERROR_STORAGE ES NULL ANTES DEL MUTEX LOCK");
-            }
 
             pthread_mutex_lock(&w->flag_error_storage->mutex_error_storage);
             w->flag_error_storage->error_storage = true;
@@ -410,13 +415,14 @@ void rtas_storage(int storage_socket, t_worker* w, t_instr_param* parametros, Pc
 
 //ERRORES
 void error_path_not_found(t_log* logger, op_code etiqueta, int id_query, char* path){ //descomentar para el envio
-    
+    /*
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError = crear_paquete(etiqueta, buffer1);
     agregar_a_paquete(paqueteError, &id_query, sizeof(int));
     agregar_a_paquete(paqueteError, path, strlen(path) +1);
     enviar_paquete(paqueteError, socket_distpach, logger);
     eliminar_paquete(paqueteError);
+    */
     loggerError(logger, etiqueta);
 }
 
