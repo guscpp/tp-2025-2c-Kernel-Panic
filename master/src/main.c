@@ -23,7 +23,7 @@ int main(int argc, char* argv[]) {
                               // tipo de dato que cree para pasar a la funcion de atender 
                               // conexion porque los hilos funcionan como quieren
     
-    logger = iniciar_logger("master.log","MASTER",true, LOG_LEVEL_INFO);
+    logger = iniciar_logger("master.log","MASTER",true, LOG_LEVEL_DEBUG);
     config = iniciar_config(logger,argv[1]);
     puerto = config_get_string_value(config, "PUERTO_ESCUCHA");
     algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");

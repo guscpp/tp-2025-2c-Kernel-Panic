@@ -5,7 +5,7 @@
 bool query_desconectado ;
 int socket_distpach;
 pthread_mutex_t mutex_interrupt; 
-pthread_mutex_t mutex_error_memoria; 
+
 
 t_worker* inicializar_worker(int id_worker)
 {
@@ -25,7 +25,6 @@ t_worker* inicializar_worker(int id_worker)
     w->master_socket_distpach= -1;
     w->master_socket_interrupt = -1;
     w->storage_socket = -1;
-    w->error_memoria = false;
 
     return w;
 }
@@ -248,7 +247,7 @@ void retener_worker(t_worker* w) {
 //-------------------------------------------------------------------------------------------------
 
 
-void rtas_storage(int storage_socket, t_worker* w) {
+void rtas_storage(int storage_socket, t_worker* w, t_instr_param* parametros, Pcb* pcb) {
     log_info(w->logger, "Esperando respuesta de Storage");
     
     t_list* valores = recibir_paquete(storage_socket);
@@ -271,9 +270,17 @@ void rtas_storage(int storage_socket, t_worker* w) {
         break;
         case STORAGE_SEND_OK_CREATE_FILE:
             log_info(w->logger, "Storage confirmó creación de archivo exitosa");
+
+            log_info(w->logger, "Query<%d>: Instrucción realizada: CREATE %s:%s", 
+             pcb->query_id, parametros->nombre_file, parametros->tag);
+    
             break;
         case STORAGE_SEND_OK_TRUNCATE:
             log_info(w->logger, "Storage confirmó truncado exitoso");
+
+            log_info(w->logger, "Query<%d>: Instrucción realizada: TRUNCATE %s:%s %d bytes", 
+            pcb->query_id, parametros->nombre_file, parametros->tag, parametros->tamanio);
+    
             break;
         case STORAGE_SEND_OK_WRITE_BLOCK:
             log_info(w->logger, "Storage confirmó escritura exitosa");
@@ -285,25 +292,111 @@ void rtas_storage(int storage_socket, t_worker* w) {
         }
         case STORAGE_SEND_OK_TAG:
             log_info(w->logger, "Storage confirmó creación de tag exitosa");
+
+            log_info(w->logger, "Query<%d>: Instrucción realizada: TAG %s:%s -> %s:%s", 
+             pcb->query_id, parametros->nombre_file_org, parametros->tag_origen,
+             parametros->nombre_file_destino, parametros->tag_destino);
+
             break;
         case STORAGE_SEND_OK_COMMIT:
             log_info(w->logger, "Storage confirmó commit exitoso");
+
+            log_info(w->logger, "Query<%d>: Instrucción realizada: COMMIT %s:%s", 
+             pcb->query_id, parametros->nombre_file, parametros->tag);
+
             break;
         case STORAGE_SEND_OK_DELETE:
             log_info(w->logger, "Storage confirmó eliminación exitosa");
+
+            log_info(w->logger, "Query<%d>: Instrucción realizada: DELETE %s:%s", 
+             pcb->query_id, parametros->nombre_file, parametros->tag);
+ 
             break;
         case STORAGE_SEND_OK_FLUSH:
             log_info(w->logger, "Storage confirmó flush exitoso");
+            
+            log_info(w->logger, "Query<%d>: Instrucción realizada: FLUSH %s:%s", 
+            pcb->query_id, parametros->nombre_file, parametros->tag);
+
             break;
+            
+        //errores 
         case STORAGE_SEND_ERROR_CREATE_FILE:
+            log_error(w->logger, "Storage no pudo hacer create");
+
+            printf("flag_error_storage = %p\n", w->flag_error_storage);
+                if(w->flag_error_storage == NULL){
+            log_error(w->logger, "FLAG_ERROR_STORAGE ES NULL ANTES DEL MUTEX LOCK");
+            }
+
+            pthread_mutex_lock(&w->flag_error_storage->mutex_error_storage);
+            w->flag_error_storage->error_storage = true;
+            pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
+
+            informar_error_create(parametros, w);
+            break;
         case STORAGE_SEND_ERROR_TRUNCATE:
+            log_error(w->logger, "Storage no pudo hacer truncate");
+
+            pthread_mutex_lock(&w->flag_error_storage->mutex_error_storage);
+            w->flag_error_storage->error_storage = true;
+            pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
+
+            informar_error_truncate(parametros, w);
+            break;
         case STORAGE_SEND_ERROR_WRITE_BLOCK:
+            log_error(w->logger, "Storage no pudo hacer write");
+
+            pthread_mutex_lock(&w->flag_error_storage->mutex_error_storage);
+            w->flag_error_storage->error_storage = true;
+            pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
+
+            informar_error_write(parametros, w);
+            break;
         case STORAGE_SEND_ERROR_READ_BLOCK:
+            log_error(w->logger, "Storage no pudo hacer read");
+
+            pthread_mutex_lock(&w->flag_error_storage->mutex_error_storage);
+            w->flag_error_storage->error_storage = true;
+            pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
+
+            informar_error_read(parametros, w);
+            break;
         case STORAGE_SEND_ERROR_TAG:
+            log_error(w->logger, "Storage no pudo hacer tag");
+
+            pthread_mutex_lock(&w->flag_error_storage->mutex_error_storage);
+            w->flag_error_storage->error_storage = true;
+            pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
+
+            informar_error_tag(parametros, w);
+            break;
         case STORAGE_SEND_ERROR_COMMIT:
+            log_error(w->logger, "Storage no pudo hacer commit");
+
+            pthread_mutex_lock(&w->flag_error_storage->mutex_error_storage);
+            w->flag_error_storage->error_storage = true;
+            pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
+
+            informar_error_commit(parametros, w);
+            break;
         case STORAGE_SEND_ERROR_DELETE:
+            log_error(w->logger, "Storage no pudo hacer delete");
+
+            pthread_mutex_lock(&w->flag_error_storage->mutex_error_storage);
+            w->flag_error_storage->error_storage = true;
+            pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
+
+            informar_error_delete(parametros, w);
+            break;
         case STORAGE_SEND_ERROR_FLUSH:
-            log_error(w->logger, "Storage respondió con error");
+            log_error(w->logger, "Storage no pudo hacer flush");
+
+            pthread_mutex_lock(&w->flag_error_storage->mutex_error_storage);
+            w->flag_error_storage->error_storage = true;
+            pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
+
+            informar_error_flush(parametros, w);
             // Aquí deberías manejar el error específicamente
             break;
         default:
@@ -359,7 +452,77 @@ void error_instruccion_malformada(t_log* logger,int id_query, char* instruccion)
     loggerError(logger, WORKER_ERROR_INSTRUCCION_MALFORMADA);
 
 }
-//SOlo para ver si anda bien el envio de errores
+
+void informar_error_create(t_instr_param* parametros, t_worker* w){
+    t_buffer* buffer1 = crear_buffer();
+    t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_CREATE, buffer1);
+    agregar_a_paquete(paqueteError1, parametros->nombre_file, strlen(parametros->nombre_file)+1);
+    agregar_a_paquete(paqueteError1, parametros->tag, strlen(parametros->tag) + 1); 
+    enviar_paquete(paqueteError1, socket_distpach, w->logger);
+    eliminar_paquete(paqueteError1);
+}
+
+void informar_error_truncate(t_instr_param* parametros, t_worker* w){
+    
+    t_buffer* buffer1 = crear_buffer();
+    t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_TRUNCATE, buffer1);
+    agregar_a_paquete(paqueteError1, parametros->nombre_file, strlen(parametros->nombre_file)+1);
+    agregar_a_paquete(paqueteError1, parametros->tag, strlen(parametros->tag) + 1);
+    agregar_a_paquete(paqueteError1, &parametros->tamanio, sizeof(int));
+    enviar_paquete(paqueteError1, socket_distpach, w->logger);
+    eliminar_paquete(paqueteError1);
+}
+
+void informar_error_write(t_instr_param* parametros, t_worker* w){ //no le paso file y tag porque no se refiere al write de memoria
+    t_buffer* buffer1 = crear_buffer();
+    t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_WRITE_EN_STORAGE, buffer1);
+    enviar_paquete(paqueteError1, socket_distpach, w->logger);
+    eliminar_paquete(paqueteError1);
+}
+
+void informar_error_read(t_instr_param* parametros, t_worker* w){//no le paso file y tag porque no se refiere al read de memoria
+    t_buffer* buffer1 = crear_buffer();
+    t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_READ_EN_STORAGE, buffer1);
+    enviar_paquete(paqueteError1, socket_distpach, w->logger);
+    eliminar_paquete(paqueteError1);
+}
+
+void informar_error_tag(t_instr_param* parametros, t_worker* w){
+    t_buffer* buffer1 = crear_buffer();
+    t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_TAG, buffer1);
+    agregar_a_paquete(paqueteError1, parametros->nombre_file_org, strlen(parametros->nombre_file_org)+1);
+    agregar_a_paquete(paqueteError1, parametros->tag_origen, strlen(parametros->tag_origen)+1);
+    agregar_a_paquete(paqueteError1, parametros->nombre_file_destino, strlen(parametros->nombre_file_destino)+1);
+    agregar_a_paquete(paqueteError1, parametros->tag_destino, strlen(parametros->tag_destino)+1);
+    enviar_paquete(paqueteError1, socket_distpach, w->logger);
+    eliminar_paquete(paqueteError1);
+}
+
+void informar_error_commit(t_instr_param* parametros, t_worker* w){
+    t_buffer* buffer1 = crear_buffer();
+    t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_COMMIT, buffer1);
+    agregar_a_paquete(paqueteError1, parametros->nombre_file, strlen(parametros->nombre_file)+1);
+    agregar_a_paquete(paqueteError1, parametros->tag, strlen(parametros->tag)+1);
+    enviar_paquete(paqueteError1, socket_distpach, w->logger);
+    eliminar_paquete(paqueteError1);
+}
+
+void informar_error_delete(t_instr_param* parametros, t_worker* w){
+    t_buffer* buffer1 = crear_buffer();
+    t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_DELETE, buffer1);
+    agregar_a_paquete(paqueteError1, parametros->nombre_file, strlen(parametros->nombre_file)+1);
+    agregar_a_paquete(paqueteError1, parametros->tag, strlen(parametros->tag)+1);
+    enviar_paquete(paqueteError1, socket_distpach, w->logger);
+    eliminar_paquete(paqueteError1);
+}
+
+void informar_error_flush(t_instr_param* parametros, t_worker* w){
+    t_buffer* buffer1 = crear_buffer();
+    t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_FLUSH, buffer1);
+    eliminar_paquete(paqueteError1);
+}
+
+//SOlo para ver si anda bien el envio de errores (borrar porque no es necesario)
 void loggerError(t_log* logger, op_code etiqueta){
     switch (etiqueta)
     {
@@ -396,17 +559,24 @@ void loggerError(t_log* logger, op_code etiqueta){
     }
 }
 
-void semaforos (t_worker* w){
+/*
+//Semaforos (aun son globales)
+void inicializar_mutex (t_worker* w){
     
     if(pthread_mutex_init(&mutex_interrupt, NULL) != 0){
         log_warning(w->logger,"Error al inicializar el mutex cantWorkers");
 
     }
+}
+*/
+storage_error* inicializar_mutex_error_storage(t_worker* w) {
+    storage_error* error_storage = malloc(sizeof(storage_error));
 
-    if(pthread_mutex_init(&mutex_error_memoria, NULL) != 0){
-        log_warning(w->logger,"Error al inicializar el mutex cantWorkers");
+    if(pthread_mutex_init(&error_storage->mutex_error_storage, NULL) != 0){
+        log_warning(w->logger,"Error al inicializar el mutex error_storage");
 
     }
-    log_info(w->logger, "Inice bien los semaforos");
-
+    log_info(w->logger, "Se iniciaron bien los mutex");
+    error_storage->error_storage = false;
+    return error_storage;
 }

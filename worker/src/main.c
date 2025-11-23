@@ -1,11 +1,10 @@
 #include "../include/worker.h"
-
-t_query_interpreter* query_interpreter_crear(t_log* logger);
+#include "../include/query_interpreter.h"
 
 int main(int argc, char* argv[]) {
 //Lo comente para poder hacer debug de lo ultimo que agregue
 
-
+/*
 
     if (argc != 3)
     {
@@ -14,8 +13,8 @@ int main(int argc, char* argv[]) {
     }
 
     int id_worker = atoi(argv[2]);
-
-    //int id_worker = 2; //id hardcodeado (en vez de venir por consola)
+*/
+    int id_worker = 2; 
 
 
 
@@ -30,8 +29,9 @@ int main(int argc, char* argv[]) {
 
     //Solo logs de prueba: 
     verificar_worker(w);
-    semaforos(w);
- 
+
+    w->flag_error_storage = inicializar_mutex_error_storage(w);
+
     //Master: crear la conexion para distpacher (primer connecy)
     w->master_socket_distpach = crear_conexion(w->logger, w->ip_master, string_itoa(w->puerto_master)); 
     t_buffer* buffer1 = crear_buffer();
@@ -85,7 +85,7 @@ int main(int argc, char* argv[]) {
     eliminar_paquete(paquete_tamanio_bloque);
 
     //Respuestas de storage
-    rtas_storage(w->storage_socket, w);
+    rtas_storage(w->storage_socket, w, NULL, NULL);
     log_info(w->logger, "Llegue dsp de recibir a storage");
 
     t_memoria_interna* m = crear_memoria(
