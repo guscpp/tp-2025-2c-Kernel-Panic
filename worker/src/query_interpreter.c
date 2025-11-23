@@ -26,14 +26,15 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
 
     for(;;){
 
-        pthread_mutex_lock(&mutex_error_memoria);
-        if(w->error_memoria){
-        log_info(w->logger, "Me estoy por salir del ciclo, porque alguna cosa extrania intento hacer la query en memoria");
-            w->error_memoria = false;
-            pthread_mutex_unlock(&mutex_error_memoria);
+        pthread_mutex_lock(&w->flag_error_storage->mutex_error_storage);
+        if(w->flag_error_storage->error_storage){
+        log_info(w->logger, "Me estoy por salir del ciclo, Storage fallo en alguna operacion");
+            w->flag_error_storage->error_storage = false;
+            pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
             break;
         }
-        pthread_mutex_unlock(&mutex_error_memoria);
+        pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
+
         instruccion = fetch(pcb, w); //aca me llega la instruccion completa
         printf("Numero de linea del archivo query - i = %d \n", i++);
 
@@ -421,11 +422,7 @@ void executeCreate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     eliminar_paquete(paquete_Create);
     
     
-    //rtas_storage(w->storage_socket, w, CREATE);
-    rtas_storage(w->storage_socket, w);
-    log_info(w->logger, "Query<%d>: Instrucción realizada: CREATE %s:%s", 
-             pcb->query_id, parametros->nombre_file, parametros->tag);
-    
+    rtas_storage(w->storage_socket, w, parametros, pcb);
 }
 
 void executeTruncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
@@ -439,11 +436,8 @@ void executeTruncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     enviar_paquete(paqueteTruncate, w->storage_socket, w->logger);
     eliminar_paquete(paqueteTruncate);
     
-    //rtas_storage(w->storage_socket, w, TRUNCATE);
-    rtas_storage(w->storage_socket, w);
-    log_info(w->logger, "Query<%d>: Instrucción realizada: TRUNCATE %s:%s %d bytes", 
-        pcb->query_id, parametros->nombre_file, parametros->tag, parametros->tamanio);
-    
+
+    rtas_storage(w->storage_socket, w, parametros, pcb);
 }
 
 void executeWrite(t_instr_param* parametros, t_worker* w, Pcb* pcb){
@@ -513,11 +507,8 @@ void executeTag(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     enviar_paquete(paquete_nuevo_tag, w->storage_socket, w->logger);
     eliminar_paquete(paquete_nuevo_tag);
     
-    rtas_storage(w->storage_socket, w);
+    rtas_storage(w->storage_socket, w, parametros, pcb);
     
-    log_info(w->logger, "Query<%d>: Instrucción realizada: TAG %s:%s -> %s:%s", 
-             pcb->query_id, parametros->nombre_file_org, parametros->tag_origen,
-             parametros->nombre_file_destino, parametros->tag_destino);
 }
 
 void executeCommit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
@@ -535,10 +526,8 @@ void executeCommit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     enviar_paquete(paquete_commit, w->storage_socket, w->logger);
     eliminar_paquete(paquete_commit);
     
-    //rtas_storage(w->storage_socket, w, COMMIT);
-    rtas_storage(w->storage_socket, w);
-    log_info(w->logger, "Query<%d>: Instrucción realizada: COMMIT %s:%s", 
-             pcb->query_id, parametros->nombre_file, parametros->tag);
+
+    rtas_storage(w->storage_socket, w, parametros, pcb);
 
 }
 
@@ -547,10 +536,8 @@ void executeFlush(t_instr_param* parametros, t_worker* w, Pcb* pcb){ //ESto se h
     flush_paginas_modificadas(w->mem, pcb->query_id, parametros->nombre_file,
                               parametros->tag, w->storage_socket);
 
-    //rtas_storage(w->storage_socket, w, FLUSH);
-    rtas_storage(w->storage_socket, w);
-    log_info(w->logger, "Query<%d>: Instrucción realizada: FLUSH %s:%s", 
-             pcb->query_id, parametros->nombre_file, parametros->tag);
+
+    rtas_storage(w->storage_socket, w, parametros, pcb);
 
 }
 
@@ -566,10 +553,8 @@ void executeDelete(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     enviar_paquete(paquete_delete, w->storage_socket, w->logger);
     eliminar_paquete(paquete_delete);
     
-    //rtas_storage(w->storage_socket, w, DELETE);
-    rtas_storage(w->storage_socket, w);
-    log_info(w->logger, "Query<%d>: Instrucción realizada: DELETE %s:%s", 
-             pcb->query_id, parametros->nombre_file, parametros->tag);
+
+    rtas_storage(w->storage_socket, w, parametros, pcb);
     
 }
 

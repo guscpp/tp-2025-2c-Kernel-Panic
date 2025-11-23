@@ -7,6 +7,12 @@
  
 typedef struct t_memoria_interna t_memoria_interna;
 
+// PAra mutex de error storage: informa que una operacion salio mal y corta el ciclo
+typedef struct {
+    pthread_mutex_t mutex_error_storage;
+    bool error_storage;
+} storage_error;
+
 // Struct modelo: borrala, cambiala o lo que haga falta
 
 typedef struct {
@@ -35,13 +41,13 @@ typedef struct t_worker
     t_query_interpreter* interpreter;
     int                  tamanio_bloque;
     int                  cantidad_bloques;
-    bool                 error_memoria;
+    storage_error*       flag_error_storage;
 } t_worker;
+
 
 typedef struct {
     int master_socket;
     t_worker* w;
-
 } t_ejecucion;
 
 
@@ -78,6 +84,5 @@ typedef struct{
 
 extern pthread_mutex_t mutex_interrupt;
 
-extern pthread_mutex_t mutex_error_memoria;
 
 #endif

@@ -12,8 +12,6 @@
 #include <commons/crypto.h>
 #include <dirent.h> // agregue esto para usar funciones sobre directorios
 
-
-
 typedef struct {
     t_log* logger;
     t_config* config;          // storage.config
@@ -29,19 +27,21 @@ typedef struct {
     t_bitarray* bitmap;
     char* path_bitmap;
     int cantidad_workers;
-    int id_worker;
+    //int id_worker;    //en desuso, ahora es parte del t_worker_context
 
     pthread_mutex_t mutex_bitmap;       //protege al bitmap
     pthread_mutex_t mutex_hash_index;   //protege al archivo blocks_hash_index.config
+    pthread_mutex_t mutex_workers;      //contexto de workers conectados al storage
     t_dictionary* dict_locks_files;     //clave: "file:tag", valor: pthread_mutex_t*
     pthread_mutex_t mutex_dict_locks;   //protege el diccionario en sí
-    
+
 } t_storage;
 
 typedef struct{
     int socket_cliente;
     t_storage* storage;
-} args_hilo_worker;
+    int worker_id;          //id de este worker
+} t_worker_context;
 
 
 // === Funciones de inicialización ===

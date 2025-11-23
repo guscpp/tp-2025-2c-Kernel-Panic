@@ -53,6 +53,15 @@ typedef enum
     WORKER_ERROR_STORAGE_DESCONECTADO,  
     WORKER_ERROR_DIRECCION_INVALIDA, //para cuando el file quiere acceder a un bloque logico que no le corresponde
     WORKER_ERROR_QUERY_NO_ENCONTRADA, //el path que me pasa master no puede ejecutarse
+
+    WORKER_ERROR_CREATE,
+    WORKER_ERROR_TRUNCATE,
+    WORKER_ERROR_WRITE_EN_STORAGE,
+    WORKER_ERROR_READ_EN_STORAGE,
+    WORKER_ERROR_TAG,
+    WORKER_ERROR_COMMIT,
+    WORKER_ERROR_DELETE,
+    WORKER_ERROR_FLUSH,
     
     // WORKER ↔ STORAGE
     STORAGE_GET_BLOCK_SIZE, // Solicitar tamaño de bloque

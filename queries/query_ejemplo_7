@@ -1,6 +1,89 @@
+<<<<<<< HEAD
 CREATE MATERIAS:BASE
 TRUNCATE MATERIAS:BASE 128
 WRITE MATERIAS:BASE 0 SISTEMAS
 COMMIT MATERIAS:BASE
 READ MATERIAS:BASE 0 8
 END
+=======
+# =============================================
+# QUERY COMPLETA - PRUEBA INTEGRAL DEL SISTEMA
+# =============================================
+
+# Fase 1: Creación y configuración inicial de Files
+CREATE documentacion:base 
+CREATE datosSensibles:working 
+CREATE logs:sistema 
+
+# Fase 2: Operaciones de truncado para definir tamaños
+TRUNCATE documentacion:base 512 
+TRUNCATE datosSensibles:working 1024 
+TRUNCATE logs:sistema 256 
+
+# Fase 3: Escrituras secuenciales y aleatorias
+WRITE documentacion:base 0 "Este es el contenido inicial del documento de base que ocupa multiples bloques para probar la paginacion" 
+WRITE documentacion:base 128 "Segunda pagina del documento con contenido diferente al anterior para verificar la gestion de memoria" 
+WRITE datosSensibles:working 0 "DATOS_CRITICOS_INICIO:informacion confidencial que debe ser protegida adecuadamente" 
+WRITE datosSensibles:working 128 "CONTINUACION:mas datos sensibles que requieren persistencia inmediata" 
+WRITE datosSensibles:working 256 "BLOQUE_3:informacion adicional para llenar multiples paginas en memoria" 
+WRITE logs:sistema 0 "LOG_INICIO:timestamp=2025-01-01 00:00:00,evento=inicio_sistema" 
+
+# Fase 4: Lecturas para verificar escrituras y probar cache
+READ documentacion:base 0 128 
+READ datosSensibles:working 0 256 
+READ logs:sistema 0 128 
+
+# Fase 5: Creación de tags derivados (copias)
+TAG documentacion:base documentacion:version_1_0 
+TAG datosSensibles:working datosSensibles:backup_001 
+TAG logs:sistema logs:auditoria 
+
+# Fase 6: Operaciones sobre tags derivados
+WRITE documentacion:version_1_0 64 "[MODIFICADO] Contenido actualizado en la version 1.0 del documento" 
+WRITE datosSensibles:backup_001 384 "[AGREGADO] Informacion adicional en el backup para pruebas de integridad" 
+WRITE logs:auditoria 128 "LOG_AUDITORIA:timestamp=2025-01-01 01:00:00,evento=verificacion_integridad" 
+READ documentacion:version_1_0 0 192 
+READ datosSensibles:backup_001 256 128 
+
+# Fase 7: Flush explícito para persistencia
+FLUSH documentacion:version_1_0 
+FLUSH datosSensibles:backup_001 
+
+# Fase 8: Commit de versiones estables
+COMMIT documentacion:version_1_0 
+COMMIT logs:auditoria 
+
+# Fase 9: Intentar operaciones sobre tags commitados (deben fallar controladamente)
+WRITE documentacion:version_1_0 128 "Intento de escritura post-commit"
+WRITE logs:auditoria 0 "Intento de modificacion de auditoria"
+
+# Fase 10: Operaciones de mantenimiento y limpieza
+DELETE datosSensibles:working
+DELETE logs:sistema
+
+# Fase 11: Creación adicional para probar reutilización de espacio
+CREATE temporal:cache
+TRUNCATE temporal:cache 384
+WRITE temporal:cache 0 "Datos temporales para cache del sistema que seran eliminados posteriormente"
+WRITE temporal:cache 128 "Segundo bloque de datos temporales para pruebas de reemplazo"
+READ temporal:cache 0 256
+
+# Fase 12: Operaciones que fuerzan reemplazo de páginas
+# (Esta sección asume memoria limitada para activar algoritmos de reemplazo)
+WRITE documentacion:base 256 "Nuevo contenido que fuerza reemplazo de paginas en memoria LRU/CLOCK"
+WRITE datosSensibles:backup_001 512 "Escritura que requiere mas espacio del disponible en memoria"
+READ temporal:cache 0 128
+READ documentacion:base 128 128
+READ datosSensibles:backup_001 384 128
+
+# Fase 13: Flush final antes de eliminaciones
+FLUSH temporal:cache
+FLUSH documentacion:base
+FLUSH datosSensibles:backup_001
+
+# Fase 14: Eliminación final
+# DELETE temporal:cache
+
+# Fase 15: Finalización
+END
+>>>>>>> 5d1d36332936ffa10462427b5b75f6681b9f1d48
