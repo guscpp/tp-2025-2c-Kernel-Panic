@@ -1,12 +1,14 @@
 #!/bin/bash
 
-# Script para compilar e iniciar múltiples instancias de query
+# Script para compilar e iniciar múltiples instancias de query con logs de Valgrind robustos
 if [ $# -ne 1 ]; then
-    echo "Uso: ./query <cantidad_instancias>"
+    echo "Uso: $0 <cantidad_instancias>"
     exit 1
 fi
 
 CANTIDAD=$1
+LOG_DIR="valgrind_logs_$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$LOG_DIR"
 
 echo "Compilando query_control..."
 make 
@@ -16,39 +18,71 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "Iniciando $CANTIDAD instancias de query..."
+echo "Iniciando $CANTIDAD instancias de query con monitoreo de Valgrind..."
+echo "Logs se guardarán en: $LOG_DIR"
 echo ""
 
-PIDS=""
+# Función de limpieza al recibir Ctrl+C
+cleanup() {
+    echo -e "\n\n[$(date +'%T')] Interrupción detectada (Ctrl+C). Finalizando procesos limpiamente..."
+    kill $PIDS 2>/dev/null
+    wait $PIDS 2>/dev/null
+    echo "[$(date +'%T')] Procesos finalizados. ¡Los logs de Valgrind YA FUERON ESCRITOS!"
+    exit 130
+}
+
+# Configurar trap para SIGINT (Ctrl+C)
+trap cleanup SIGINT
+
+ejecutar_instancia() {
+    local idx=$1
+    local prioridad=$2
+    local log_valgrind="$LOG_DIR/valgrind_query_${idx}.log"
+    
+    echo "[$(date +'%T')] Iniciando query $idx (prioridad $prioridad)"
+    echo "  - Log de Valgrind: $log_valgrind"
+    
+    # Comando de Valgrind simplificado y robusto
+    valgrind \
+        --tool=memcheck \
+        --leak-check=full \
+        --show-leak-kinds=all \
+        --track-origins=yes \
+        --verbose \
+        --log-file="$log_valgrind" \
+        --child-silent-after-fork=yes \
+        ./bin/query_control ./query_control.config "query_ejemplo_$idx" "$prioridad"
+}
+
 if [ $CANTIDAD -eq 1 ]; then
-    echo "Iniciando query 0 con prioridad 0 (ejecución en primer plano)"
-    
-    # Limpiar log anterior
-    rm -f valgrind_query.log
-    
-    # Versión más simple y confiable de valgrind
-    valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --log-file=valgrind_query.log ./bin/query_control ./query_control.config "query_ejemplo_0" 0
-    
-    # Mostrar resumen del log
-    echo ""
-    echo "=== RESUMEN VALGRIND ==="
-    tail -20 valgrind_query.log
-    echo ""
-    echo "Log completo en: valgrind_query.log"
-    
+    echo "Ejecutando instancia única en PRIMER PLANO (Ctrl+C finalizará limpiamente):"
+    ejecutar_instancia 0 0
 else
-    for ((i=0; i<$CANTIDAD; i++)); do
-        echo "Iniciando query $i con prioridad $i"
-        ./bin/query_control ./query_control.config "query_ejemplo_$i" $i &
+    PIDS=""
+    for ((i=0; i<CANTIDAD; i++)); do
+        ejecutar_instancia $i $i &
         PID=$!
         PIDS="$PIDS $PID"
-        echo "  PID: $PID"
-        sleep 1
+        echo "  [Query $i] PID: $PID"
+        sleep 0.5
     done
 
-    echo "Para terminar los procesos (si no crashearon primero) se ejecuta:"
-    echo "  kill $PIDS"
+    echo -e "\n[$(date +'%T')] $CANTIDAD instancias ejecutándose en background"
+    echo "Presiona Ctrl+C en CUALQUIER MOMENTO para finalizar TODOS los procesos limpiamente"
+    echo "y generar los logs completos de Valgrind."
     echo ""
-    echo "Para verificar que están ejecutándose:"
-    echo "  ps -p $PIDS -o pid,cmd"
+    echo "Monitoreo en tiempo real de logs:"
+    echo "  tail -f $LOG_DIR/*.log"
+    echo ""
+    
+    # Esperar a que terminen todos los procesos (o Ctrl+C)
+    wait $PIDS
+    echo -e "\n[$(date +'%T')] Todas las instancias finalizaron normalmente."
 fi
+
+echo -e "\n[$(date +'%T')] ¡Listo! Todos los logs de Valgrind están en:"
+echo "  $LOG_DIR/"
+echo ""
+echo "Para analizar leaks:"
+echo "  grep -i 'leak summary' $LOG_DIR/*.log"
+echo ""

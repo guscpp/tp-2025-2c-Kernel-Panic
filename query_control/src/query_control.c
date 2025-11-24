@@ -12,7 +12,8 @@ t_query_control* inicializar_query_control(int argc, char* argv[])
     qc->config = iniciar_config(logger_temp, argv[1]);
 
     // Obtener nivel real del config
-    qc->log_level = config_get_string_value(qc->config, "LOG_LEVEL");
+    //qc->log_level = config_get_string_value(qc->config, "LOG_LEVEL");
+    qc->log_level = strdup(config_get_string_value(qc->config, "LOG_LEVEL"));    
     t_log_level nivel = obtener_log_level(qc->log_level);
 
     // Crear logger final con el nivel real
@@ -48,9 +49,9 @@ void liberar_query_control(t_query_control* qc)
     if (!qc) return;
 
     if (qc->logger) log_destroy(qc->logger);
-    if (qc->config) config_destroy(qc->config);
     if (qc->ip_master) free(qc->ip_master);
     if (qc->log_level) free(qc->log_level);
+    if (qc->config) config_destroy(qc->config);
     if (qc->master_socket != -1) close(qc->master_socket);
     free(qc);
 }
@@ -60,7 +61,9 @@ void liberar_query_control(t_query_control* qc)
 int conectar_al_master(t_query_control* qc)
 {    
     
-    qc->master_socket = crear_conexion(qc->logger, qc->ip_master, string_itoa(qc->puerto_master));
+    char* puerto_str = string_itoa(qc->puerto_master);
+    qc->master_socket = crear_conexion(qc->logger, qc->ip_master, puerto_str);
+    free(puerto_str);
     
     if (qc->master_socket != -1) {
         log_info(qc->logger, COLOR_VERDE "## Conexión al Master exitosa. IP: %s, Puerto: %d" COLOR_VERDE, qc->ip_master, qc->puerto_master);
