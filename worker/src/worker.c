@@ -41,13 +41,44 @@ void verificar_worker(t_worker* w)
 
 void liberar_worker(t_worker* w)
 {
-    if (w) {
-        // if (w->master_socket != NULL) close(w->master_socket);
-        // if (w->storage_socket != NULL) close(w->storage_socket);
-        if (w->logger) log_destroy(w->logger);
-        if (w->config) config_destroy(w->config);
-        free(w);
+    if (!w) return;
+    
+    // Cerrar sockets
+    if (w->master_socket_distpach > 0) close(w->master_socket_distpach);
+    if (w->master_socket_interrupt > 0) close(w->master_socket_interrupt);
+    if (w->storage_socket > 0) close(w->storage_socket);
+    
+    // Liberar memoria interna
+    if (w->mem) {
+        destruir_memoria(w->mem);
+        w->mem = NULL;
     }
+    
+    // Liberar interprete de queries
+    if (w->interpreter) {
+        free(w->interpreter);
+        w->interpreter = NULL;
+    }
+    
+    // Liberar flag de error de storage
+    if (w->flag_error_storage) {
+        pthread_mutex_destroy(&w->flag_error_storage->mutex_error_storage);
+        free(w->flag_error_storage);
+        w->flag_error_storage = NULL;
+    }
+    
+    // Destruir logger y config
+    if (w->logger) log_destroy(w->logger);
+    if (w->config) config_destroy(w->config);
+    
+    // Liberar strings
+    free(w->ip_master);
+    free(w->ip_storage);
+    free(w->puerto_storage);
+    free(w->path_scripts);
+    free(w->log_level);
+    
+    free(w);
 }
 
 

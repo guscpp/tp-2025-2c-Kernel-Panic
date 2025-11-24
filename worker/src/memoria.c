@@ -407,17 +407,54 @@ static void _destruir_tabla(char* key, void* value) {
     list_destroy(tabla);
 }
 
-void destruir_memoria(t_memoria_interna* m) {
-    if (!m) return;
-    free(m->memory_arena);
-    for (int i = 0; i < m->cantidad_marcos; i++) free(m->marcos[i]);
-    free(m->marcos);
-    if (m->lru_list) list_destroy(m->lru_list);
-    if (m->clock_m) destruir_clock_m(m->clock_m);
-    dictionary_iterator(m->tablas_paginas, (void*)_destruir_tabla);
-    dictionary_destroy(m->tablas_paginas);
-    free(m);
+void destruir_memoria(t_memoria_interna* mem) {
+    if (!mem) return;
+    
+    // Liberar memory arena
+    if (mem->memory_arena) {
+        free(mem->memory_arena);
+        mem->memory_arena = NULL;
+    }
+    
+    // Liberar estructura CLOCK-M
+    if (mem->clock_m) {
+        destruir_clock_m(mem->clock_m);
+        mem->clock_m = NULL;
+    }
+    
+    // Liberar lista LRU
+    if (mem->lru_list) {
+        list_destroy(mem->lru_list);
+        mem->lru_list = NULL;
+    }
+    
+    // Liberar tablas de paginas y sus entradas
+    if (mem->tablas_paginas) {
+        dictionary_iterator(mem->tablas_paginas, (void*)_destruir_tabla);
+        dictionary_destroy(mem->tablas_paginas);
+        mem->tablas_paginas = NULL;
+    }
+    
+    // Liberar marcos
+    if (mem->marcos) {
+        for (int i = 0; i < mem->cantidad_marcos; i++) {
+            if (mem->marcos[i]) {
+                free(mem->marcos[i]);
+            }
+        }
+        free(mem->marcos);
+        mem->marcos = NULL;
+    }
+    
+    // Liberar bloque temporal
+    if (mem->tmp_bloque) {
+        free(mem->tmp_bloque);
+        mem->tmp_bloque = NULL;
+    }
+    
+    free(mem);
 }
+
 
 // devuelve 0 en éxito (y copia el bloque dentro del marco en cargar_pagina),
 // devuelve -2 si hubo error de storage / red.

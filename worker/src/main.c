@@ -2,9 +2,6 @@
 #include "../include/query_interpreter.h"
 
 int main(int argc, char* argv[]) {
-//Lo comente para poder hacer debug de lo ultimo que agregue
-
-/*
 
     if (argc != 3)
     {
@@ -13,10 +10,7 @@ int main(int argc, char* argv[]) {
     }
 
     int id_worker = atoi(argv[2]);
-*/
-    int id_worker = 2; 
-
-
+    //int id_worker = 2; //te quito el hardcoded, necesito valores reales
 
     t_worker* w = inicializar_worker(id_worker);
     
