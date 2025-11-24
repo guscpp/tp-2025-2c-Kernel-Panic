@@ -27,7 +27,7 @@ if [ $CANTIDAD -eq 1 ]; then
     echo ""
     #./bin/worker ./worker.config 0
     #valgrind --tool=memcheck --leak-check=full --track-origins=yes --log-file=valgrind_.log --show-error-list=yes --error-limit=no ./bin/worker ./worker.config 0
-    valgrind --tool=memcheck --leak-check=full --leak-resolution=high --show-leak-kinds=all --track-origins=yes --track-fds=yes --trace-children=yes --trace-children-skip='*/bin/*,*/sbin/*' --child-silent-after-fork=no --show-error-list=yes --error-limit=no --errors-for-leak-kinds=all --keep-debuginfo=yes --read-var-info=yes --read-inline-info=yes --sigill-diagnostics=yes --vgdb=no --verbose --log-file=valgrind_xworker.log strace -f -o strace_xworker.log ./bin/worker ./worker.config 0
+    valgrind --tool=memcheck --leak-check=full --leak-resolution=high --show-leak-kinds=all --track-origins=yes --track-fds=yes --trace-children=yes --trace-children-skip='*/bin/*,*/sbin/*' --child-silent-after-fork=no --show-error-list=yes --error-limit=no --errors-for-leak-kinds=all --keep-debuginfo=yes --read-var-info=yes --read-inline-info=yes --sigill-diagnostics=yes --vgdb=no --verbose --log-file=valgrind_xworker.log ./bin/worker ./worker.config 0
 else
     for ((i=0; i<$CANTIDAD; i++)); do
         echo "Iniciando worker $i con ID $i"

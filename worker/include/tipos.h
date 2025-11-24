@@ -4,7 +4,9 @@
 #include "../../utils/include/utils.h"
 #include <semaphore.h>
 //NO puede ir nunca ningun include de submodulo.h, porque aca NO hay funciones que necesiten parametros de otros modulos
- 
+
+extern pthread_mutex_t mutex_interrupt;
+
 typedef struct t_memoria_interna t_memoria_interna;
 
 // PAra mutex de error storage: informa que una operacion salio mal y corta el ciclo
@@ -82,8 +84,5 @@ typedef struct{
     void (*ejecuta_instruccion)(t_instr_param*, t_worker*, Pcb*);
     bool instruccion_malformada; 
 }t_decode; //solo para que haya execute
-
-extern pthread_mutex_t mutex_interrupt;
-
 
 #endif

@@ -3,8 +3,9 @@
 #include "../include/worker.h"// por manejo de errores
 
 extern bool query_desconectado;
-// Dejo esto de modelo
 
+
+// ****************************************************************************
 t_query_interpreter* query_interpreter_crear(t_log* logger){
     t_query_interpreter* interpreter = malloc(sizeof(t_query_interpreter));
     interpreter->pc = 0;
@@ -14,6 +15,7 @@ t_query_interpreter* query_interpreter_crear(t_log* logger){
 }
 
 
+// ****************************************************************************
 void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
     //me agarro el PC que me enviaron desde kernel y lo guardo en el PC del interpreter. DOnde verdadeeramente va a avanzar va ser en worker, luego si hay interrupciones voy a sobreescribir el pc que me dio kernel (para poner el actual si es que hubo interrupcion)
     w->interpreter->pc = pcb->pc;
@@ -72,6 +74,8 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
     }
 }
 
+
+// ****************************************************************************
 char* fetch(Pcb* pcb, t_worker* w){
     char* buffer_autoselc = NULL;
     size_t tam_autoselc = 0;
@@ -226,8 +230,10 @@ char* fetch(Pcb* pcb, t_worker* w){
     }
 }
 
+
+// ****************************************************************************
 t_decode* decode(char* instruccion, t_worker* w){
-    char** parametros;
+    char** parametros = NULL;
 
     // Elimina comentarios que comienzan en una linea con codigo
     char* comentario = strchr(instruccion, '#');
@@ -240,81 +246,138 @@ t_decode* decode(char* instruccion, t_worker* w){
     //me devuelve un array: parametros[0] = primer elemento de la cadena instruccion, parametros[1] toda el resto de la tira de parametros. El 2 porque lo divido en 2 partes y el " " porque se separa por un espacio
     t_decode* paquete_decode = malloc(sizeof(t_decode));
     paquete_decode->parametros = malloc(sizeof(t_instr_param)); 
-
     
     if(string_equals_ignore_case(parametros[0], "CREATE")){ //recordar hacer los frees
 
-        char** create_param;
-        create_param = aux_separar_file_tag(parametros[1]);
-        paquete_decode->parametros->nombre_file = create_param[0];
-        paquete_decode->parametros->tag = create_param[1];
+        char** create_param = aux_separar_file_tag(parametros[1]);
+
+        paquete_decode->parametros->nombre_file = string_duplicate(create_param[0]);
+        paquete_decode->parametros->tag = string_duplicate(create_param[1]);
         paquete_decode->ejecuta_instruccion = executeCreate;
-        paquete_decode->fin = false;  //para poner que al principio es falso que sea "fin". Porque yo intente ponerle el false afuera del ciclo (asi lo tenia que poner una vez sola y aca adentro no lo modificaba). Pero al devolver esto (osea, cuando retornaba decode en el ciclo), pisaba todo el struct de instruccion_decf, incluyendo el false y lo cambiaba a otro numero. POr eso decidi que si lo va pisar, que lo pise con el false
+        paquete_decode->fin = false;
         paquete_decode->instruccion_malformada = false;
+
+        free(create_param[0]);
+        free(create_param[1]);
+        free(create_param);
+        string_array_destroy(parametros);
+
         return paquete_decode;
     }
      
     if(string_equals_ignore_case(parametros[0], "TRUNCATE")){
         
-        char** truncate_file_tam;
-        char** truncate_file_tag;
+        char** truncate_file_tam = NULL;
+        char** truncate_file_tag = NULL;
+
+        if (parametros[1] == NULL) {
+            log_error(w->logger, "Parametros incompletos para TRUNCATE");
+            paquete_decode->instruccion_malformada = true;
+            free(paquete_decode->parametros);
+            free(paquete_decode);
+            string_array_destroy(parametros);
+            return paquete_decode;
+        }
 
         truncate_file_tam = string_n_split(parametros[1], 2, " ");
         paquete_decode->parametros->tamanio = atoi(truncate_file_tam[1]);
         truncate_file_tag = aux_separar_file_tag(truncate_file_tam[0]);
-        paquete_decode->parametros->nombre_file = truncate_file_tag[0];
-        paquete_decode->parametros->tag = truncate_file_tag[1];
+        paquete_decode->parametros->nombre_file = string_duplicate(truncate_file_tag[0]);
+        paquete_decode->parametros->tag = string_duplicate(truncate_file_tag[1]);
         
         paquete_decode->ejecuta_instruccion = executeTruncate;
 
         paquete_decode->fin = false;  //para poner que al principio es falso que sea fin
         paquete_decode->instruccion_malformada = false;
+
+        string_array_destroy(truncate_file_tam);
+        string_array_destroy(truncate_file_tag);
+        string_array_destroy(parametros);
+
         return paquete_decode;
     }
 
     if(string_equals_ignore_case(parametros[0], "WRITE")){
 
-        char** write_params_princ;
-        char** write_file_tag;
+        char** write_params_princ = NULL;
+        char** write_file_tag = NULL;
+
+        if (parametros[1] == NULL) {
+            log_error(w->logger, "Parametros incompletos para WRITE");
+            paquete_decode->instruccion_malformada = true;
+            free(paquete_decode->parametros);
+            free(paquete_decode);
+            string_array_destroy(parametros);
+            return paquete_decode;
+        }
 
         write_params_princ = string_n_split(parametros[1],3," ");
 
-        paquete_decode->parametros->direccion_base = atoi(write_params_princ[1]);
-        paquete_decode->parametros->contenido = write_params_princ[2];
+        paquete_decode->parametros->direccion_base = atoi(write_params_princ[1]); //TODO: leak?
+        paquete_decode->parametros->contenido = string_duplicate(write_params_princ[2]);
 
         write_file_tag = aux_separar_file_tag(write_params_princ[0]);
-        paquete_decode->parametros->nombre_file = write_file_tag[0];
-        paquete_decode->parametros->tag = write_file_tag[1];
+        paquete_decode->parametros->nombre_file = string_duplicate(write_file_tag[0]);
+        paquete_decode->parametros->tag = string_duplicate(write_file_tag[1]);
         paquete_decode->ejecuta_instruccion = executeWrite;
 
         paquete_decode->fin = false;  //para poner que al principio es falso que sea fin
         paquete_decode->instruccion_malformada = false;
+
+        string_array_destroy(write_params_princ);
+        string_array_destroy(write_file_tag);
+        string_array_destroy(parametros);
+
         return paquete_decode;
     }
     
     if(string_equals_ignore_case(parametros[0], "READ")){
 
-        char** read_params_princ;
-        char** read_file_tag;
+        char** read_params_princ = NULL;
+        char** read_file_tag = NULL;
+
+        if (parametros[1] == NULL) {
+            log_error(w->logger, "Parametros incompletos para READ");
+            paquete_decode->instruccion_malformada = true;
+            free(paquete_decode->parametros);
+            free(paquete_decode);
+            string_array_destroy(parametros);
+            return paquete_decode;
+        }
 
         read_params_princ = string_n_split(parametros[1], 3, " ");
         paquete_decode->parametros->direccion_base = atoi(read_params_princ[1]);
         paquete_decode->parametros->tamanio = atoi(read_params_princ[2]);
 
         read_file_tag = aux_separar_file_tag(read_params_princ[0]);
-        paquete_decode->parametros->nombre_file = read_file_tag[0];
-        paquete_decode->parametros->tag = read_file_tag[1];
+        paquete_decode->parametros->nombre_file = string_duplicate(read_file_tag[0]);
+        paquete_decode->parametros->tag = string_duplicate(read_file_tag[1]);
         paquete_decode->ejecuta_instruccion = executeRead;
 
         paquete_decode->fin = false;  //para poner que al principio es falso que sea fin
         paquete_decode->instruccion_malformada = false;
+
+        string_array_destroy(read_params_princ);
+        string_array_destroy(read_file_tag);
+        string_array_destroy(parametros);
+
         return paquete_decode;
     }
+
     if(string_equals_ignore_case(parametros[0], "TAG")){
 
-		char** tag_params;
-		char** file_tag_org;
-		char** file_tag_dest;
+        char** tag_params = NULL;
+        char** file_tag_org = NULL;
+        char** file_tag_dest = NULL;
+
+        if (parametros[1] == NULL) {
+            log_error(w->logger, "Parametros incompletos para TAG");
+            paquete_decode->instruccion_malformada = true;
+            free(paquete_decode->parametros);
+            free(paquete_decode);
+            string_array_destroy(parametros);
+            return paquete_decode;
+        }
 	
 		tag_params = string_n_split(parametros[1], 2, " ");
 
@@ -330,59 +393,104 @@ t_decode* decode(char* instruccion, t_worker* w){
 		paquete_decode->fin = false;
 		paquete_decode->instruccion_malformada = false;
 		
-		// Liberar memoria temporal
-		string_array_destroy(tag_params);
-		string_array_destroy(file_tag_org);
-		string_array_destroy(file_tag_dest);
+        string_array_destroy(tag_params);
+        string_array_destroy(file_tag_org);
+        string_array_destroy(file_tag_dest);
+        string_array_destroy(parametros);
 		
 		return paquete_decode;
-	}   
-    if(string_equals_ignore_case(parametros[0], "COMMIT")){
+	}
 
+    if(string_equals_ignore_case(parametros[0], "COMMIT")){
+    
+        char** commit_param = NULL;
         
-        char** commit_param;
+        if (parametros[1] == NULL) {
+            log_error(w->logger, "Parámetros incompletos para COMMIT");
+            paquete_decode->instruccion_malformada = true;
+            free(paquete_decode->parametros);
+            free(paquete_decode);
+            string_array_destroy(parametros);
+            return paquete_decode;
+        }
 
         commit_param = aux_separar_file_tag(parametros[1]);
-        paquete_decode->parametros->nombre_file = commit_param[0];
-        paquete_decode->parametros->tag = commit_param[1];
+        paquete_decode->parametros->nombre_file = string_duplicate(commit_param[0]);
+        paquete_decode->parametros->tag = string_duplicate(commit_param[1]);
         paquete_decode->ejecuta_instruccion = executeCommit;
         
         paquete_decode->fin = false;  //para poner que al principio es falso que sea fin
         paquete_decode->instruccion_malformada = false;
+
+        string_array_destroy(commit_param);
+        string_array_destroy(parametros);
+
         return paquete_decode;
     }
-    if(string_equals_ignore_case(parametros[0], "FLUSH")){
 
+    if(string_equals_ignore_case(parametros[0], "FLUSH")){
         
-        char** flush_param;
+        char** flush_param = NULL;
+
+        if (parametros[1] == NULL) {
+            log_error(w->logger, "Parámetros incompletos para FLUSH");
+            paquete_decode->instruccion_malformada = true;
+            free(paquete_decode->parametros);
+            free(paquete_decode);
+            string_array_destroy(parametros);
+            return paquete_decode;
+        }
 
         flush_param = aux_separar_file_tag(parametros[1]);
-        paquete_decode->parametros->nombre_file = flush_param[0];
-        paquete_decode->parametros->tag = flush_param[1];
+        paquete_decode->parametros->nombre_file = string_duplicate(flush_param[0]);
+        paquete_decode->parametros->tag = string_duplicate(flush_param[1]);
         paquete_decode->ejecuta_instruccion = executeFlush;
         
         paquete_decode->fin = false;  //para poner que al principio es falso que sea fin
         paquete_decode->instruccion_malformada = false;
+
+        string_array_destroy(flush_param);
+        string_array_destroy(parametros);
+
         return paquete_decode;
     }
-    if(string_equals_ignore_case(parametros[0], "DELETE")){
 
+    if(string_equals_ignore_case(parametros[0], "DELETE")){
         
-        char** delete_param;
+        char** delete_param = NULL;
+    
+        if (parametros[1] == NULL) {
+            log_error(w->logger, "Parámetros incompletos para DELETE");
+            paquete_decode->instruccion_malformada = true;
+            free(paquete_decode->parametros);
+            free(paquete_decode);
+            string_array_destroy(parametros);
+            return paquete_decode;
+        }
 
         delete_param = aux_separar_file_tag(parametros[1]);
-        paquete_decode->parametros->nombre_file = delete_param[0];
-        paquete_decode->parametros->tag = delete_param[1];
+        paquete_decode->parametros->nombre_file = string_duplicate(delete_param[0]);
+        paquete_decode->parametros->tag = string_duplicate(delete_param[1]);
         paquete_decode->ejecuta_instruccion = executeDelete;
 
         paquete_decode->fin = false;  //para poner que al principio es falso que sea fin
         paquete_decode->instruccion_malformada = false;
+
+        string_array_destroy(delete_param);
+        string_array_destroy(parametros);
+
         return paquete_decode;
     }
 
     if(string_equals_ignore_case(parametros[0], "END")){
-    paquete_decode->fin = true;
-    return paquete_decode;
+
+        paquete_decode->fin = true;
+
+        free(paquete_decode->parametros);
+        string_array_destroy(parametros);
+
+        return paquete_decode;
+
     }
 
     // CASO POR DEFECTO para instrucción desconocida
@@ -394,13 +502,16 @@ t_decode* decode(char* instruccion, t_worker* w){
     if (parametros[1]) free(parametros[1]);
     free(parametros);
     return paquete_decode;
- 
-}
+ }
 
+
+// ****************************************************************************
 void execute(t_instr_param* parametros, void (*ejecuta_instruccion)(t_instr_param*, t_worker*, Pcb*), t_worker* w, Pcb* pcb){
     ejecuta_instruccion(parametros, w, pcb);
 }
 
+
+// ****************************************************************************
 char** aux_separar_file_tag(char* cadena){
     char** file_tag;
     file_tag = string_n_split(cadena, 2, ":");
@@ -409,7 +520,7 @@ char** aux_separar_file_tag(char* cadena){
 }
 
 
-
+// ****************************************************************************
 void executeCreate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 
     t_buffer* buffer_generico = crear_buffer();
@@ -424,6 +535,8 @@ void executeCreate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     rtas_storage(w->storage_socket, w, parametros, pcb);
 }
 
+
+// ****************************************************************************
 void executeTruncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     
     t_buffer* buffer_generico = crear_buffer();
@@ -439,6 +552,8 @@ void executeTruncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     rtas_storage(w->storage_socket, w, parametros, pcb);
 }
 
+
+// ****************************************************************************
 void executeWrite(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     size_t tam = strlen(parametros->contenido);
     
@@ -460,6 +575,8 @@ void executeWrite(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     w->mem->memoria_contexto = NULL; // Limpiar contexto
 }
 
+
+// ****************************************************************************
 void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb) {
     void* dir = acceder_memoria(w->mem, pcb->query_id, parametros->nombre_file, parametros->tag,
                                 parametros->direccion_base, parametros->tamanio, false, w);
@@ -488,6 +605,8 @@ void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb) {
     log_info(w->logger, "Query<%d>: Instrucción realizada: READ", pcb->query_id);
 }
 
+
+// ****************************************************************************
 void executeTag(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     log_debug(w->logger, "Query<%d>: FETCH - Program Counter:%d - TAG %s:%s %s:%s", 
              pcb->query_id, w->interpreter->pc, 
@@ -510,6 +629,8 @@ void executeTag(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     
 }
 
+
+// ****************************************************************************
 void executeCommit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     
     executeFlush(parametros, w, pcb); //executeFLush necesita el nombreDelFIle y el tag, y yo aca en commit tengo esos parametros
@@ -530,6 +651,8 @@ void executeCommit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 
 }
 
+
+// ****************************************************************************
 void executeFlush(t_instr_param* parametros, t_worker* w, Pcb* pcb){ //ESto se hace previo a la ejecucion de un commit y de un desalojo de query
 
     flush_paginas_modificadas(w->mem, pcb->query_id, parametros->nombre_file,
@@ -540,6 +663,8 @@ void executeFlush(t_instr_param* parametros, t_worker* w, Pcb* pcb){ //ESto se h
 
 }
 
+
+// ****************************************************************************
 void executeDelete(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     
     t_buffer* buffer_generico = crear_buffer();
@@ -557,6 +682,8 @@ void executeDelete(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     
 }
 
+
+// ****************************************************************************
 void executeEnd(t_worker* w, Pcb* pcb){ //avisar a master de la finalizacion
     
     log_info(w->logger, "Query<%d>: Finalización exitosa de la Query", pcb->query_id);

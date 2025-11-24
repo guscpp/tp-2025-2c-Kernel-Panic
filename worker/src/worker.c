@@ -6,6 +6,8 @@ bool query_desconectado;
 int socket_distpach;
 pthread_mutex_t mutex_interrupt; 
 
+
+// ****************************************************************************
 t_worker* inicializar_worker(int id_worker)
 {
     t_worker *w = malloc(sizeof(t_worker));
@@ -28,6 +30,8 @@ t_worker* inicializar_worker(int id_worker)
     return w;
 }
 
+
+// ****************************************************************************
 void verificar_worker(t_worker* w)
 {
     log_info(w->logger, "Id_worker: %d", w->id_worker);
@@ -39,6 +43,7 @@ void verificar_worker(t_worker* w)
 }
 
 
+// ****************************************************************************
 void liberar_worker(t_worker* w)
 {
     if (!w) return;
@@ -82,33 +87,48 @@ void liberar_worker(t_worker* w)
 }
 
 
+// ****************************************************************************
 Pcb* recibir_path_de_query(int master_socket, t_worker* w) 
 {
     log_warning(w->logger, "Espero recibir un path"); 
     Pcb* dt_archivo = NULL;
-
-    ////////solo para probar errores///////
     socket_distpach = w->master_socket_distpach;
 
     t_list* paquete_path = recibir_paquete(master_socket);
+    if (paquete_path == NULL || list_size(paquete_path) == 0) {
+        log_error(w->logger, "Paquete vacío o nulo recibido de Master");
+        return NULL;
+    }
+    
     int* codigo_operacion = list_get(paquete_path, 0);
+    if (codigo_operacion == NULL) {
+        log_error(w->logger, "Código de operación inválido");
+        list_destroy_and_destroy_elements(paquete_path, free);
+        return NULL;
+    }
 
     if (*codigo_operacion == -1)
     {
         log_error(w->logger, "Error en la conexión con el Master");
+        list_destroy_and_destroy_elements(paquete_path, free);
         return NULL;
     }
 
     if (*codigo_operacion == WORKER_ASSIGN_QUERY)
     {
         log_info(w->logger, "Llegue a recibir el paquete path_query de Master");
+        if (list_size(paquete_path) < 5) {
+            log_error(w->logger, "Paquete incompleto recibido de Master");
+            list_destroy_and_destroy_elements(paquete_path, free);
+            return NULL;
+        }
         if (paquete_path && list_size(paquete_path)>= 3) 
         {
             // Los valores vienen en el orden:
             // query_id, path_query, prioridad, pc
 
             int query_id = *(int*)list_get(paquete_path, 1);
-            char* path_query = (char*)list_get(paquete_path, 2);
+            char* path_query = string_duplicate((char*)list_get(paquete_path, 2));
             int prioridad = *(int*)list_get(paquete_path, 3);
             int pc = *(int*)list_get(paquete_path, 4);
             
@@ -121,29 +141,41 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
             dt_archivo = malloc(sizeof(Pcb));
             
             // Intentar abrir el archivo
-            if((dt_archivo->archivo = retornar_archivo(path_query, w->path_scripts, w->logger))){
-                dt_archivo->nombre_archivo = path_query;
-                dt_archivo->query_id = query_id;
-                dt_archivo->pc = pc;
-
-                list_destroy(paquete_path);
-                return dt_archivo;
+            dt_archivo->archivo = retornar_archivo(path_query, w->path_scripts, w->logger);
+            if (dt_archivo->archivo == NULL) {
+                free(path_query);
+                free(dt_archivo);
+                list_destroy_and_destroy_elements(paquete_path, free);
+                error_path_not_found(w->logger, WORKER_ERROR_QUERY_NO_ENCONTRADA, query_id, path_query);
+                return NULL;
             }
 
-            // Si falla al abrir el archivo:
-            list_destroy(paquete_path);
-            error_path_not_found(w->logger, WORKER_ERROR_QUERY_NO_ENCONTRADA, dt_archivo->query_id, dt_archivo->nombre_archivo); // Ahora usa dt_archivo->nombre_archivo, asegurar que tenga memoria o usar copia. Nota: path_query venía de la lista que acabamos de destruir, cuidado aquí. *Corrección*: path_query es puntero a la lista. Si destruimos la lista, path_query puede ser invalido. 
-            // *Nota*: En tu código original destruyes la lista antes de usar el path en el error. Asumiremos que string_duplicate o similar ocurre internamente o el orden es el que tenías.
-            // Para seguridad, deberíamos usar el ID recibido antes.
-            
-            return NULL;
+            dt_archivo->nombre_archivo = path_query;
+            dt_archivo->query_id = query_id;
+            dt_archivo->pc = pc;
+
+            //list_destroy(paquete_path);
+            list_destroy_and_destroy_elements(paquete_path, free);
+
+            return dt_archivo;
         }
+
+        // Si falla al abrir el archivo:
+        //list_destroy(paquete_path);
+        //error_path_not_found(w->logger, WORKER_ERROR_QUERY_NO_ENCONTRADA, dt_archivo->query_id, dt_archivo->nombre_archivo); // Ahora usa dt_archivo->nombre_archivo, asegurar que tenga memoria o usar copia. Nota: path_query venía de la lista que acabamos de destruir, cuidado aquí. *Corrección*: path_query es puntero a la lista. Si destruimos la lista, path_query puede ser invalido. 
+        // *Nota*: En tu código original destruyes la lista antes de usar el path en el error. Asumiremos que string_duplicate o similar ocurre internamente o el orden es el que tenías.
+        // Para seguridad, deberíamos usar el ID recibido antes.
+
+        list_destroy_and_destroy_elements(paquete_path, free);
+        return NULL;
+        
     }
     
     return NULL;
 }
 
 
+// ****************************************************************************
 FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){
 
     char* path_final = string_new();
@@ -152,14 +184,17 @@ FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){
     
     FILE* archivo_query = fopen(path_final, "r"); 
 
+    free(path_final);
+
     if (archivo_query == NULL) {
         log_error(logger, "No se pudo abrir el archivo de query: %s", path_final); 
         free(path_final);
         return NULL;
     }
-    //free(path_final); // Ojo con leaks si no se libera
+
     return archivo_query;
 }   
+
 
 //------------------HILO DE EJECUCION DE QUERYS-----------------------
 void* ejecutar_query(void* arg){
@@ -178,15 +213,23 @@ void* ejecutar_query(void* arg){
 
         log_info(datos_ejecucion->w->logger, "Llego el path_query: %s", dt_archivo->nombre_archivo);
 
-        query_interpreter_ciclo(dt_archivo, datos_ejecucion->w); 
+        query_interpreter_ciclo(dt_archivo, datos_ejecucion->w);
     
         if(query_desconectado){
             continue;
         }
     }
+
+    if (dt_archivo->archivo != NULL) {
+        fclose(dt_archivo->archivo);
+    }
+
+    free(dt_archivo->nombre_archivo);
+    free(dt_archivo);
     // Se eliminó la recursividad ejecutar_query(arg); para evitar Stack Overflow
     return NULL;
 }
+
 
 //------------------HILO DE ATENCION DE INTERRUPCIONES-----------------------
 void* hilo_atender_interrupcion(void* arg){ 
@@ -213,13 +256,24 @@ void* hilo_atender_interrupcion(void* arg){
     return NULL;
 }
 
+
 //-------------------------------------------------------------------------------------------------
 //este master_socket es el socket del interrupt
 bool recibir_interrupciones(int master_socket, t_worker* w){ 
 
     t_list* paquete_interrupcion = recibir_paquete(master_socket);
 
+    if (paquete_interrupcion == NULL || list_size(paquete_interrupcion) == 0) {
+        log_error(w->logger, "Paquete de interrupción nulo o vacío");
+        return false;
+    }
+
     int* codigo_operacion = list_get(paquete_interrupcion, 0);
+    if (codigo_operacion == NULL) {
+        log_error(w->logger, "Código de operación inválido en interrupción.");
+        list_destroy(paquete_interrupcion);
+        return false;
+    }
 
     if (codigo_operacion == NULL) {
         log_error(w->logger, "Código de operación inválido en interrupción.");
@@ -249,6 +303,8 @@ bool recibir_interrupciones(int master_socket, t_worker* w){
     return false; 
 }
 
+
+// ****************************************************************************
 void retener_worker(t_worker* w) {
     log_warning(w->logger, "Retengo al worker antes de crear el interrupt");
 
@@ -270,8 +326,8 @@ void retener_worker(t_worker* w) {
     }
 }
 
-//-------------------------------------------------------------------------------------------------
 
+// ****************************************************************************
 void rtas_storage(int storage_socket, t_worker* w, t_instr_param* parametros, Pcb* pcb) {
     log_info(w->logger, "Esperando respuesta de Storage");
     
@@ -418,7 +474,8 @@ void rtas_storage(int storage_socket, t_worker* w, t_instr_param* parametros, Pc
 }
 
 
-//ERRORES
+// ERRORES
+// ****************************************************************************
 void error_path_not_found(t_log* logger, op_code etiqueta, int id_query, char* path){ 
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError = crear_paquete(etiqueta, buffer1);
@@ -429,6 +486,8 @@ void error_path_not_found(t_log* logger, op_code etiqueta, int id_query, char* p
     loggerError(logger, etiqueta);
 }
 
+
+// ****************************************************************************
 void error_archivo_not_found(t_log* logger, op_code etiqueta, int id_query, char* file, char* tag){
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError = crear_paquete(etiqueta, buffer1);
@@ -440,6 +499,8 @@ void error_archivo_not_found(t_log* logger, op_code etiqueta, int id_query, char
     loggerError(logger, etiqueta);
 }
 
+
+// ****************************************************************************
 void error_tamanio_escrLectura_excedido(t_log* logger, op_code etiqueta, int id_query, char* file, char* tag){
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError = crear_paquete(etiqueta, buffer1);
@@ -451,6 +512,8 @@ void error_tamanio_escrLectura_excedido(t_log* logger, op_code etiqueta, int id_
     loggerError(logger, etiqueta);
 }
 
+
+// ****************************************************************************
 void error_instruccion_malformada(t_log* logger,int id_query, char* instruccion){
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_INSTRUCCION_MALFORMADA, buffer1);
@@ -462,6 +525,8 @@ void error_instruccion_malformada(t_log* logger,int id_query, char* instruccion)
 
 }
 
+
+// ****************************************************************************
 void informar_error_create(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     t_buffer* buffer1 = crear_buffer();
     
@@ -473,6 +538,8 @@ void informar_error_create(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     eliminar_paquete(paqueteError1);
 }
 
+
+// ****************************************************************************
 void informar_error_truncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_TRUNCATE, buffer1);
@@ -484,6 +551,8 @@ void informar_error_truncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     eliminar_paquete(paqueteError1);
 }
 
+
+// ****************************************************************************
 void informar_error_write(t_instr_param* parametros, t_worker* w, Pcb* pcb){ 
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_WRITE_EN_STORAGE, buffer1);
@@ -492,6 +561,8 @@ void informar_error_write(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     eliminar_paquete(paqueteError1);
 }
 
+
+// ****************************************************************************
 void informar_error_read(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_READ_EN_STORAGE, buffer1);
@@ -500,6 +571,8 @@ void informar_error_read(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     eliminar_paquete(paqueteError1);
 }
 
+
+// ****************************************************************************
 void informar_error_tag(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_TAG, buffer1);
@@ -512,6 +585,8 @@ void informar_error_tag(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     eliminar_paquete(paqueteError1);
 }
 
+
+// ****************************************************************************
 void informar_error_commit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_COMMIT, buffer1);
@@ -522,6 +597,8 @@ void informar_error_commit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     eliminar_paquete(paqueteError1);
 }
 
+
+// ****************************************************************************
 void informar_error_delete(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_DELETE, buffer1);
@@ -532,6 +609,8 @@ void informar_error_delete(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     eliminar_paquete(paqueteError1);
 }
 
+
+// ****************************************************************************
 void informar_error_flush(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_FLUSH, buffer1);
@@ -539,6 +618,8 @@ void informar_error_flush(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     eliminar_paquete(paqueteError1);
 }
 
+
+// ****************************************************************************
 //SOlo para ver si anda bien el envio de errores (borrar porque no es necesario)
 void loggerError(t_log* logger, op_code etiqueta){
     switch (etiqueta)
@@ -576,6 +657,8 @@ void loggerError(t_log* logger, op_code etiqueta){
     }
 }
 
+
+// ****************************************************************************
 storage_error* inicializar_mutex_error_storage(t_worker* w) {
     storage_error* error_storage = malloc(sizeof(storage_error));
 

@@ -7,10 +7,14 @@
 #include <semaphore.h>
 #include "../include/worker.h" // Necesario para t_worker usado en acceder_memoria
 
+
+// ****************************************************************************
 char* clave_file_tag(char* file, char* tag) {
     return string_from_format("%s:%s", file, tag);
 }
 
+
+// ****************************************************************************
 t_entrada_pagina* buscar_pagina(t_memoria_interna* mem, char* file, char* tag, int num_pagina) {
     if (!mem || !file || !tag) return NULL;
     char* clave = clave_file_tag(file, tag);
@@ -34,6 +38,8 @@ t_entrada_pagina* buscar_pagina(t_memoria_interna* mem, char* file, char* tag, i
     return encontrada;
 }
 
+
+// ****************************************************************************
 int encontrar_marco_libre(t_memoria_interna* mem) {
     for (int i = 0; i < mem->cantidad_marcos; i++) {
         if (mem->marcos[i]->libre) return i;
@@ -41,6 +47,8 @@ int encontrar_marco_libre(t_memoria_interna* mem) {
     return -1;
 }
 
+
+// ****************************************************************************
 // --- LRU ---
 int aplicar_lru(t_memoria_interna* mem, int query_id) {
     if (list_is_empty(mem->lru_list)) return 0;
@@ -76,6 +84,8 @@ int aplicar_lru(t_memoria_interna* mem, int query_id) {
     return marco_victima;
 }
 
+
+// ****************************************************************************
 // --- CLOCK-M ---
 int aplicar_clock_m(t_memoria_interna* mem, int query_id) {
     t_clock_m* clock = mem->clock_m;
@@ -157,6 +167,8 @@ int aplicar_clock_m(t_memoria_interna* mem, int query_id) {
     return victima;
 }
 
+
+// ****************************************************************************
 int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina) { 
     int marco = encontrar_marco_libre(mem);
 
@@ -219,6 +231,8 @@ int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, i
     return marco;
 }
 
+
+// ****************************************************************************
 void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* tag, int offset, size_t tam, bool es_escritura, t_worker* w) {
     if (!mem || !file || !tag || tam == 0) return NULL;
     
@@ -356,6 +370,8 @@ void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* ta
     return (void*)1; // Indicador de exito para escrituras
 }
 
+
+// ****************************************************************************
 t_clock_m* crear_clock_m(int cantidad_marcos, t_marco** marcos) {
     t_clock_m* c = malloc(sizeof(t_clock_m));
     c->marcos = marcos;
@@ -366,6 +382,8 @@ t_clock_m* crear_clock_m(int cantidad_marcos, t_marco** marcos) {
     return c;
 }
 
+
+// ****************************************************************************
 void destruir_clock_m(t_clock_m* c) {
     if (!c) return;
     free(c->bits_referencia);
@@ -373,6 +391,8 @@ void destruir_clock_m(t_clock_m* c) {
     free(c);
 }
 
+
+// ****************************************************************************
 t_memoria_interna* crear_memoria(t_log* logger, int tam_memoria, int retardo_memoria, char* algoritmo_str, int block_size) {
     t_memoria_interna* m = calloc(1, sizeof(t_memoria_interna));
     m->logger = logger;
@@ -407,6 +427,8 @@ static void _destruir_tabla(char* key, void* value) {
     list_destroy(tabla);
 }
 
+
+// ****************************************************************************
 void destruir_memoria(t_memoria_interna* mem) {
     if (!mem) return;
     
@@ -456,6 +478,7 @@ void destruir_memoria(t_memoria_interna* mem) {
 }
 
 
+// ****************************************************************************
 // devuelve 0 en éxito (y copia el bloque dentro del marco en cargar_pagina),
 // devuelve -2 si hubo error de storage / red.
 int pedir_bloque_storage(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina) { //pide un bloque logico, lo cual esta bien porque solo se busca uno cuando tira pageFAult
@@ -533,6 +556,8 @@ int pedir_bloque_storage(t_memoria_interna* mem, int query_id, char* file, char*
     }
 }
 
+
+// ****************************************************************************
 void flush_paginas_modificadas( t_memoria_interna* mem, int query_id, char* file, char* tag, int socket_storage) {
     char* clave = clave_file_tag(file, tag);
     t_list* tabla = dictionary_get(mem->tablas_paginas, clave);

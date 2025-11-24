@@ -17,6 +17,7 @@ int main(int argc, char* argv[]) {
     t_query_interpreter*  query_interpreter =  query_interpreter_crear(w->logger); //tiene pc y un verificador de interrupciones
     w->interpreter = query_interpreter; 
 
+    pthread_mutex_init(&mutex_interrupt, NULL); //inicializar mutex
     pthread_t ciclo_instrucciones; 
     pthread_t hilo_interrupciones;
     log_info(w->logger, "Verificar funcionamiento logger");
@@ -131,6 +132,12 @@ int main(int argc, char* argv[]) {
     
     pthread_join(ciclo_instrucciones, NULL);
     pthread_join(hilo_interrupciones, NULL);
+    pthread_mutex_destroy(&mutex_interrupt);
+
+    free(datos_ejecucion);
+    free(recibir_interrupciones);
+
+    liberar_worker(w);
     
     return 0;
 }
