@@ -1,4 +1,3 @@
-
 #include "memoria.h"
 #include <commons/string.h>
 #include <string.h>
@@ -6,7 +5,7 @@
 #include <time.h>
 #include "../../utils/include/utils.h"
 #include <semaphore.h>
-
+#include "../include/worker.h" // Necesario para t_worker usado en acceder_memoria
 
 char* clave_file_tag(char* file, char* tag) {
     return string_from_format("%s:%s", file, tag);
@@ -157,68 +156,8 @@ int aplicar_clock_m(t_memoria_interna* mem, int query_id) {
     clock->bits_modificados[victima] = false;
     return victima;
 }
-/*
-int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina) {
-    int marco = encontrar_marco_libre(mem);
 
-    if (marco == -1) {
-        if (mem->algoritmo_reemplazo == LRU)
-            marco = aplicar_lru(mem, query_id);
-        else
-            marco = aplicar_clock_m(mem, query_id);
-    }
-
-    // 2. Pedís el bloque a Storage
-    if (pedir_bloque_storage(mem, query_id, file, tag, pagina) < 0) {
-        log_error(mem->logger, "Error cargando página %d", pagina);
-        return -1;
-    }
-
-    
-    mem->marcos[marco]->libre = false;
-    t_entrada_pagina* nueva = malloc(sizeof(t_entrada_pagina));
-    nueva->file = string_duplicate(file);
-    nueva->tag = string_duplicate(tag);
-    nueva->numero_pagina = num_pagina;
-    nueva->marco = marco;
-    nueva->modificada = false;
-    nueva->ultimo_acceso = time(NULL);
-    nueva->bit_referencia = true;
-    mem->marcos[marco]->entrada_pagina = nueva;
-
-    // Registrar en tabla
-    char* clave = clave_file_tag(file, tag);
-    t_list* tabla = dictionary_get(mem->tablas_paginas, clave);
-    if (!tabla) {
-        tabla = list_create();
-        dictionary_put(mem->tablas_paginas, clave, tabla);
-    } else {
-        free(clave);
-    }
-    list_add(tabla, nueva);
-
-    if (mem->algoritmo_reemplazo == LRU) {
-        list_add(mem->lru_list, nueva);
-    }
-    if (mem->algoritmo_reemplazo == CLOCK_M) {
-        mem->clock_m->bits_referencia[marco] = true;
-        mem->clock_m->bits_modificados[marco] = false;
-    }
-
-    // Logs obligatorios
-    log_info(mem->logger, "Query<%d>: - Memoria Add - File:%s - Tag:%s - Pagina:%d - Marco:%d",
-             query_id, file, tag, num_pagina, marco);
-    log_info(mem->logger, "Query<%d>: Se asigna el Marco:%d a la Pagina:%d perteneciente al - File:%s - Tag:%s",
-             query_id, marco, num_pagina, file, tag);
-
-    // Inicializar con ceros
-    void* dir = mem->memory_arena + marco * mem->tamanio_pagina;
-    memset(dir, 0, mem->tamanio_pagina);
-    return marco;
-}
-*/
-
-int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina) { //esta es la nueva, le agregue que copie lo que traae del bloque logico
+int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina) { 
     int marco = encontrar_marco_libre(mem);
 
     if (marco == -1) {
@@ -239,9 +178,6 @@ int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, i
     memcpy(destino, mem->tmp_bloque, mem->tamanio_pagina);
     free(mem->tmp_bloque);
     mem->tmp_bloque = NULL;
-    
-    // NO usar memset a 0
-    //memset(destino, 0, mem->tamanio_pagina);
 
     mem->marcos[marco]->libre = false;
 
@@ -289,7 +225,6 @@ void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* ta
     int num_pagina_inicial = offset / mem->tamanio_pagina;
     int despl_inicial = offset % mem->tamanio_pagina;
     int num_pagina_final = (offset + tam - 1) / mem->tamanio_pagina;
-    // int paginas_necesarias = num_pagina_final - num_pagina_inicial + 1; // Variable no usada, se elimina para evitar advertencia
     
     // 1. Verificar limites del archivo (consultando metadata)
     char* metadata_path = string_from_format("%s/files/%s/%s/metadata.config",
@@ -561,57 +496,6 @@ int pedir_bloque_storage(t_memoria_interna* mem, int query_id, char* file, char*
     }
 }
 
-
-/*
-void flush_paginas_modificadas( //mando a storage la cantidad de paginas modificadas. LAs mando todas juntas en un solo paquete
-    t_memoria_interna* mem,
-    int query_id,
-    char* file,
-    char* tag,
-    int socket_storage
-) {
-    char* clave = clave_file_tag(file, tag);
-    t_list* tabla = dictionary_get(mem->tablas_paginas, clave);
-    free(clave);
-    if (!tabla) return;
-
-    t_buffer* buffer = crear_buffer();
-    t_paquete* p = crear_paquete(STORAGE_FLUSH, buffer);
-
-    agregar_a_paquete(p, &query_id, sizeof(int));
-    agregar_a_paquete(p, file, strlen(file)+1);
-    agregar_a_paquete(p, tag, strlen(tag)+1);
-
-    int cantidad_paginas_modificadas = 0;
-
-    for (int i = 0; i < tabla->elements_count; i++) {
-        t_entrada_pagina* e = list_get(tabla, i);
-        if (e->modificada) {
-            cantidad_paginas_modificadas++;
-
-            agregar_a_paquete(p, &e->numero_pagina, sizeof(int));
-
-            void* contenido = mem->memory_arena + e->marco * mem->tamanio_pagina;
-            agregar_a_paquete(p, contenido, mem->tamanio_pagina);
-
-            e->modificada = false; // reset
-            if (mem->algoritmo_reemplazo == CLOCK_M)
-                mem->clock_m->bits_modificados[e->marco] = false;
-        }
-    }
-
-    agregar_a_paquete(p, &cantidad_paginas_modificadas, sizeof(int));
-
-    enviar_paquete(p, socket_storage, mem->logger);
-    eliminar_paquete(p);
-
-    log_info(mem->logger,
-        "Query<%d>: FLUSH de %d páginas modificadas del File:%s Tag:%s",
-        query_id, cantidad_paginas_modificadas, file, tag
-    );
-}
-*/
-//este es como el de arriba solo que con logs
 void flush_paginas_modificadas( t_memoria_interna* mem, int query_id, char* file, char* tag, int socket_storage) {
     char* clave = clave_file_tag(file, tag);
     t_list* tabla = dictionary_get(mem->tablas_paginas, clave);

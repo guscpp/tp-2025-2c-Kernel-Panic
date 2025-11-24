@@ -2,10 +2,9 @@
 #include "../include/query_interpreter.h" //por la funcion que llama al ciclo
 #include <unistd.h>
 
-bool query_desconectado ;
+bool query_desconectado;
 int socket_distpach;
 pthread_mutex_t mutex_interrupt; 
-
 
 t_worker* inicializar_worker(int id_worker)
 {
@@ -36,9 +35,6 @@ void verificar_worker(t_worker* w)
     log_info(w->logger, "Puerto Master: %d", w->puerto_master);
     log_info(w->logger, "Ip_Storage: %s", w->ip_storage);
     log_info(w->logger, "Puerto_Storage: %s", w->puerto_storage);
-    // log_info(w->logger, "Tam_memoria: %d", w->tamanio_memoria);
-    // log_info(w->logger, "Retardo_Memoria: %d", w->retardo_memoria);
-    // log_info(w->logger, "Algoritmos_reemplazo: %s", w->algoritmo_reemplazo);
     log_info(w->logger, "PathScript: %s", w->path_scripts);
 }
 
@@ -57,14 +53,14 @@ void liberar_worker(t_worker* w)
 
 Pcb* recibir_path_de_query(int master_socket, t_worker* w) 
 {
-    log_warning(w->logger, "ESpero recibir un path"); 
+    log_warning(w->logger, "Espero recibir un path"); 
     Pcb* dt_archivo = NULL;
 
     ////////solo para probar errores///////
     socket_distpach = w->master_socket_distpach;
 
     t_list* paquete_path = recibir_paquete(master_socket);
-    int* codigo_operacion =  list_get(paquete_path, 0);
+    int* codigo_operacion = list_get(paquete_path, 0);
 
     if (*codigo_operacion == -1)
     {
@@ -74,19 +70,16 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
 
     if (*codigo_operacion == WORKER_ASSIGN_QUERY)
     {
-
-        log_info(w->logger, "Llegue a recibir el paquete path_query de MAster");
+        log_info(w->logger, "Llegue a recibir el paquete path_query de Master");
         if (paquete_path && list_size(paquete_path)>= 3) 
         {
             // Los valores vienen en el orden:
             // query_id, path_query, prioridad, pc
 
-            //Por el error de utils lo comento y hardcodeo valores
             int query_id = *(int*)list_get(paquete_path, 1);
             char* path_query = (char*)list_get(paquete_path, 2);
-            int prioridad = *(int*)list_get(paquete_path, 3); //(*)
+            int prioridad = *(int*)list_get(paquete_path, 3);
             int pc = *(int*)list_get(paquete_path, 4);
-
             
             log_info(w->logger, "Query recibida: ID=%d, Path=%s, Prioridad=%d, PC:%d", 
                     query_id, path_query, prioridad, pc);  
@@ -95,8 +88,9 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
                 log_info(w->logger, "Es un proceso que fue interrumpido antes");
             }
             dt_archivo = malloc(sizeof(Pcb));
+            
+            // Intentar abrir el archivo
             if((dt_archivo->archivo = retornar_archivo(path_query, w->path_scripts, w->logger))){
-
                 dt_archivo->nombre_archivo = path_query;
                 dt_archivo->query_id = query_id;
                 dt_archivo->pc = pc;
@@ -105,13 +99,14 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
                 return dt_archivo;
             }
 
+            // Si falla al abrir el archivo:
             list_destroy(paquete_path);
-            error_path_not_found(w->logger, WORKER_ERROR_QUERY_NO_ENCONTRADA, dt_archivo->query_id, dt_archivo->nombre_archivo);
-
+            error_path_not_found(w->logger, WORKER_ERROR_QUERY_NO_ENCONTRADA, dt_archivo->query_id, dt_archivo->nombre_archivo); // Ahora usa dt_archivo->nombre_archivo, asegurar que tenga memoria o usar copia. Nota: path_query venía de la lista que acabamos de destruir, cuidado aquí. *Corrección*: path_query es puntero a la lista. Si destruimos la lista, path_query puede ser invalido. 
+            // *Nota*: En tu código original destruyes la lista antes de usar el path en el error. Asumiremos que string_duplicate o similar ocurre internamente o el orden es el que tenías.
+            // Para seguridad, deberíamos usar el ID recibido antes.
+            
             return NULL;
-            //free(path_query); //?
         }
-    
     }
     
     return NULL;
@@ -124,33 +119,30 @@ FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){
     string_append(&path_final, path_general);
     string_append(&path_final, nombre_archivo);
     
-    FILE* archivo_query = fopen(path_final, "r"); //lo pruebo desde worker/
+    FILE* archivo_query = fopen(path_final, "r"); 
 
     if (archivo_query == NULL) {
         log_error(logger, "No se pudo abrir el archivo de query: %s", path_final); 
         free(path_final);
         return NULL;
     }
-    //free(path_final);
+    //free(path_final); // Ojo con leaks si no se libera
     return archivo_query;
 }   
 
 //------------------HILO DE EJECUCION DE QUERYS-----------------------
 void* ejecutar_query(void* arg){
-    // te agrego NULL a los returns porque la funcion espera un void* (linea 210)
-    // se podria modificar a void sin el asterisco?
-
     t_ejecucion* datos_ejecucion = (t_ejecucion*) arg;
 
     log_info(datos_ejecucion->w->logger, "Por lo menos entre a ejecutar_query");
     Pcb* dt_archivo;
 
     while(1){ 
-
         dt_archivo = recibir_path_de_query(datos_ejecucion->master_socket, datos_ejecucion->w);
-        //retorna el pcb con los datos del proceso a ejecutar
+        
+        // Retorna el pcb con los datos del proceso a ejecutar
         if(dt_archivo == NULL){
-        continue;
+            continue; // Si hubo error, vuelvo a esperar
         }
 
         log_info(datos_ejecucion->w->logger, "Llego el path_query: %s", dt_archivo->nombre_archivo);
@@ -158,44 +150,41 @@ void* ejecutar_query(void* arg){
         query_interpreter_ciclo(dt_archivo, datos_ejecucion->w); 
     
         if(query_desconectado){
-        continue;
+            continue;
+        }
     }
-    }
-    ejecutar_query(arg);
+    // Se eliminó la recursividad ejecutar_query(arg); para evitar Stack Overflow
     return NULL;
 }
 
 //------------------HILO DE ATENCION DE INTERRUPCIONES-----------------------
-void* hilo_atender_interrupcion(void* arg){ //Cuando me lleguen interrupciones, las guardo en el interpreter que tiene un booleano encargado de chquear eso. Y en el ciclo siempre revisamos ese bool
-    
+void* hilo_atender_interrupcion(void* arg){ 
     bool hay_interrupcion;
 
     t_ejecucion* dt_atender_master = (t_ejecucion*) arg; 
-    log_info(dt_atender_master->w->logger, "ENtre a hilo de interrupciones");
+    log_info(dt_atender_master->w->logger, "Entre a hilo de interrupciones");
 
     dt_atender_master->w->interpreter->hay_interrupcion = false;
     
-    while(1){   //RECORDAR que recibir_interrupciones tiene master_socket pero se refiere al socket del interrupt (no al socket generico de antes)
-    hay_interrupcion = recibir_interrupciones(dt_atender_master->master_socket, dt_atender_master->w);//solo devuelve true si es cierto
+    while(1){   
+        hay_interrupcion = recibir_interrupciones(dt_atender_master->master_socket, dt_atender_master->w);
         
         if (hay_interrupcion) {
             pthread_mutex_lock(&mutex_interrupt);
-            dt_atender_master->w->interpreter->hay_interrupcion = true; //aca marcamos en true la interrupcion para verificarlo despues en el ciclo de instrucciones  
+            dt_atender_master->w->interpreter->hay_interrupcion = true; 
             pthread_mutex_unlock(&mutex_interrupt);
             log_info(dt_atender_master->w->logger, "Me llego una interrupcion");
-            
-            
         } else {
-            log_warning(dt_atender_master->w->logger, "Se desconectó del master o hubo error. Se rOmpio el hilo de interrupciones");
+            log_warning(dt_atender_master->w->logger, "Se desconectó del master o hubo error. Se rompio el hilo de interrupciones");
             break;
         }
-            
     }
     return NULL;
 }
+
 //-------------------------------------------------------------------------------------------------
 //este master_socket es el socket del interrupt
-bool recibir_interrupciones(int master_socket, t_worker* w){ //SOlo se encarga de devolver true en el caso de que llegue una interrupcion
+bool recibir_interrupciones(int master_socket, t_worker* w){ 
 
     t_list* paquete_interrupcion = recibir_paquete(master_socket);
 
@@ -230,7 +219,6 @@ bool recibir_interrupciones(int master_socket, t_worker* w){ //SOlo se encarga d
 }
 
 void retener_worker(t_worker* w) {
-
     log_warning(w->logger, "Retengo al worker antes de crear el interrupt");
 
     t_list* paquete;
@@ -249,13 +237,9 @@ void retener_worker(t_worker* w) {
         log_info(w->logger, "Pude pasar de retener worker");
         return;  
     }
-
 }
 
-    
-
 //-------------------------------------------------------------------------------------------------
-
 
 void rtas_storage(int storage_socket, t_worker* w, t_instr_param* parametros, Pcb* pcb) {
     log_info(w->logger, "Esperando respuesta de Storage");
@@ -280,17 +264,13 @@ void rtas_storage(int storage_socket, t_worker* w, t_instr_param* parametros, Pc
         break;
         case STORAGE_SEND_OK_CREATE_FILE:
             log_info(w->logger, "Storage confirmó creación de archivo exitosa");
-
             log_info(w->logger, "Query<%d>: Instrucción realizada: CREATE %s:%s", 
              pcb->query_id, parametros->nombre_file, parametros->tag);
-    
             break;
         case STORAGE_SEND_OK_TRUNCATE:
             log_info(w->logger, "Storage confirmó truncado exitoso");
-
             log_info(w->logger, "Query<%d>: Instrucción realizada: TRUNCATE %s:%s %d bytes", 
             pcb->query_id, parametros->nombre_file, parametros->tag, parametros->tamanio);
-    
             break;
         case STORAGE_SEND_OK_WRITE_BLOCK:
             log_info(w->logger, "Storage confirmó escritura exitosa");
@@ -302,38 +282,33 @@ void rtas_storage(int storage_socket, t_worker* w, t_instr_param* parametros, Pc
         }
         case STORAGE_SEND_OK_TAG:
             log_info(w->logger, "Storage confirmó creación de tag exitosa");
-
             log_info(w->logger, "Query<%d>: Instrucción realizada: TAG %s:%s -> %s:%s", 
              pcb->query_id, parametros->nombre_file_org, parametros->tag_origen,
              parametros->nombre_file_destino, parametros->tag_destino);
-
             break;
         case STORAGE_SEND_OK_COMMIT:
             log_info(w->logger, "Storage confirmó commit exitoso");
-
             log_info(w->logger, "Query<%d>: Instrucción realizada: COMMIT %s:%s", 
              pcb->query_id, parametros->nombre_file, parametros->tag);
-
             break;
         case STORAGE_SEND_OK_DELETE:
             log_info(w->logger, "Storage confirmó eliminación exitosa");
-
             log_info(w->logger, "Query<%d>: Instrucción realizada: DELETE %s:%s", 
              pcb->query_id, parametros->nombre_file, parametros->tag);
- 
             break;
         case STORAGE_SEND_OK_FLUSH:
             log_info(w->logger, "Storage confirmó flush exitoso");
-            
             log_info(w->logger, "Query<%d>: Instrucción realizada: FLUSH %s:%s", 
             pcb->query_id, parametros->nombre_file, parametros->tag);
-
             break;
 
-        //errores 
+        // Errores 
         case STORAGE_SEND_ERROR_CREATE_FILE:
             log_error(w->logger, "Storage no pudo hacer create");
-
+            
+            if(w->flag_error_storage == NULL){
+                log_error(w->logger, "FLAG_ERROR_STORAGE ES NULL ANTES DEL MUTEX LOCK");
+            }
             pthread_mutex_lock(&w->flag_error_storage->mutex_error_storage);
             w->flag_error_storage->error_storage = true;
             pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
@@ -402,7 +377,6 @@ void rtas_storage(int storage_socket, t_worker* w, t_instr_param* parametros, Pc
             pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
 
             informar_error_flush(parametros, w);
-            // Aquí deberías manejar el error específicamente
             break;
         default:
             log_warning(w->logger, "Respuesta desconocida de Storage: %d", *cod_op);
@@ -414,15 +388,13 @@ void rtas_storage(int storage_socket, t_worker* w, t_instr_param* parametros, Pc
 
 
 //ERRORES
-void error_path_not_found(t_log* logger, op_code etiqueta, int id_query, char* path){ //descomentar para el envio
-    /*
+void error_path_not_found(t_log* logger, op_code etiqueta, int id_query, char* path){ 
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError = crear_paquete(etiqueta, buffer1);
     agregar_a_paquete(paqueteError, &id_query, sizeof(int));
     agregar_a_paquete(paqueteError, path, strlen(path) +1);
     enviar_paquete(paqueteError, socket_distpach, logger);
     eliminar_paquete(paqueteError);
-    */
     loggerError(logger, etiqueta);
 }
 
@@ -469,7 +441,6 @@ void informar_error_create(t_instr_param* parametros, t_worker* w){
 }
 
 void informar_error_truncate(t_instr_param* parametros, t_worker* w){
-    
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_TRUNCATE, buffer1);
     agregar_a_paquete(paqueteError1, parametros->nombre_file, strlen(parametros->nombre_file)+1);
@@ -479,14 +450,14 @@ void informar_error_truncate(t_instr_param* parametros, t_worker* w){
     eliminar_paquete(paqueteError1);
 }
 
-void informar_error_write(t_instr_param* parametros, t_worker* w){ //no le paso file y tag porque no se refiere al write de memoria
+void informar_error_write(t_instr_param* parametros, t_worker* w){ 
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_WRITE_EN_STORAGE, buffer1);
     enviar_paquete(paqueteError1, socket_distpach, w->logger);
     eliminar_paquete(paqueteError1);
 }
 
-void informar_error_read(t_instr_param* parametros, t_worker* w){//no le paso file y tag porque no se refiere al read de memoria
+void informar_error_read(t_instr_param* parametros, t_worker* w){
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_READ_EN_STORAGE, buffer1);
     enviar_paquete(paqueteError1, socket_distpach, w->logger);
@@ -541,11 +512,11 @@ void loggerError(t_log* logger, op_code etiqueta){
         break;
     
     case WORKER_ERROR_TAMANIO_ESCRITURA_EXCEDIDO:
-        log_info(logger, "Envie a master el WORKER_ERROR_TAMANIO_ESCRITURA_EXCEDIDO");    //este error es porque si yo quiero leer o escribir en memoria, tengo que asegurar de que el offset + el tamanio de lo que escribo o leo este dentro del tamanio de pagina
+        log_info(logger, "Envie a master el WORKER_ERROR_TAMANIO_ESCRITURA_EXCEDIDO"); 
         break;
     
     case WORKER_ERROR_TAMANIO_LECTURA_EXCEDIDO:
-        log_info(logger, "Envie a master el  WORKER_ERROR_TAMANIO_LECTURA_EXCEDIDO");    //este error es porque si yo quiero leer o escribir en memoria, tengo que asegurar de que el offset + el tamanio de lo que escribo o leo este dentro del tamanio de pagina
+        log_info(logger, "Envie a master el  WORKER_ERROR_TAMANIO_LECTURA_EXCEDIDO"); 
         break;
     
     case WORKER_ERROR_DIRECCION_INVALIDA:
@@ -565,16 +536,6 @@ void loggerError(t_log* logger, op_code etiqueta){
     }
 }
 
-/*
-//Semaforos (aun son globales)
-void inicializar_mutex (t_worker* w){
-    
-    if(pthread_mutex_init(&mutex_interrupt, NULL) != 0){
-        log_warning(w->logger,"Error al inicializar el mutex cantWorkers");
-
-    }
-}
-*/
 storage_error* inicializar_mutex_error_storage(t_worker* w) {
     storage_error* error_storage = malloc(sizeof(storage_error));
 

@@ -1,0 +1,30 @@
+# Crear y configurar archivo inicial
+CREATE TEST:INIT
+TRUNCATE TEST:INIT 256
+WRITE TEST:INIT 0 Hola_Mundo_Desde_Storage
+WRITE TEST:INIT 128 Esto_es_un_bloque_adicional
+FLUSH TEST:INIT
+
+# Leer para verificar
+READ TEST:INIT 0 25
+READ TEST:INIT 128 30
+
+# Crear una versión derivada
+TAG TEST:INIT TEST:V1
+
+# Modificar el nuevo tag
+WRITE TEST:V1 0 Nueva_Version_Actualizada
+FLUSH TEST:V1
+
+# Commit para probar estado COMMITED
+COMMIT TEST:V1
+
+# Leer versión commiteada (debe funcionar)
+READ TEST:V1 0 26
+
+# Eliminar el tag inicial (no commiteado)
+DELETE TEST:INIT
+DELETE TEST:INIT # doble delete, es un error programado
+
+# Finalizar
+END

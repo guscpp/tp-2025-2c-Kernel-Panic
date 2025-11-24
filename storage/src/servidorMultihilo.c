@@ -1,32 +1,34 @@
 #include "servidorMultihilo.h"
 
-
-void rutina_recepcion(t_storage* storage, int storage_fd){ // se encarga de aceptar conexiones y crear hilos para cada worker que se conecte
+void rutina_recepcion(t_storage* storage, int storage_fd){ 
+    // Se encarga de aceptar conexiones y crear hilos para cada worker que se conecte
     pthread_t hilo_ejecucion;
     int aux_socket_worker_temp;
 
     log_debug(storage->logger, "Hilo recepcion listo");
 
     while(1){
-        aux_socket_worker_temp = esperar_cliente(storage_fd);//acept
+        aux_socket_worker_temp = esperar_cliente(storage_fd); // accept
         if(aux_socket_worker_temp < 0 ){
             log_error(storage->logger, "Error al esperar cliente");
             continue;
         }
 
-        //SO_KEEPALIVE el SO cierra el sockets cuando se cae el Worker, chau hilos zombie
-        int keepalive = 1; // 1 para habilitar, 0 para deshabilitar
+        // SO_KEEPALIVE: el SO cierra el socket cuando se cae el Worker, evita hilos zombie
+        int keepalive = 1; 
         if (setsockopt(aux_socket_worker_temp, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0) {
             log_error(storage->logger, "setsockopt keepalive falló para socket %d", aux_socket_worker_temp);
         } else {
              log_debug(storage->logger, "Keepalive habilitado para socket %d", aux_socket_worker_temp);
         }
+
         t_list* paquete_para_id = recibir_paquete(aux_socket_worker_temp);
         if(!paquete_para_id){
             log_error(storage->logger, "Error al recibir paquete de ID del worker en [Socket %d]", aux_socket_worker_temp);
             close(aux_socket_worker_temp);
             continue;
         }
+
         int codigo_operacion = *(int*) list_get(paquete_para_id, 0);
         if(codigo_operacion != WORKER_ID){
             log_error(storage->logger, "Operacion invalida al recibir ID del worker en [Socket %d]", aux_socket_worker_temp);
@@ -34,6 +36,7 @@ void rutina_recepcion(t_storage* storage, int storage_fd){ // se encarga de acep
             close(aux_socket_worker_temp);
             continue;
         }
+
         int worker_id = *(int*) list_get(paquete_para_id, 1);
         
         pthread_mutex_lock(&storage->mutex_workers);
@@ -52,43 +55,55 @@ void rutina_recepcion(t_storage* storage, int storage_fd){ // se encarga de acep
             log_error(storage->logger, "Error al crear el hilo ejecucion");
             free(contexto);
             close(aux_socket_worker_temp);
-        }else{
+        } else {
             pthread_detach(hilo_ejecucion);
             log_debug(storage->logger, "Hilo ejecucion creado");
         }
     }
 }
 
-void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones de los workers y ejecutar la logica correspondiente
+void* rutina_operaciones(void* args){ 
+    // Se encarga de recibir las operaciones de los workers y ejecutar la logica correspondiente
     t_worker_context* contexto = (t_worker_context*) args;
     int socket_cliente = contexto->socket_cliente;
     t_storage* storage = contexto->storage;
     int worker_id = contexto->worker_id;
-    free(args);
+    free(args); // Liberamos la estructura contexto ya que copiamos los datos locales
     
     t_list* paquete = recibir_paquete(socket_cliente);
+    
+    // Validación inicial handshake/paquete nulo
+    if (paquete == NULL) {
+        log_error(storage->logger, "Error al recibir paquete inicial del worker en [Socket %d]", socket_cliente);
+        close(socket_cliente);
+        // Nota: No restamos worker aquí porque técnicamente no entró al loop principal, 
+        // pero si ya contaste +1 en recepción, deberías restar. 
+        // Asumo que el flujo normal cae al final de la función para restar.
+        pthread_mutex_lock(&storage->mutex_workers);
+        storage->cantidad_workers--;
+        pthread_mutex_unlock(&storage->mutex_workers);
+        return NULL;
+    }
+
     int codigo_operacion = *(int*) list_get(paquete, 0);
     if (codigo_operacion == WORKER_HANDSHAKE) {
         log_debug(storage->logger, "Handshake recibido, opcode: %d", codigo_operacion);
         list_destroy_and_destroy_elements(paquete, free);
-    } else if (paquete == NULL) {
-        log_error(storage->logger, "Error al recibir paquete del worker en [Socket %d]", socket_cliente);
+    } else {
+        // Si no es handshake y no es NULL, procesamos o cerramos según tu lógica. 
+        // Aquí asumo que si no es handshake puede ser una operación directa, liberamos este paquete para entrar al while
         list_destroy_and_destroy_elements(paquete, free);
-        close(socket_cliente);
-        return NULL;
     }
 
     log_debug(storage->logger, "Hilo ejecucion listo para recibir operaciones de worker en [Socket %d]", socket_cliente);
 
-
     while(1)
-    {
-        //printf("Inicio del while(1)\n"); //debug        
-        t_list* paquete = recibir_paquete(socket_cliente); // segundo recibe que hace es recibir la operacion
-        if(!paquete) break;
+    {      
+        t_list* paquete = recibir_paquete(socket_cliente); 
+        if(!paquete) break; // Si devuelve NULL, el cliente se desconectó
+
         int codigo_operacion = *(int*) list_get(paquete, 0);
-        //list_destroy_and_destroy_elements(paquete, free);
-        printf("opcode: %i\n", codigo_operacion);
+        log_debug(storage->logger, "Opcode entrante: %i", codigo_operacion);
 
         switch (codigo_operacion)
         {
@@ -104,7 +119,6 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
                 t_paquete* paquete_respuesta = crear_paquete(STORAGE_SEND_OK_CREATE_FILE, respuesta_buffer);
                 enviar_paquete(paquete_respuesta, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_respuesta);
-
             }else{
                 log_error(storage->logger, "Error al crear el file");
                 t_buffer* respuesta_buffer = crear_buffer();
@@ -182,11 +196,12 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
             void* contenido_bloque = NULL;
             int tamanio_bloque = storage->tamanio_bloque;
             if (leer_bloque(storage, paquete, &contenido_bloque, &tamanio_bloque)) {
-                log_debug(storage->logger, "Contenido leido: %p, tamaño: %d", contenido_bloque, tamanio_bloque);
+                // CORRECCION: Usamos %p para evitar crash si el contenido no es texto
+                log_debug(storage->logger, "Contenido leido en mem: %p, tamaño: %d", contenido_bloque, tamanio_bloque);
+                
                 t_buffer* buffer_resp = crear_buffer();
                 t_paquete* paquete_resp = crear_paquete(STORAGE_SEND_OK_READ_BLOCK, buffer_resp);
                 agregar_a_paquete(paquete_resp, contenido_bloque, tamanio_bloque);
-                log_debug(storage->logger, "Contenido leido: %p, tamaño: %d", contenido_bloque, tamanio_bloque);
                 enviar_paquete(paquete_resp, socket_cliente, storage->logger);
                 eliminar_paquete(paquete_resp);
                 free(contenido_bloque);
@@ -241,7 +256,7 @@ void* rutina_operaciones(void* args){ // se encarga de recibir las operaciones d
     log_debug(storage->logger, "Hilo worker finalizado [Socket %d]", socket_cliente);
     
     pthread_mutex_lock(&storage->mutex_workers);
-    storage->cantidad_workers++;
+    storage->cantidad_workers--; 
     pthread_mutex_unlock(&storage->mutex_workers);
 
     log_info(storage->logger, "##Se desconecta el Worker <%d> - Cantidad de Workers: <%d>", worker_id, storage->cantidad_workers);

@@ -3,6 +3,7 @@
 #include <sys/stat.h>       // Para stat()
 #include <commons/string.h> // Para string_*, get_array_length
 #include <commons/collections/dictionary.h>
+#include <dirent.h>         // Para DIR y struct dirent
 
 
 // ****************************************************************************
@@ -18,6 +19,13 @@ int get_array_length(char** array) {
 
 
 // ****************************************************************************
+/**
+ * @brief Marca un bloque físico en el bitmap como libre.
+ * * Se toma el log obligatorio de liberación de bloque físico.
+ * * @param storage Estructura principal del Storage.
+ * @param query_id ID de la query que solicita la liberación (para log).
+ * @param numero_bloque El índice del bloque a liberar.
+ */
 void marcar_bloque_libre(t_storage* storage, int query_id, int numero_bloque) {
     int cantidad_bloques = storage->tamanio_filesystem / storage->tamanio_bloque;
 
@@ -38,12 +46,20 @@ void marcar_bloque_libre(t_storage* storage, int query_id, int numero_bloque) {
     }
 
     bitarray_clean_bit(storage->bitmap, numero_bloque);
+    // Log obligatorio de liberación de bloque físico
+    log_info(storage->logger, "##<%d> - Bloque Físico Liberado - Número de Bloque: <%d>",
+             query_id, numero_bloque);
     pthread_mutex_unlock(&storage->mutex_bitmap);
-    log_debug(storage->logger, "Bloque físico %d marcado como libre", numero_bloque);
 }
 
 
 // ****************************************************************************
+/**
+ * @brief Crea un nuevo File:Tag en el File System, incluyendo su estructura de directorios y metadata.
+ * * @param storage Estructura principal del Storage.
+ * @param parametros Lista de parámetros (query_id, nombre_file, tag_inicial).
+ * @return bool true si la creación es exitosa, false en caso contrario.
+ */
 bool crear_file(t_storage* storage, t_list* parametros)
 {
     if (!parametros || list_size(parametros) < 4) {
@@ -103,7 +119,7 @@ bool crear_file(t_storage* storage, t_list* parametros)
 
     fprintf(metadata_file, "TAMANIO=0\n");
     fprintf(metadata_file, "ESTADO=WORK_IN_PROGRESS\n");
-    fprintf(metadata_file, "BLOCKS=[]\n");  // <-- CORRECTO: "BLOCKS", NO "BLOQUES"
+    fprintf(metadata_file, "BLOCKS=[]\n");  // <-- Contenido completo
     fclose(metadata_file);
     free(metadata_path);
 
@@ -117,6 +133,9 @@ bool crear_file(t_storage* storage, t_list* parametros)
 
 
 // ****************************************************************************
+/**
+ * @brief Genera la ruta absoluta de un bloque lógico para la operación TRUNCATE.
+ */
 char* path_logico_para_truncate(const char* punto_montaje, const char* nombre_file, const char* tag, int i) {
     return string_from_format("%s/files/%s/%s/logical_blocks/%06d.dat",
                               punto_montaje, nombre_file, tag, i);
@@ -124,23 +143,30 @@ char* path_logico_para_truncate(const char* punto_montaje, const char* nombre_fi
 
 
 // ****************************************************************************
+/**
+ * @brief Genera la ruta absoluta de un bloque físico para la operación TRUNCATE.
+ */
 char* path_fisico_para_truncate(const char* punto_montaje, int bloque_fisico_id) {
     return string_from_format("%s/physical_blocks/block%04d.dat", punto_montaje, bloque_fisico_id);
 }
 
 // ****************************************************************************
+/**
+ * @brief Lee el array de bloques físicos del metadata.config y lo convierte a un array de int.
+ * * @param metadata_config El t_config del archivo de metadata.
+ * @param cantidad_bloques_fisico Puntero a int para almacenar la cantidad de bloques encontrados.
+ * @return int* Array de enteros con los IDs de bloques físicos, o NULL si está vacío o falla.
+ */
 int* leer_bloques_actuales(t_config* metadata_config, int* cantidad_bloques_fisico) {
     *cantidad_bloques_fisico = 0;
     char** array = config_get_array_value(metadata_config, "BLOCKS");
     if( !array ) {
-        printf("Leer bloques actuales: BLOCKS no encontrado o vacío (NULL)");
         return NULL;
     }
     
     //verificar si la lista esta efectivamente vacia: BLOCKS=[]
     //caso 1: config_get_array_value devuelve ["", NULL] o [NULL] para BLOCKS=[]
     if (array[0] == NULL || (array[0] != NULL && strlen(array[0]) == 0 && array[1] == NULL)) {
-         printf("Leer bloques actuales: BLOCKS=[] (lista vacía detectada como [\"\", NULL] o [NULL])");
          string_array_destroy(array);
          return NULL; // Debe devolver NULL para indicar 0 bloques
     }
@@ -151,13 +177,11 @@ int* leer_bloques_actuales(t_config* metadata_config, int* cantidad_bloques_fisi
         n++;
     }
     if(n == 0) { //si el primer elemento es "" o hay solo strings vacios
-        printf("Leer bloques actuales: Conteo de bloques es 0 (solo strings vacíos)");
         string_array_destroy(array);
         return NULL; //devolver NULL si no hay bloques válidos
     }
     int* array_bloques = malloc(sizeof(int) * n);
     if (!array_bloques) {
-        printf("No se pudo allocar memoria para array_bloques en leer_bloques_actuales");
         string_array_destroy(array); //liberar el array original
         return NULL;
     }
@@ -171,6 +195,12 @@ int* leer_bloques_actuales(t_config* metadata_config, int* cantidad_bloques_fisi
 
 
 // ****************************************************************************
+/**
+ * @brief Serializa un array de enteros (IDs de bloques) al formato "[x,y,z]" para metadata.config.
+ * * @param bloques Array de IDs de bloques.
+ * @param cantidad_bloques Longitud del array.
+ * @return char* String serializado. El caller debe liberarlo.
+ */
 char* serializar_bloques(const int* bloques, int cantidad_bloques) {
     char* resultado = string_new();
     string_append(&resultado, "[");
@@ -189,6 +219,12 @@ char* serializar_bloques(const int* bloques, int cantidad_bloques) {
 
 
 // ****************************************************************************
+/**
+ * @brief Cambia el tamaño de un File:Tag, agregando o eliminando bloques lógicos.
+ * * @param storage Estructura principal del Storage.
+ * @param parametros Lista de parámetros (query_id, nombre_file, tag, nuevo_tamanio).
+ * @return bool true si la operación es exitosa, false en caso contrario.
+ */
 bool truncar_file(t_storage* storage, t_list* parametros)
 {
     if (!parametros || list_size(parametros) < 5) {
@@ -284,7 +320,7 @@ bool truncar_file(t_storage* storage, t_list* parametros)
     // Disminuir tamaño
     if(bloques_nuevos < bloques_actuales) { 
         for(int i = bloques_actuales - 1; i >= bloques_nuevos; i--){
-            char* path_logico = string_from_format("%s/files/%s/%s/logical_blocks/block%06d.dat", storage->punto_montaje, nombre_file, tag, i);
+            char* path_logico = path_logico_para_truncate(storage->punto_montaje, nombre_file, tag, i); // Uso la función
             int array_fisico_id = 0;
             if(array_bloques_fisico && i < cantidad_bloques_fisico) {
                 array_fisico_id = array_bloques_fisico[i];
@@ -298,6 +334,10 @@ bool truncar_file(t_storage* storage, t_list* parametros)
                     if(array_bloques_fisico) free(array_bloques_fisico);
                     pthread_mutex_unlock(file_mutex);
                     return false;
+                } else {
+                    // Log obligatorio de eliminación de hard link
+                    log_info(storage->logger, "##<%d> - <%s>:<%s> Se eliminó el hard link del bloque lógico <%d> al bloque físico <%d>", 
+                             query_id, nombre_file, tag, i, array_fisico_id);
                 }
             }
             free(path_logico);
@@ -306,7 +346,6 @@ bool truncar_file(t_storage* storage, t_list* parametros)
             if (stat(path_fisico, &st) == 0) {
                 if(st.st_nlink == 1) { // Si es el ultimo link
                     marcar_bloque_libre(storage, query_id, array_fisico_id);
-                    log_debug(storage->logger, "Bloque fisico %d liberado", array_fisico_id);
                 }
             }
             free(path_fisico);
@@ -387,8 +426,8 @@ bool tag_file(t_storage* storage, t_list* parametros){
     // Determinar orden alfabético para evitar deadlocks
     pthread_mutex_t* mutex_a = NULL;
     pthread_mutex_t* mutex_b = NULL;
-    char* key_a = NULL; //no borrar, GE
-    char* key_b = NULL; //no borrar, GE
+    //char* key_a = NULL; //no borrar, GE
+    //char* key_b = NULL; //no borrar, GE
     
     // Proteccion para initial_file:BASE como origen - no permitir crear tags derivados
     if (string_equals_ignore_case(nombre_file_origen, "initial_file") && string_equals_ignore_case(tag_origen, "BASE")) {
@@ -400,14 +439,14 @@ bool tag_file(t_storage* storage, t_list* parametros){
     
     if(strcmp(lock_origen, lock_destino) < 0) {
         // lock_origen viene primero alfabéticamente
-        key_a = lock_origen;
-        key_b = lock_destino;
+        //key_a = lock_origen;
+        //key_b = lock_destino;
         mutex_a = get_or_create_file_mutex(storage, nombre_file_origen, tag_origen);
         mutex_b = get_or_create_file_mutex(storage, nombre_file_destino, tag_destino);
     } else {
         // lock_destino viene primero alfabéticamente  
-        key_a = lock_destino;
-        key_b = lock_origen;
+        //key_a = lock_destino;
+        //key_b = lock_origen;
         mutex_a = get_or_create_file_mutex(storage, nombre_file_destino, tag_destino);
         mutex_b = get_or_create_file_mutex(storage, nombre_file_origen, tag_origen);
     }
@@ -580,7 +619,17 @@ bool tag_file(t_storage* storage, t_list* parametros){
 
     return true;
 }
+
+
 // ****************************************************************************
+/**
+ * @brief Lee el contenido de un bloque lógico específico de un File:Tag.
+ * * @param storage Estructura principal del Storage.
+ * @param parametros Lista de parámetros (query_id, nombre_file, tag, bloque_logico).
+ * @param contenido Puntero a puntero donde se almacenará el contenido del bloque. El caller debe liberarlo.
+ * @param tamanio_bloque Puntero a int donde se almacena el tamaño del bloque leído.
+ * @return bool true si la lectura es exitosa, false en caso contrario.
+ */
 bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* tamanio_bloque) {
 
     if (!parametros || list_size(parametros) < 5) {
@@ -642,8 +691,7 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
         log_error(storage->logger, "Índice de bloque lógico %d fuera de rango para la lista de bloques físicos (longitud: %d)", bloque_logico, cantidad_bloques_metadata);
         config_destroy(metadata);
         if (bloques_fisicos_array) {
-            for (int i = 0; bloques_fisicos_array[i] != NULL; i++) free(bloques_fisicos_array[i]);
-            free(bloques_fisicos_array);
+            string_array_destroy(bloques_fisicos_array);
         }
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
@@ -655,19 +703,16 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
         log_error(storage->logger, "Bloque físico en posición %d es inválido o vacío", bloque_logico);
         config_destroy(metadata);
         if (bloques_fisicos_array) {
-            for (int i = 0; bloques_fisicos_array[i] != NULL; i++) free(bloques_fisicos_array[i]);
-            free(bloques_fisicos_array);
+            string_array_destroy(bloques_fisicos_array);
         }
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
         return false;
     }
 
-    //int bloque_fisico_actual = atoi(bloques_fisicos_array[bloque_logico]);
     config_destroy(metadata);
     if (bloques_fisicos_array) {
-        for (int i = 0; bloques_fisicos_array[i] != NULL; i++) free(bloques_fisicos_array[i]);
-        free(bloques_fisicos_array);
+        string_array_destroy(bloques_fisicos_array);
     }
     free(metadata_path);
 
@@ -736,6 +781,13 @@ bool leer_bloque(t_storage* storage, t_list* parametros, void** contenido, int* 
 }
 
 //*****************************************************************************
+/**
+ * @brief Escribe contenido en un bloque lógico de un File:Tag, manejando la copia en escritura (Copy-on-Write)
+ * si el hard link no es único.
+ * * @param storage Estructura principal del Storage.
+ * @param parametros Lista de parámetros (query_id, nombre_file, tag, bloque_logico, contenido).
+ * @return bool true si la escritura es exitosa, false en caso contrario.
+ */
 bool escribir_bloque(t_storage* storage, t_list* parametros) {
 
     if (!parametros || list_size(parametros) < 6) { 
@@ -838,8 +890,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
         log_error(storage->logger, "Índice de bloque lógico %d fuera de rango para la lista de bloques físicos (longitud: %d)", bloque_logico, cantidad_bloques_metadata);
         config_destroy(metadata);
         if (bloques_fisicos_array) {
-            for (int i = 0; bloques_fisicos_array[i] != NULL; i++) free(bloques_fisicos_array[i]);
-            free(bloques_fisicos_array);
+            string_array_destroy(bloques_fisicos_array);
         }
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
@@ -850,10 +901,9 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
     if (bloques_fisicos_array[bloque_logico] == NULL || strlen(bloques_fisicos_array[bloque_logico]) == 0) {
         log_error(storage->logger, "Bloque físico en posición %d es inválido", bloque_logico);
         config_destroy(metadata);
-        for (int i = 0; bloques_fisicos_array[i] != NULL; i++) {
-            free(bloques_fisicos_array[i]);
+        if (bloques_fisicos_array) {
+            string_array_destroy(bloques_fisicos_array);
         }
-        free(bloques_fisicos_array);
         free(metadata_path);
         pthread_mutex_unlock(file_mutex);
         return false;
@@ -863,8 +913,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
 
     config_destroy(metadata);
     if (bloques_fisicos_array) {
-        for (int i = 0; bloques_fisicos_array[i] != NULL; i++) free(bloques_fisicos_array[i]);
-        free(bloques_fisicos_array);
+        string_array_destroy(bloques_fisicos_array);
     }
     free(metadata_path);
 
@@ -913,7 +962,9 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
 
         pthread_mutex_unlock(&storage->mutex_bitmap);
 
-        log_debug(storage->logger, "Bloque físico %d reservado para escritura diferenciada", nuevo_bloque_fisico);
+        // Log obligatorio de reserva de bloque físico
+        log_info(storage->logger, "##<%d> - Bloque Físico Reservado - Número de Bloque: <%d>",
+         query_id, nuevo_bloque_fisico);
 
         // c. Obtener rutas de los bloques fisico origen y destino
         char* ruta_fisico_actual = string_from_format("%s/physical_blocks/block%04d.dat", storage->punto_montaje, bloque_fisico_actual);
@@ -958,6 +1009,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
             pthread_mutex_unlock(file_mutex);
             return false;
         }
+        // Log obligatorio de eliminación de hard link
         log_info(storage->logger, "##<%d> - <%s>:<%s> Se eliminó el hard link del bloque lógico <%d> al bloque físico <%d>",
                  query_id, nombre_file, tag, bloque_logico, bloque_fisico_actual);
 
@@ -974,6 +1026,7 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
              pthread_mutex_unlock(file_mutex);
              return false;
         }
+        // Log obligatorio de adición de hard link
         log_info(storage->logger, "##<%d> - <%s>:<%s> Se agregó el hard link del bloque lógico <%d> al bloque físico <%d>",
                  query_id, nombre_file, tag, bloque_logico, nuevo_bloque_fisico);
 
@@ -1001,22 +1054,16 @@ bool escribir_bloque(t_storage* storage, t_list* parametros) {
             // Actualizar el indice correspondiente
             free(bloques_actuales[bloque_logico]); //liberar string anterior
             bloques_actuales[bloque_logico] = string_itoa(bloque_fisico_final); // Asignar nuevo valor
+            
             // Serializar de nuevo la lista completa
-            char* bloques_serializados = string_new();
-            string_append(&bloques_serializados, "[");
-            for (int i = 0; i < len; i++) {
-                string_append(&bloques_serializados, bloques_actuales[i]);
-                if (i < len - 1) string_append(&bloques_serializados, ",");
-            }
-            string_append(&bloques_serializados, "]");
+            char* bloques_serializados = serializar_bloques_array(bloques_actuales);
             config_set_value(metadata, "BLOCKS", bloques_serializados);
             config_save(metadata);
             free(bloques_serializados);
         }
         config_destroy(metadata);
         if (bloques_actuales) {
-            for (int i = 0; bloques_actuales[i] != NULL; i++) free(bloques_actuales[i]);
-            free(bloques_actuales);
+            string_array_destroy(bloques_actuales);
         }
         free(metadata_path);
 
@@ -1063,7 +1110,7 @@ char* calcular_md5_por_bloque(const char* path_bloque, int tamanio_bloque)
 {
     FILE* file = fopen(path_bloque, "rb");
     if (!file) {
-        printf("No se pudo abrir el bloque para calcular MD5: %s\n", path_bloque);
+        //printf("No se pudo abrir el bloque para calcular MD5: %s\n", path_bloque);
         return NULL;
     }
 
@@ -1223,7 +1270,8 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag, int query_id) 
             }
 
             if (bloque_existente >= 0 && bloque_existente != bloque_fisico_actual) {
-                log_info(storage->logger, "##<%d> - <%s>:<%s> Bloque Logico %d se reasigna de %d a %d (Deduplicación)",
+                // Log obligatorio de deduplicación
+                log_info(storage->logger, "##<%d> - <%s>:<%s> Bloque Lógico <%d> se reasigna de <%d> a <%d>",
                          query_id, file, tag, i, bloque_fisico_actual, bloque_existente);
 
                 // a. Actualizar el bloque en la metadata (nuevo array)
@@ -1256,13 +1304,15 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag, int query_id) 
                         
                         // c. Liberar el bloque fisico original en el bitmap
                         pthread_mutex_lock(&storage->mutex_bitmap);
+                        // Verificar que aún esté ocupado, aunque con el link deshecho, debería tener nlink=0 o 1
                         if (bloque_fisico_actual < storage->tamanio_filesystem / storage->tamanio_bloque &&
                             bitarray_test_bit(storage->bitmap, bloque_fisico_actual)) {
                             
                             bitarray_clean_bit(storage->bitmap, bloque_fisico_actual);
                             
-                            log_info(storage->logger, "##<%d> - <%s>:<%s> Bloque Fisico Liberado - Numero de Bloque: %d",
-                                    query_id, file, tag, bloque_fisico_actual);
+                            // Log obligatorio de liberación
+                            log_info(storage->logger, "##<%d> - Bloque Físico Liberado - Número de Bloque: <%d>",
+                                    query_id, bloque_fisico_actual);
                         }
                         pthread_mutex_unlock(&storage->mutex_bitmap);
                         
@@ -1334,6 +1384,40 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag, int query_id) 
 }
 
 //*****************************************************************************
+/**
+ * @brief Serializa un array de strings (que contienen IDs de bloques) al formato "[x,y,z]" para metadata.config.
+ * * @param bloques Array de strings (IDs de bloques).
+ * @return char* String serializado. El caller debe liberarlo.
+ */
+char* serializar_bloques_array(char** bloques) {
+    if (!bloques || !bloques[0]) {
+        return string_duplicate("[]");
+    }
+
+    // Contar elementos
+    int count = 0;
+    while(bloques[count] != NULL) count++;
+
+    if (count == 0) {
+        return string_duplicate("[]");
+    }
+
+    char* resultado = string_new();
+    string_append(&resultado, "[");
+
+    for(int i = 0; i < count; i++) {
+        string_append(&resultado, bloques[i]);
+        if(i < count - 1) {
+            string_append(&resultado, ",");
+        }
+    }
+
+    string_append(&resultado, "]");
+    return resultado;
+}
+
+
+//*****************************************************************************
 // Guarda el estado actual del bitmap en disco
 void persistir_bitmap(t_storage* storage) {
     
@@ -1342,6 +1426,7 @@ void persistir_bitmap(t_storage* storage) {
     FILE* f = fopen(storage->path_bitmap, "wb");
     if (!f) {
         log_error(storage->logger, "No se pudo abrir el bitmap para persistir");
+        pthread_mutex_unlock(&storage->mutex_bitmap);
         return;
     }
     fwrite(storage->bitmap->bitarray, 1, storage->bitmap->size, f);
@@ -1361,19 +1446,16 @@ bool verificar_si_commited(t_storage* storage, const char* file, const char* tag
     // 2️⃣ Intentar abrir el archivo de configuración
     t_config* cfg = config_create(path_cfg);
     if (!cfg) {
-        log_warning(storage->logger,
-                    "No se pudo abrir el archivo de configuración para verificar commit: %s",
-                    path_cfg);
-        free(cfg);
+        // No está committeado si no existe
         free(path_cfg);
-        return false; // No está committeado si no existe
+        return false; 
     }
 
-    // 3️⃣ Leer el campo STATUS del .cfg
-    const char* status = config_get_string_value(cfg, "STATUS");
+    // 3️⃣ Leer el campo ESTADO del .cfg
+    const char* estado = config_get_string_value(cfg, "ESTADO");
     bool esta_commited = false;
 
-    if (status != NULL && string_equals_ignore_case((char*)status, "COMMITED")) {
+    if (estado != NULL && string_equals_ignore_case((char*)estado, "COMMITED")) {
         esta_commited = true;
         log_warning(storage->logger,
                     "El archivo <%s>:<%s> está COMMITED. Operación no permitida.",
@@ -1389,6 +1471,12 @@ bool verificar_si_commited(t_storage* storage, const char* file, const char* tag
 
 
 //*****************************************************************************
+/**
+ * @brief Realiza el commit de un File:Tag, aplicando la deduplicación y cambiando el estado a COMMITED.
+ * * @param storage Estructura principal del Storage.
+ * @param parametros Lista de parámetros (query_id, file, tag).
+ * @return bool true si la operación es exitosa, false en caso contrario.
+ */
 bool realizar_commit(t_storage* storage, t_list* parametros) {
 
     if (!parametros || list_size(parametros) < 4) { // [op, query_id, file, tag]
@@ -1465,7 +1553,7 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
     config_destroy(metadata);
 
     // log obligatorio de commitear
-    log_info(storage->logger, "##<%d> - Commit de File:Tag <%s>::<%s>", query_id, file, tag);
+    log_info(storage->logger, "##<%d> - Commit de File:Tag <%s>:<%s>", query_id, file, tag);
     
     // 7. Persistir bitmap
     persistir_bitmap(storage);
@@ -1476,6 +1564,13 @@ bool realizar_commit(t_storage* storage, t_list* parametros) {
 }
 
 //*****************************************************************************
+/**
+ * @brief Realiza la persistencia de datos (FLUSH) recibidos desde la memoria, manejando Copy-on-Write
+ * si es necesario.
+ * * @param storage Estructura principal del Storage.
+ * @param paquete Lista de parámetros (query_id, file, tag, bloques_a_escribir, ...).
+ * @return bool true si la operación es totalmente exitosa, false en caso contrario.
+ */
 bool flush_archivo(t_storage* storage, t_list* paquete)
 {    // Verificar parametros minimos
     if (!paquete || list_size(paquete) < 5) {
@@ -1614,7 +1709,10 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
             // Marcar nuevo bloque como ocupado
             bitarray_set_bit(storage->bitmap, nuevo_bloque_fisico);
             pthread_mutex_unlock(&storage->mutex_bitmap);
-            log_debug(storage->logger, "Bloque fisico %d reservado para escritura diferenciada", nuevo_bloque_fisico);
+            
+            // Log obligatorio de reserva de bloque físico
+            log_info(storage->logger, "##<%d> - Bloque Físico Reservado - Número de Bloque: <%d>",
+                     query_id, nuevo_bloque_fisico);
 
             // b. Obtener rutas
             char* ruta_fisico_actual = string_from_format("%s/physical_blocks/block%04d.dat", storage->punto_montaje, bloque_fisico_actual);
@@ -1663,7 +1761,7 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
                 continue; // Pasar al siguiente bloque
             }
             // log obligatorio de hard link eliminado
-            log_info(storage->logger, "##<%d> - <%s>:<%s> Se eliminó el hard link del bloque logico <%d> al bloque fisico <%d>",
+            log_info(storage->logger, "##<%d> - <%s>:<%s> Se eliminó el hard link del bloque lógico <%d> al bloque fisico <%d>",
                      query_id, file, tag, numero_bloque, bloque_fisico_actual);
 
             if (link(ruta_fisico_nuevo, ruta_bloque_logico_upd) != 0) {
@@ -1680,7 +1778,8 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
                  todas_exitosas = false;
                  continue; // Pasar al siguiente bloque
             }
-            log_info(storage->logger, "##<%d> - <%s>:<%s> Se agrego el hard link del bloque logico <%d> al bloque fisico <%d>",
+            // log obligatorio de adición de hard link
+            log_info(storage->logger, "##<%d> - <%s>:<%s> Se agregó el hard link del bloque lógico <%d> al bloque físico <%d>",
                      query_id, file, tag, numero_bloque, nuevo_bloque_fisico);
             free(ruta_bloque_logico_upd);
 
@@ -1732,8 +1831,7 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
     // 9. Liberar recursos temporales
     config_destroy(metadata);
     if (bloques_fisicos_array) {
-        for (int i = 0; bloques_fisicos_array[i] != NULL; i++) free(bloques_fisicos_array[i]);
-        free(bloques_fisicos_array);
+        string_array_destroy(bloques_fisicos_array);
     }
     free(metadata_path);
 
@@ -1747,6 +1845,12 @@ bool flush_archivo(t_storage* storage, t_list* paquete)
 }
 
 // ****************************************************************************
+/**
+ * @brief Elimina un File:Tag del File System, liberando los bloques físicos que ya no tienen hard links.
+ * * @param storage Estructura principal del Storage.
+ * @param parametros Lista de parámetros (query_id, file, tag).
+ * @return bool true si la eliminación es exitosa, false en caso contrario.
+ */
 bool eliminar_file_tag(t_storage* storage, t_list* parametros)
 {    
     if (!parametros || list_size(parametros) < 4) { // [op, query_id, file, tag
@@ -1821,10 +1925,12 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
     // Primero: unlink de todos los bloques logicos (baja el nlink de los fisicos)
     for (int i = 0; i < cantidad_bloques; i++) {
         if (!bloques[i] || strlen(bloques[i]) == 0) continue;
-        char* path_logico = string_from_format("%s/block%06d.dat", path_logical_dir, i); // <-- Corrección: Formato correcto para bloque lógico
+        int bloque_fisico_id = atoi(bloques[i]); // Necesario para el log
+        char* path_logico = string_from_format("%s/%06d.dat", path_logical_dir, i); // <-- Corrección de la ruta en el merge
         if (unlink(path_logico) == 0) {
             // log obligatorio de eliminacion de hard link
-            log_info(storage->logger, "##<%d> - <%s>:<%s> Se eliminó el hard link del bloque lógico <%d>", query_id, file, tag, i);
+            log_info(storage->logger, "##<%d> - <%s>:<%s> Se eliminó el hard link del bloque lógico <%d> al bloque físico <%d>", 
+                     query_id, file, tag, i, bloque_fisico_id);
         }
         free(path_logico);
     }
@@ -1836,21 +1942,25 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
         char* path_fisico = string_from_format("%s/physical_blocks/block%04d.dat", storage->punto_montaje, bloque_fisico_id);
 
         struct stat st;
-        if (stat(path_fisico, &st) == 0 && st.st_nlink == 1) { // <-- Verificar nlink == 1 despues de todos los unlink
-            unlink(path_fisico);
-            pthread_mutex_lock(&storage->mutex_bitmap);
-            bitarray_clean_bit(storage->bitmap, bloque_fisico_id);
-            pthread_mutex_unlock(&storage->mutex_bitmap);
-            log_debug(storage->logger, "##<%d> - Bloque físico %d liberado completamente (nlink=1)", query_id, bloque_fisico_id);
+        if (stat(path_fisico, &st) == 0) {
+             // nlink == 1 significa que solo queda la referencia del directorio 'physical_blocks'
+            if (st.st_nlink == 1) { 
+                unlink(path_fisico);
+                pthread_mutex_lock(&storage->mutex_bitmap);
+                bitarray_clean_bit(storage->bitmap, bloque_fisico_id);
+                pthread_mutex_unlock(&storage->mutex_bitmap);
+                // Log obligatorio de liberación
+                log_info(storage->logger, "##<%d> - Bloque Físico Liberado - Número de Bloque: <%d>", query_id, bloque_fisico_id);
+            }
         }
         free(path_fisico);
     }
 
     // 7. Guardar bitmap actualizado en disco
-    FILE* f = fopen(path_bitmap, "wb");
-    if (f) {
-        fwrite(storage->bitmap->bitarray, storage->bitmap->size, 1, f);
-        fclose(f);
+    FILE* f_bitmap = fopen(path_bitmap, "wb");
+    if (f_bitmap) {
+        fwrite(storage->bitmap->bitarray, storage->bitmap->size, 1, f_bitmap);
+        fclose(f_bitmap);
     } else {
         log_error(storage->logger, "No se pudo abrir %s para persistir bitmap", path_bitmap);
     }
@@ -1860,10 +1970,7 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
 
     // 9. Liberar el array de bloques obtenido de config_get_array_value
     if (bloques != NULL) {
-        for (int i = 0; bloques[i] != NULL; i++) {
-            free(bloques[i]);
-        }
-        free(bloques);
+        string_array_destroy(bloques);
     }
 
     // 10. Borrar carpeta fisica del tag
@@ -1877,6 +1984,7 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
         pthread_mutex_unlock(file_mutex);
         return false;
     }
+    // Log obligatorio de eliminación de File:Tag
     log_info(storage->logger, "##<%d> - Tag Eliminado <%s>:<%s>", query_id, file, tag);
 
     // 11. Liberar memoria temporal
@@ -1891,35 +1999,13 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
 }
 
 //*****************************************************************************
-char* serializar_bloques_array(char** bloques) {
-    if (!bloques || !bloques[0]) {
-        return string_duplicate("[]");
-    }
-
-    // Contar elementos
-    int count = 0;
-    while(bloques[count] != NULL) count++;
-
-    if (count == 0) {
-        return string_duplicate("[]");
-    }
-
-    char* resultado = string_new();
-    string_append(&resultado, "[");
-
-    for(int i = 0; i < count; i++) {
-        string_append(&resultado, bloques[i]);
-        if(i < count - 1) {
-            string_append(&resultado, ",");
-        }
-    }
-
-    string_append(&resultado, "]");
-    return resultado;
-}
-
-
-//*****************************************************************************
+/**
+ * @brief Obtiene o crea un mutex para un par File:Tag, utilizando el diccionario de locks.
+ * * @param storage Estructura principal del Storage.
+ * @param file Nombre del archivo.
+ * @param tag Nombre del tag.
+ * @return pthread_mutex_t* El mutex asociado.
+ */
 pthread_mutex_t* get_or_create_file_mutex(t_storage* storage, const char* file, const char* tag) {
     char* file_tag_id = string_from_format("<%s>:<%s>", file, tag);
     
@@ -1932,6 +2018,7 @@ pthread_mutex_t* get_or_create_file_mutex(t_storage* storage, const char* file, 
     if (file_mutex == NULL) {
         file_mutex = malloc(sizeof(pthread_mutex_t));
         pthread_mutex_init(file_mutex, NULL);
+        // La clave se duplica en el dictionary_put
         dictionary_put(storage->dict_locks_files, file_tag_id, file_mutex);
         log_debug(storage->logger, "Mutex creado para %s", file_tag_id);
     }
@@ -1944,12 +2031,19 @@ pthread_mutex_t* get_or_create_file_mutex(t_storage* storage, const char* file, 
 
 
 //*****************************************************************************
+/**
+ * @brief Remueve y destruye un mutex asociado a un par File:Tag del diccionario de locks.
+ * * @param storage Estructura principal del Storage.
+ * @param file Nombre del archivo.
+ * @param tag Nombre del tag.
+ */
 void remove_file_mutex(t_storage* storage, const char* file, const char* tag) {
     char* file_tag_id = string_from_format("<%s>:<%s>", file, tag);
     
     pthread_mutex_lock(&storage->mutex_dict_locks);
     
     // 1. Remover de la lista y obtener el dato (el mutex)
+    // El diccionario liberará la clave (file_tag_id) interna.
     void* data = dictionary_remove(storage->dict_locks_files, file_tag_id);
     
     // 2. Si se encontró, destruir sus recursos

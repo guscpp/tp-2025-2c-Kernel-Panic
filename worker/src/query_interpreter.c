@@ -1,4 +1,3 @@
-
 #include "../include/query_interpreter.h"
 #include "../include/memoria.h" //por acceder_memoria
 #include "../include/worker.h"// por manejo de errores
