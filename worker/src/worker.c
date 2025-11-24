@@ -343,8 +343,8 @@ void rtas_storage(int storage_socket, t_worker* w, t_instr_param* parametros, Pc
             pthread_mutex_lock(&w->flag_error_storage->mutex_error_storage);
             w->flag_error_storage->error_storage = true;
             pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
-
-            informar_error_create(parametros, w);
+           
+            informar_error_create(parametros, w, pcb);
             break;
         case STORAGE_SEND_ERROR_TRUNCATE:
             log_error(w->logger, "Storage no pudo hacer truncate");
@@ -353,7 +353,7 @@ void rtas_storage(int storage_socket, t_worker* w, t_instr_param* parametros, Pc
             w->flag_error_storage->error_storage = true;
             pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
 
-            informar_error_truncate(parametros, w);
+            informar_error_truncate(parametros, w,pcb);
             break;
         case STORAGE_SEND_ERROR_WRITE_BLOCK:
             log_error(w->logger, "Storage no pudo hacer write");
@@ -362,7 +362,7 @@ void rtas_storage(int storage_socket, t_worker* w, t_instr_param* parametros, Pc
             w->flag_error_storage->error_storage = true;
             pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
 
-            informar_error_write(parametros, w);
+            informar_error_write(parametros, w,pcb);
             break;
         case STORAGE_SEND_ERROR_READ_BLOCK:
             log_error(w->logger, "Storage no pudo hacer read");
@@ -371,7 +371,7 @@ void rtas_storage(int storage_socket, t_worker* w, t_instr_param* parametros, Pc
             w->flag_error_storage->error_storage = true;
             pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
 
-            informar_error_read(parametros, w);
+            informar_error_read(parametros, w,pcb);
             break;
         case STORAGE_SEND_ERROR_TAG:
             log_error(w->logger, "Storage no pudo hacer tag");
@@ -380,7 +380,7 @@ void rtas_storage(int storage_socket, t_worker* w, t_instr_param* parametros, Pc
             w->flag_error_storage->error_storage = true;
             pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
 
-            informar_error_tag(parametros, w);
+            informar_error_tag(parametros, w,pcb);
             break;
         case STORAGE_SEND_ERROR_COMMIT:
             log_error(w->logger, "Storage no pudo hacer commit");
@@ -389,7 +389,7 @@ void rtas_storage(int storage_socket, t_worker* w, t_instr_param* parametros, Pc
             w->flag_error_storage->error_storage = true;
             pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
 
-            informar_error_commit(parametros, w);
+            informar_error_commit(parametros, w,pcb);
             break;
         case STORAGE_SEND_ERROR_DELETE:
             log_error(w->logger, "Storage no pudo hacer delete");
@@ -398,7 +398,7 @@ void rtas_storage(int storage_socket, t_worker* w, t_instr_param* parametros, Pc
             w->flag_error_storage->error_storage = true;
             pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
 
-            informar_error_delete(parametros, w);
+            informar_error_delete(parametros, w,pcb);
             break;
         case STORAGE_SEND_ERROR_FLUSH:
             log_error(w->logger, "Storage no pudo hacer flush");
@@ -407,7 +407,7 @@ void rtas_storage(int storage_socket, t_worker* w, t_instr_param* parametros, Pc
             w->flag_error_storage->error_storage = true;
             pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
 
-            informar_error_flush(parametros, w);
+            informar_error_flush(parametros, w,pcb);
             break;
         default:
             log_warning(w->logger, "Respuesta desconocida de Storage: %d", *cod_op);
@@ -462,18 +462,21 @@ void error_instruccion_malformada(t_log* logger,int id_query, char* instruccion)
 
 }
 
-void informar_error_create(t_instr_param* parametros, t_worker* w){
+void informar_error_create(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     t_buffer* buffer1 = crear_buffer();
+    
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_CREATE, buffer1);
+    agregar_a_paquete(paqueteError1, &pcb->query_id, sizeof(int));
     agregar_a_paquete(paqueteError1, parametros->nombre_file, strlen(parametros->nombre_file)+1);
     agregar_a_paquete(paqueteError1, parametros->tag, strlen(parametros->tag) + 1); 
     enviar_paquete(paqueteError1, socket_distpach, w->logger);
     eliminar_paquete(paqueteError1);
 }
 
-void informar_error_truncate(t_instr_param* parametros, t_worker* w){
+void informar_error_truncate(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_TRUNCATE, buffer1);
+    agregar_a_paquete(paqueteError1, &pcb->query_id, sizeof(int));
     agregar_a_paquete(paqueteError1, parametros->nombre_file, strlen(parametros->nombre_file)+1);
     agregar_a_paquete(paqueteError1, parametros->tag, strlen(parametros->tag) + 1);
     agregar_a_paquete(paqueteError1, &parametros->tamanio, sizeof(int));
@@ -481,23 +484,26 @@ void informar_error_truncate(t_instr_param* parametros, t_worker* w){
     eliminar_paquete(paqueteError1);
 }
 
-void informar_error_write(t_instr_param* parametros, t_worker* w){ 
+void informar_error_write(t_instr_param* parametros, t_worker* w, Pcb* pcb){ 
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_WRITE_EN_STORAGE, buffer1);
+    agregar_a_paquete(paqueteError1, &pcb->query_id, sizeof(int));
     enviar_paquete(paqueteError1, socket_distpach, w->logger);
     eliminar_paquete(paqueteError1);
 }
 
-void informar_error_read(t_instr_param* parametros, t_worker* w){
+void informar_error_read(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_READ_EN_STORAGE, buffer1);
+    agregar_a_paquete(paqueteError1, &pcb->query_id, sizeof(int));
     enviar_paquete(paqueteError1, socket_distpach, w->logger);
     eliminar_paquete(paqueteError1);
 }
 
-void informar_error_tag(t_instr_param* parametros, t_worker* w){
+void informar_error_tag(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_TAG, buffer1);
+    agregar_a_paquete(paqueteError1, &pcb->query_id, sizeof(int));
     agregar_a_paquete(paqueteError1, parametros->nombre_file_org, strlen(parametros->nombre_file_org)+1);
     agregar_a_paquete(paqueteError1, parametros->tag_origen, strlen(parametros->tag_origen)+1);
     agregar_a_paquete(paqueteError1, parametros->nombre_file_destino, strlen(parametros->nombre_file_destino)+1);
@@ -506,27 +512,30 @@ void informar_error_tag(t_instr_param* parametros, t_worker* w){
     eliminar_paquete(paqueteError1);
 }
 
-void informar_error_commit(t_instr_param* parametros, t_worker* w){
+void informar_error_commit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_COMMIT, buffer1);
+    agregar_a_paquete(paqueteError1, &pcb->query_id, sizeof(int));
     agregar_a_paquete(paqueteError1, parametros->nombre_file, strlen(parametros->nombre_file)+1);
     agregar_a_paquete(paqueteError1, parametros->tag, strlen(parametros->tag)+1);
     enviar_paquete(paqueteError1, socket_distpach, w->logger);
     eliminar_paquete(paqueteError1);
 }
 
-void informar_error_delete(t_instr_param* parametros, t_worker* w){
+void informar_error_delete(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_DELETE, buffer1);
+    agregar_a_paquete(paqueteError1, &pcb->query_id, sizeof(int));
     agregar_a_paquete(paqueteError1, parametros->nombre_file, strlen(parametros->nombre_file)+1);
     agregar_a_paquete(paqueteError1, parametros->tag, strlen(parametros->tag)+1);
     enviar_paquete(paqueteError1, socket_distpach, w->logger);
     eliminar_paquete(paqueteError1);
 }
 
-void informar_error_flush(t_instr_param* parametros, t_worker* w){
+void informar_error_flush(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_FLUSH, buffer1);
+    agregar_a_paquete(paqueteError1, &pcb->query_id, sizeof(int));
     eliminar_paquete(paqueteError1);
 }
 
@@ -534,9 +543,9 @@ void informar_error_flush(t_instr_param* parametros, t_worker* w){
 void loggerError(t_log* logger, op_code etiqueta){
     switch (etiqueta)
     {
-    case WORKER_ERROR_ARCHIVO:
+   /* case WORKER_ERROR_ARCHIVO:
         log_info(logger, "Envie a master el WORKER_ERROR_ARCHIVO");
-        break;
+        break;*/
     
     case WORKER_ERROR_INSTRUCCION_MALFORMADA:
         log_info(logger, "Envie a master el WORKER_INSTRUCCION_MALFORMADA");

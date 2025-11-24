@@ -20,18 +20,20 @@ int main(int argc, char* argv[]) {
 	t_config* config;
     int err;        // por si algo falla
      
-                              // tipo de dato que cree para pasar a la funcion de atender 
-                              // conexion porque los hilos funcionan como quieren
-    
-    logger = iniciar_logger("master.log","MASTER",true, LOG_LEVEL_DEBUG);
-    config = iniciar_config(logger,argv[1]);
+                              
+    t_log* logger_temp = iniciar_logger("query_control.log", "[MASTER_INIT]", true, LOG_LEVEL_INFO);
+    config = iniciar_config(logger_temp,argv[1]);
+    char* log_level =  config_get_string_value(config, "LOG_LEVEL");
+    t_log_level nivel = obtener_log_level(log_level);
+    logger = iniciar_logger("master.log","MASTER",true, nivel);
+   
     puerto = config_get_string_value(config, "PUERTO_ESCUCHA");
     algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
-    log_info(logger, "ALGORITMO: %s" , algoritmo_planificacion);
+    log_debug(logger, "ALGORITMO: %s" , algoritmo_planificacion);
     tiempo_aging = config_get_int_value(config,"TIEMPO_AGING");
 
     int master_fd = iniciar_servidor(puerto);
-    log_info(logger, "Servidor listo para recibir una conexion - FD: %i / puerto: %s" , master_fd, puerto);
+    log_debug(logger, "Servidor listo para recibir una conexion - FD: %i / puerto: %s" , master_fd, puerto);
      
     inicializar_semaforos(logger);
      
@@ -43,7 +45,7 @@ int main(int argc, char* argv[]) {
         pthread_t thread;
 
         int fd_conexion_master = esperar_cliente(master_fd);
-        log_info(logger, "Esperando que se conecte un cliente");
+        log_debug(logger, "Esperando que se conecte un cliente");
 
         datosConexion->socket_conexion = fd_conexion_master;
 
@@ -52,7 +54,7 @@ int main(int argc, char* argv[]) {
                         atender_conexion, // va a llamar a atender conexion pasando parametros
                         datosConexion); // de este struct
         if (err != 0){
-            log_info(logger, "Hubo un problema al crear el hilo");
+            log_debug(logger, "Hubo un problema al crear el hilo");
         }
         pthread_detach(thread);
         
