@@ -1,6 +1,7 @@
 #include "query_control.h"
 
 
+// ****************************************************************************
 t_query_control* inicializar_query_control(int argc, char* argv[])
 {
     t_query_control* qc = malloc(sizeof(t_query_control));
@@ -30,7 +31,7 @@ t_query_control* inicializar_query_control(int argc, char* argv[])
 }
 
 
-
+// ****************************************************************************
 void verificar_query_control(t_query_control* qc)
 {
     log_debug(qc->logger, "** Query Control inicializado correctamente");
@@ -40,17 +41,22 @@ void verificar_query_control(t_query_control* qc)
     log_debug(qc->logger, "** Prioridad: %d", qc->prioridad);
 }
 
+
+// ****************************************************************************
 void liberar_query_control(t_query_control* qc)
 {
-    if (qc) {
-        if (qc->logger) log_destroy(qc->logger);
-        if (qc->config) config_destroy(qc->config);
-        if (qc->master_socket != -1) close(qc->master_socket);
-        free(qc);
-    }
+    if (!qc) return;
+
+    if (qc->logger) log_destroy(qc->logger);
+    if (qc->config) config_destroy(qc->config);
+    if (qc->ip_master) free(qc->ip_master);
+    if (qc->log_level) free(qc->log_level);
+    if (qc->master_socket != -1) close(qc->master_socket);
+    free(qc);
 }
 
 
+// ****************************************************************************
 int conectar_al_master(t_query_control* qc)
 {    
     
@@ -66,12 +72,17 @@ int conectar_al_master(t_query_control* qc)
     }
 }
 
+
+// ****************************************************************************
 void enviar_handshake(t_query_control* qc) {
     t_paquete* paquete = crear_paquete(QC_HANDSHAKE, crear_buffer());
     enviar_paquete(paquete, qc->master_socket, qc->logger);
     eliminar_paquete(paquete);
     log_debug(qc->logger, "** HANDSHAKE MASTER");
 }
+
+
+// ****************************************************************************
 void enviar_path_y_prioridad(t_query_control *qc)
 {
     t_buffer *buffer = crear_buffer();
@@ -99,6 +110,8 @@ void enviar_path_y_prioridad(t_query_control *qc)
     eliminar_paquete(paquete);
 }
 
+
+// ****************************************************************************
 void procesar_respuestas_master(t_query_control* qc)
 {    
     while (1) {
@@ -123,7 +136,6 @@ void procesar_respuestas_master(t_query_control* qc)
         log_debug(qc->logger, "** Código de operación recibido: %d", codigo_operacion);
         
         switch (codigo_operacion) {
-
 
             case QUERY_RESPONSE_READ: {
 
@@ -250,4 +262,3 @@ void procesar_respuestas_master(t_query_control* qc)
         list_destroy_and_destroy_elements(paqueteMaster, free);
     }
 }
-

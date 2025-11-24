@@ -2,6 +2,8 @@
 #ifndef QUERY_CONTROL_H_
 #define QUERY_CONTROL_H_
 
+#define COLOR_VERDE "\033[32m"
+
 #include "../../utils/include/utils.h"
 #include <unistd.h>      //Para close()
 
@@ -77,12 +79,8 @@ int conectar_al_master(t_query_control* qc);
  * u ocurra un error.
 */
 
-#define COLOR_VERDE "\033[32m"
-
 void enviar_handshake (t_query_control* qc);
 void enviar_path_y_prioridad(t_query_control *qc);
-
 void procesar_respuestas_master(t_query_control* qc);
-
 
 #endif /* QUERY_CONTROL_H_ */

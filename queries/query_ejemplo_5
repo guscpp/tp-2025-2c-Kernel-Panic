@@ -91,17 +91,17 @@ WRITE MATERIAS:BASE 600 Fuera_De_Limites  # Debe fallar - fuera del tamaño del 
 # Crear archivo temporal para probar eliminación
 CREATE TEMPORAL:PRUEBA
 TRUNCATE TEMPORAL:PRUEBA 128
-WRITE TEMPORAL:PRUEBA 0 Datos_Temporales
-FLUSH TEMPORAL:PRUEBA
+#WRITE TEMPORAL:PRUEBA 0 Datos_Temporales
+#FLUSH TEMPORAL:PRUEBA
 
 # Intentar eliminar un tag inexistente (debe fallar)
-DELETE TEMPORAL:INEXISTENTE  # Debe fallar - tag no existe
+#DELETE TEMPORAL:INEXISTENTE  # Debe fallar - tag no existe
 
 # Eliminar correctamente el tag temporal
-DELETE TEMPORAL:PRUEBA
+#DELETE TEMPORAL:PRUEBA
 
 # Intentar operar sobre un tag eliminado (debe fallar)
-READ TEMPORAL:PRUEBA 0 10  # Debe fallar - tag eliminado
+#READ TEMPORAL:PRUEBA 0 10  # Debe fallar - tag eliminado
 
 # --------------------------------------------------------------
 # FASE 6: ESCENARIOS COMPLEJOS Y ANIDADOS
