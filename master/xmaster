@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Borrar logs anteriores
+rm -f valgrind_xmaster.log
+
 # Script para compilar e iniciar master
 echo "Compilando master..."
 make debug
@@ -8,7 +11,7 @@ if [ $? -eq 0 ]; then
     echo "Iniciando master..."
     #./bin/master ./master.config
     #valgrind --tool=memcheck --leak-check=full --track-origins=yes --log-file=valgrind_master.log --show-error-list=yes --error-limit=no ./bin/master master.config
-    valgrind --tool=memcheck --leak-check=full --leak-resolution=high --show-leak-kinds=all --track-origins=yes --track-fds=yes --trace-children=yes --trace-children-skip='*/bin/*,*/sbin/*' --child-silent-after-fork=no --show-error-list=yes --error-limit=no --errors-for-leak-kinds=all --keep-debuginfo=yes --read-var-info=yes --read-inline-info=yes --sigill-diagnostics=yes --vgdb=no --verbose --log-file=valgrind_xmaster.log strace -f -o strace_xmaster.log ./bin/master master.config
+    valgrind --tool=memcheck --leak-check=full --leak-resolution=high --show-leak-kinds=all --track-origins=yes --track-fds=yes --trace-children=yes --trace-children-skip='*/bin/*,*/sbin/*' --child-silent-after-fork=no --show-error-list=yes --error-limit=no --errors-for-leak-kinds=all --keep-debuginfo=yes --read-var-info=yes --read-inline-info=yes --sigill-diagnostics=yes --vgdb=no --verbose --log-file=valgrind_xmaster.log  ./bin/master master.config
 else
     echo "Error en la compilación del master"
     exit 1

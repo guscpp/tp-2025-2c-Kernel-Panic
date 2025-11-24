@@ -155,20 +155,14 @@ void procesar_respuestas_master(t_query_control* qc)
                 return;
             }
 
-            case QUERY_RESPONSE_ERROR: {
-
-                log_error(qc->logger, "## Query Finalizada - Error: No Especificado");
-                list_destroy_and_destroy_elements(paqueteMaster, free);
-                return;
-            }
 
             case QUERY_RESPONSE_ERROR_ARCHIVO_NO_ENCONTRADO: {
                 
 
-                char* file = (char*)list_get(paqueteMaster, 1);
-                char* tag = (char*)list_get(paqueteMaster, 2);
+               // char* file = (char*)list_get(paqueteMaster, 1);
+               // char* tag = (char*)list_get(paqueteMaster, 2);
     
-                log_error(qc->logger, "## Query Finalizada - Error: Archivo %s:%s No Encontrado", file, tag);
+                log_info(qc->logger, "## Query Finalizada - Error: Archivo No Encontrado");
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
             }
@@ -177,9 +171,9 @@ void procesar_respuestas_master(t_query_control* qc)
             case QUERY_RESPONSE_ERROR_ARCHIVO_QUERY_NO_ENCONTRADO: {
                 
 
-                char* path = (char*)list_get(paqueteMaster, 1);
+              //  char* path = (char*)list_get(paqueteMaster, 1);
     
-                log_error(qc->logger,"## Query Finalizada - Error: Archivo de Query : %s No Encontrado", path);
+                log_info(qc->logger,"## Query Finalizada - Error: Path de Query No Encontrado");
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
             }
@@ -188,36 +182,28 @@ void procesar_respuestas_master(t_query_control* qc)
 
                 char* instruccion = (char*)list_get(paqueteMaster, 1);
 
-                log_error(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Error Al Ejecutar la Instrucción: %s", instruccion);
+                log_info(qc->logger, COLOR_VERDE "## Query Finalizada - Error: Error Al Ejecutar la Instrucción: %s", instruccion);
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
             }
 
-            case QUERY_RESPONSE_ERROR_LECTURA_INVALIDA: {
-                
-                char* file = (char*)list_get(paqueteMaster, 1);
-                char* tag = (char*)list_get(paqueteMaster, 2);
-
-                log_error(qc->logger, "## Query Finalizada - Error: Lectura Inválida del Archivo : %s:%s", file, tag);
-                list_destroy_and_destroy_elements(paqueteMaster, free);
-                return;
-            }
+    
 
             case QUERY_RESPONSE_ERROR_WORKER_DESCONECTADO: {
                 
-                char* worker_id = (char*)list_get(paqueteMaster, 1);
+                int worker_id = *(int*)list_get(paqueteMaster, 1);
 
-                log_error(qc->logger, "## Query Finalizada - Error: Worker con ID : %s Desconectado", worker_id);
+                log_info(qc->logger, "## Query Finalizada - Error: Worker con ID : %d Desconectado", worker_id);
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
             }
 
             case QUERY_RESPONSE_ERROR_MODIFICAR_COMMIT: {
                 
-                char* file = (char*)list_get(paqueteMaster, 1);
-                char* tag = (char*)list_get(paqueteMaster, 2);
+               // char* file = (char*)list_get(paqueteMaster, 1);
+               // char* tag = (char*)list_get(paqueteMaster, 2);
 
-                log_error(qc->logger, "## Query Finalizada - Error: Se Intento Modifical al Archivo %s:%s que se Encuentra en estado de COMMITED", file, tag);
+                log_info(qc->logger, "## Query Finalizada - Error: Se Intento Modifical al Archivo que se Encuentra en estado de COMMITED");
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
 
@@ -225,10 +211,10 @@ void procesar_respuestas_master(t_query_control* qc)
 
             case QUERY_RESPONSE_ERROR_TAMANIO_ESCRITURA_EXCEDIDO: {
                 
-                char* file = (char*)list_get(paqueteMaster, 1);
-                char* tag = (char*)list_get(paqueteMaster, 2);
+               // char* file = (char*)list_get(paqueteMaster, 1);
+               // char* tag = (char*)list_get(paqueteMaster, 2);
 
-                log_error(qc->logger, "## Query Finalizada - Error: Tamaño de Escritura Excedido Para el Archivo %s:%s", file, tag);
+                log_info(qc->logger, "## Query Finalizada - Error: Tamaño de Escritura Excedido ");
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
 
@@ -236,18 +222,89 @@ void procesar_respuestas_master(t_query_control* qc)
 
             case QUERY_RESPONSE_ERROR_TAMANIO_LECTURA_EXCEDIDO: {
                 
-                char* file = (char*)list_get(paqueteMaster, 1);
-                char* tag = (char*)list_get(paqueteMaster, 2);
+               // char* file = (char*)list_get(paqueteMaster, 1);
+               // char* tag = (char*)list_get(paqueteMaster, 2);
 
-                log_error(qc->logger, "## Query Finalizada - Error: Tamaño de Lectura Excedido Para el Archivo %s:%s", file, tag);
+                log_info(qc->logger, "## Query Finalizada - Error: Lectura fuera de limite ");
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
 
             }
-
-            case QUERY_RESPONSE_ERROR_STORAGE_DESCONECTADO: {
+             case QUERY_ERROR_CREATE: {
                 
-                log_error(qc->logger,"## Query Finalizada - Error: Storage Desconectado");
+               // char* file = (char*)list_get(paqueteMaster, 1);
+               // char* tag = (char*)list_get(paqueteMaster, 2);
+
+                log_info(qc->logger, "## Query Finalizada - Error: No se pudo crear el archivo ");
+                list_destroy_and_destroy_elements(paqueteMaster, free);
+                return;
+
+            } case QUERY_ERROR_TRUNCATE: {
+                
+                //char* file = (char*)list_get(paqueteMaster, 1);
+                //char* tag = (char*)list_get(paqueteMaster, 2);
+
+                log_info(qc->logger, "## Query Finalizada - Error: No se pudo realizar el TRUNCATE ");
+                list_destroy_and_destroy_elements(paqueteMaster, free);
+                return;
+
+            }
+             case QUERY_ERROR_WRITE_EN_STORAGE: {
+                
+              //  char* file = (char*)list_get(paqueteMaster, 1);
+               // char* tag = (char*)list_get(paqueteMaster, 2);
+
+                log_info(qc->logger, "## Query Finalizada - Error: No se pudo realizar la escritura en Storage ");
+                list_destroy_and_destroy_elements(paqueteMaster, free);
+                return;
+
+            }
+            case QUERY_ERROR_READ_EN_STORAGE: {
+                
+                //char* file = (char*)list_get(paqueteMaster, 1);
+                //char* tag = (char*)list_get(paqueteMaster, 2);
+
+                log_info(qc->logger, "## Query Finalizada - Error: No se pudo realizar la lectura en Storage ");
+                list_destroy_and_destroy_elements(paqueteMaster, free);
+                return;
+
+            }
+            case QUERY_ERROR_TAG: {
+                
+                //char* file = (char*)list_get(paqueteMaster, 1);
+                //char* tag = (char*)list_get(paqueteMaster, 2);
+
+                log_info(qc->logger, "## Query Finalizada - Error: No se pudo realizar el TAG ");
+                list_destroy_and_destroy_elements(paqueteMaster, free);
+                return;
+
+            }
+            case QUERY_ERROR_COMMIT: {
+                
+                //char* file = (char*)list_get(paqueteMaster, 1);
+                //char* tag = (char*)list_get(paqueteMaster, 2);
+
+                log_info(qc->logger, "## Query Finalizada - Error: No se pudo realizar el COMMIT ");
+                list_destroy_and_destroy_elements(paqueteMaster, free);
+                return;
+
+            }
+            case QUERY_ERROR_DELETE: {
+                
+                //char* file = (char*)list_get(paqueteMaster, 1);
+                //char* tag = (char*)list_get(paqueteMaster, 2);
+
+                log_info(qc->logger, "## Query Finalizada - Error: No se pudo realizar el DELETE ");
+                list_destroy_and_destroy_elements(paqueteMaster, free);
+                return;
+
+            }
+            case QUERY_ERROR_FLUSH: {
+                
+               // char* file = (char*)list_get(paqueteMaster, 1);
+                //char* tag = (char*)list_get(paqueteMaster, 2);
+
+                log_info(qc->logger, "## Query Finalizada - Error: No se pudo realizar el FLUSH ");
                 list_destroy_and_destroy_elements(paqueteMaster, free);
                 return;
 

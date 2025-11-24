@@ -33,14 +33,14 @@ void loggerError(t_log* logger, op_code etiqueta);
 void error_path_not_found(t_log* logger, op_code etiqueta, int id_query, char* path);
 void error_tamanio_escrLectura_excedido(t_log* logger, op_code etiqueta, int id_query, char* file, char* tag);
 void error_instruccion_malformada(t_log* logger,int id_query, char* instruccion);
-void informar_error_create(t_instr_param* parametros, t_worker* w);
-void informar_error_truncate(t_instr_param* parametros, t_worker* w);
-void informar_error_write(t_instr_param* parametros, t_worker* w);
-void informar_error_read(t_instr_param* parametros, t_worker* w);
-void informar_error_tag(t_instr_param* parametros, t_worker* w);
-void informar_error_commit(t_instr_param* parametros, t_worker* w);
-void informar_error_delete(t_instr_param* parametros, t_worker* w);
-void informar_error_flush(t_instr_param* parametros, t_worker* w);
+void informar_error_create(t_instr_param* parametros, t_worker* w, Pcb* pcb);
+void informar_error_truncate(t_instr_param* parametros, t_worker* w, Pcb* pcb);
+void informar_error_write(t_instr_param* parametros, t_worker* w, Pcb* pcb);
+void informar_error_read(t_instr_param* parametros, t_worker* w, Pcb* pcb);
+void informar_error_tag(t_instr_param* parametros, t_worker* w, Pcb* pcb);
+void informar_error_commit(t_instr_param* parametros, t_worker* w, Pcb* pcb);
+void informar_error_delete(t_instr_param* parametros, t_worker* w, Pcb* pcb);
+void informar_error_flush(t_instr_param* parametros, t_worker* w, Pcb* pcb);
 
 //Semaforos
 void semaforos (t_worker* w);
