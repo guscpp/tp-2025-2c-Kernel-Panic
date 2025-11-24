@@ -12,7 +12,6 @@ typedef struct{
     t_log* logger;
     int socket_conexion;
     int id;
-   
 } t_hacerConnect;
 
 typedef struct {
@@ -41,6 +40,7 @@ typedef struct{
     int socket_interruption;
     bool desconection; // PARA MANEJAR DESCONEXIONES
     t_log* logger;
+    sem_t desconexion_worker;
     //int idQuery;
 }t_worker;
 
