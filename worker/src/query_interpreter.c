@@ -32,8 +32,8 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
         log_info(w->logger, "Me estoy por salir del ciclo, Storage fallo en alguna operacion");
             w->flag_error_storage->error_storage = false;
             pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
-            if (instruccion) free(instruccion);
-            if (instruccion_decf) destruir_decode(instruccion_decf);
+            // if (instruccion) free(instruccion);
+            // if (instruccion_decf) destruir_decode(instruccion_decf);
             break;
         }
         pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
@@ -62,10 +62,10 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
         execute(instruccion_decf->parametros, instruccion_decf->ejecuta_instruccion, w, pcb);
         //free(instruccion_decf); revisar con valgrind
         //free(instruccion_decf->parametros);   revisar con valgrind
-        // free(instruccion);
-        // instruccion = NULL;
-        // destruir_decode(instruccion_decf);
-        // instruccion_decf = NULL;
+        free(instruccion);
+        instruccion = NULL;
+        destruir_decode(instruccion_decf);
+        instruccion_decf = NULL;
         
         //checkInterrupt
         pthread_mutex_lock(&mutex_interrupt); 
@@ -74,18 +74,16 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
             pthread_mutex_unlock(&mutex_interrupt); 
             interrupt_envio_a_master(pcb, w); //MAndo el PCB para poder actualizarlo con el PC del w (y mandarlo a master)
 
-            if (instruccion) free(instruccion);
-            if (instruccion_decf) destruir_decode(instruccion_decf);
+            // if (instruccion) free(instruccion);
+            // if (instruccion_decf) destruir_decode(instruccion_decf);
             
             break;
         }
-         else {
             pthread_mutex_unlock(&mutex_interrupt);
-        }
 
     }
-    if (instruccion) free(instruccion);
-    if (instruccion_decf) destruir_decode(instruccion_decf);
+    // if (instruccion) free(instruccion);
+    // if (instruccion_decf) destruir_decode(instruccion_decf);
 }
 
 
@@ -753,17 +751,43 @@ void destruir_decode(t_decode* dec) {
     if (dec == NULL) return;
 
     if (dec->parametros != NULL) {
-        // Como usamos calloc, el free es seguro incluso si son NULL
-        if (dec->parametros->nomb_instr) free(dec->parametros->nomb_instr);
-        if (dec->parametros->nombre_file) free(dec->parametros->nombre_file);
-        if (dec->parametros->tag) free(dec->parametros->tag);
-        if (dec->parametros->contenido) free(dec->parametros->contenido);
-        if (dec->parametros->nombre_file_org) free(dec->parametros->nombre_file_org);
-        if (dec->parametros->tag_origen) free(dec->parametros->tag_origen);
-        if (dec->parametros->nombre_file_destino) free(dec->parametros->nombre_file_destino);
-        if (dec->parametros->tag_destino) free(dec->parametros->tag_destino);
+        // Libero cada campo de parametros que no sea NULL
+        if (dec->parametros->nomb_instr) {
+            free(dec->parametros->nomb_instr);
+            dec->parametros->nomb_instr = NULL;
+        }
+        if (dec->parametros->nombre_file) {
+            free(dec->parametros->nombre_file);
+            dec->parametros->nombre_file = NULL;
+        }
+        if (dec->parametros->tag) {
+            free(dec->parametros->tag);
+            dec->parametros->tag = NULL;
+        }
+        if (dec->parametros->contenido) {
+            free(dec->parametros->contenido);
+            dec->parametros->contenido = NULL;
+        }
+        if (dec->parametros->nombre_file_org) {
+            free(dec->parametros->nombre_file_org);
+            dec->parametros->nombre_file_org = NULL;
+        }
+        if (dec->parametros->tag_origen) {
+            free(dec->parametros->tag_origen);
+            dec->parametros->tag_origen = NULL;
+        }
+        if (dec->parametros->nombre_file_destino) {
+            free(dec->parametros->nombre_file_destino);
+            dec->parametros->nombre_file_destino = NULL;
+        }
+        if (dec->parametros->tag_destino) {
+            free(dec->parametros->tag_destino);
+            dec->parametros->tag_destino = NULL;
+        }
         
         free(dec->parametros);
+        dec->parametros = NULL;
     }
+    
     free(dec);
 }
