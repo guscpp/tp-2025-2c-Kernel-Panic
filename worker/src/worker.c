@@ -224,9 +224,11 @@ void* ejecutar_query(void* arg){
         if(query_desconectado){
             if (dt_archivo->archivo != NULL) {
                 fclose(dt_archivo->archivo);
+                dt_archivo->archivo = NULL;
             }
-            free(dt_archivo->nombre_archivo);
-            free(dt_archivo);
+
+            //if (dt_archivo->nombre_archivo) free(dt_archivo->nombre_archivo);
+            //if (dt_archivo->archivo != NULL) free(dt_archivo);
             continue;
         }
     }
