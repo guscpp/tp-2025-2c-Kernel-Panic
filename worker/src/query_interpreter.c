@@ -62,10 +62,10 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
         execute(instruccion_decf->parametros, instruccion_decf->ejecuta_instruccion, w, pcb);
         //free(instruccion_decf); revisar con valgrind
         //free(instruccion_decf->parametros);   revisar con valgrind
-        free(instruccion);
-        instruccion = NULL;
-        destruir_decode(instruccion_decf);
-        instruccion_decf = NULL;
+        // free(instruccion);
+        // instruccion = NULL;
+        // destruir_decode(instruccion_decf);
+        // instruccion_decf = NULL;
         
         //checkInterrupt
         pthread_mutex_lock(&mutex_interrupt); 
@@ -290,8 +290,8 @@ t_decode* decode(char* instruccion, t_worker* w){
         if (parametros[1] == NULL) {
             log_error(w->logger, "Parametros incompletos para TRUNCATE");
             paquete_decode->instruccion_malformada = true;
-            free(paquete_decode->parametros);
-            free(paquete_decode);
+            // free(paquete_decode->parametros);
+            // free(paquete_decode);
             string_array_destroy(parametros);
             return paquete_decode;
         }
@@ -322,8 +322,8 @@ t_decode* decode(char* instruccion, t_worker* w){
         if (parametros[1] == NULL) {
             log_error(w->logger, "Parametros incompletos para WRITE");
             paquete_decode->instruccion_malformada = true;
-            free(paquete_decode->parametros);
-            free(paquete_decode);
+            // free(paquete_decode->parametros);
+            // free(paquete_decode);
             string_array_destroy(parametros);
             return paquete_decode;
         }
@@ -356,8 +356,8 @@ t_decode* decode(char* instruccion, t_worker* w){
         if (parametros[1] == NULL) {
             log_error(w->logger, "Parametros incompletos para READ");
             paquete_decode->instruccion_malformada = true;
-            free(paquete_decode->parametros);
-            free(paquete_decode);
+            // free(paquete_decode->parametros);
+            // free(paquete_decode);
             string_array_destroy(parametros);
             return paquete_decode;
         }
@@ -390,8 +390,8 @@ t_decode* decode(char* instruccion, t_worker* w){
         if (parametros[1] == NULL) {
             log_error(w->logger, "Parametros incompletos para TAG");
             paquete_decode->instruccion_malformada = true;
-            free(paquete_decode->parametros);
-            free(paquete_decode);
+            // free(paquete_decode->parametros);
+            // free(paquete_decode);
             string_array_destroy(parametros);
             return paquete_decode;
         }
@@ -425,8 +425,8 @@ t_decode* decode(char* instruccion, t_worker* w){
         if (parametros[1] == NULL) {
             log_error(w->logger, "Parámetros incompletos para COMMIT");
             paquete_decode->instruccion_malformada = true;
-            free(paquete_decode->parametros);
-            free(paquete_decode);
+            // free(paquete_decode->parametros);
+            // free(paquete_decode);
             string_array_destroy(parametros);
             return paquete_decode;
         }
@@ -452,8 +452,8 @@ t_decode* decode(char* instruccion, t_worker* w){
         if (parametros[1] == NULL) {
             log_error(w->logger, "Parámetros incompletos para FLUSH");
             paquete_decode->instruccion_malformada = true;
-            free(paquete_decode->parametros);
-            free(paquete_decode);
+            // free(paquete_decode->parametros);
+            // free(paquete_decode);
             string_array_destroy(parametros);
             return paquete_decode;
         }
@@ -479,8 +479,8 @@ t_decode* decode(char* instruccion, t_worker* w){
         if (parametros[1] == NULL) {
             log_error(w->logger, "Parámetros incompletos para DELETE");
             paquete_decode->instruccion_malformada = true;
-            free(paquete_decode->parametros);
-            free(paquete_decode);
+            // free(paquete_decode->parametros);
+            // free(paquete_decode);
             string_array_destroy(parametros);
             return paquete_decode;
         }
@@ -502,8 +502,8 @@ t_decode* decode(char* instruccion, t_worker* w){
     if(string_equals_ignore_case(parametros[0], "END")){
 
         paquete_decode->fin = true;
-
-        free(paquete_decode->parametros);
+        paquete_decode->instruccion_malformada = false;
+        //free(paquete_decode->parametros);
         string_array_destroy(parametros);
 
         return paquete_decode;
@@ -754,14 +754,14 @@ void destruir_decode(t_decode* dec) {
 
     if (dec->parametros != NULL) {
         // Como usamos calloc, el free es seguro incluso si son NULL
-        free(dec->parametros->nomb_instr);
-        free(dec->parametros->nombre_file);
-        free(dec->parametros->tag);
-        free(dec->parametros->contenido);
-        free(dec->parametros->nombre_file_org);
-        free(dec->parametros->tag_origen);
-        free(dec->parametros->nombre_file_destino);
-        free(dec->parametros->tag_destino);
+        if (dec->parametros->nomb_instr) free(dec->parametros->nomb_instr);
+        if (dec->parametros->nombre_file) free(dec->parametros->nombre_file);
+        if (dec->parametros->tag) free(dec->parametros->tag);
+        if (dec->parametros->contenido) free(dec->parametros->contenido);
+        if (dec->parametros->nombre_file_org) free(dec->parametros->nombre_file_org);
+        if (dec->parametros->tag_origen) free(dec->parametros->tag_origen);
+        if (dec->parametros->nombre_file_destino) free(dec->parametros->nombre_file_destino);
+        if (dec->parametros->tag_destino) free(dec->parametros->tag_destino);
         
         free(dec->parametros);
     }
