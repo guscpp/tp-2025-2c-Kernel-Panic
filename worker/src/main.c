@@ -28,7 +28,11 @@ int main(int argc, char* argv[]) {
     w->flag_error_storage = inicializar_mutex_error_storage(w);
 
     //Master: crear la conexion para distpacher (primer connecy)
-    w->master_socket_distpach = crear_conexion(w->logger, w->ip_master, string_itoa(w->puerto_master)); 
+    //w->master_socket_distpach = crear_conexion(w->logger, w->ip_master, string_itoa(w->puerto_master)); 
+    char* puerto_master_str = string_itoa(w->puerto_master);
+    w->master_socket_distpach = crear_conexion(w->logger, w->ip_master, puerto_master_str);
+    free(puerto_master_str);
+
     t_buffer* buffer1 = crear_buffer();
     t_paquete* packetHandshake = crear_paquete(WORKER_HANDSHAKE, buffer1);
     enviar_paquete(packetHandshake, w->master_socket_distpach, w->logger);
@@ -44,7 +48,10 @@ int main(int argc, char* argv[]) {
     retener_worker(w); 
 
     //MAster: crear la conexion para el interrupt (segundp connect)
-    w->master_socket_interrupt = crear_conexion(w->logger, w->ip_master, string_itoa(w->puerto_master));
+    //w->master_socket_interrupt = crear_conexion(w->logger, w->ip_master, string_itoa(w->puerto_master));
+    puerto_master_str = string_itoa(w->puerto_master);
+    w->master_socket_interrupt = crear_conexion(w->logger, w->ip_master, puerto_master_str);
+    free(puerto_master_str);
 
     //MAster: enviar id para el interrupt 
     t_buffer* buffer5 = crear_buffer();

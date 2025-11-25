@@ -69,12 +69,9 @@ int aplicar_lru(t_memoria_interna* mem, int query_id) {
         list_remove_by_condition(tabla, misma_entrada);
         if (list_is_empty(tabla)) {
             dictionary_remove_and_destroy(mem->tablas_paginas, clave, (void*)list_destroy);
-        } else {
-            free(clave);
         }
-    } else {
-        free(clave);
     }
+    free(clave);
 
     mem->marcos[marco_victima]->libre = true;
     mem->marcos[marco_victima]->entrada_pagina = NULL;
@@ -150,12 +147,9 @@ int aplicar_clock_m(t_memoria_interna* mem, int query_id) {
         list_remove_by_condition(tabla, misma_entrada);
         if (list_is_empty(tabla)) {
             dictionary_remove_and_destroy(mem->tablas_paginas, clave, (void*)list_destroy);
-        } else {
-            free(clave);
-        }
-    } else {
-        free(clave);
+        } 
     }
+    free(clave);
 
     mem->marcos[victima]->libre = true;
     mem->marcos[victima]->entrada_pagina = NULL;
@@ -209,9 +203,8 @@ int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, i
     if (!tabla) {
         tabla = list_create();
         dictionary_put(mem->tablas_paginas, clave, tabla);
-    } else {
-        free(clave);
-    }
+    } 
+    free(clave);
     list_add(tabla, nueva);
 
     if (mem->algoritmo_reemplazo == LRU) {

@@ -201,7 +201,7 @@ void* ejecutar_query(void* arg){
     t_ejecucion* datos_ejecucion = (t_ejecucion*) arg;
 
     log_info(datos_ejecucion->w->logger, "Por lo menos entre a ejecutar_query");
-    Pcb* dt_archivo;
+    Pcb* dt_archivo = NULL;
 
     while(1){ 
         dt_archivo = recibir_path_de_query(datos_ejecucion->master_socket, datos_ejecucion->w);
@@ -212,20 +212,25 @@ void* ejecutar_query(void* arg){
         }
 
         log_info(datos_ejecucion->w->logger, "Llego el path_query: %s", dt_archivo->nombre_archivo);
-
         query_interpreter_ciclo(dt_archivo, datos_ejecucion->w);
     
+        if (dt_archivo->archivo != NULL) {
+            fclose(dt_archivo->archivo); // Por si executeEnd no se llamó (interrupción/error)
+        }
+        if (dt_archivo->nombre_archivo) free(dt_archivo->nombre_archivo);
+        if (dt_archivo) free(dt_archivo);
+        dt_archivo = NULL;
+
         if(query_desconectado){
+            if (dt_archivo->archivo != NULL) {
+                fclose(dt_archivo->archivo);
+            }
+            free(dt_archivo->nombre_archivo);
+            free(dt_archivo);
             continue;
         }
     }
 
-    if (dt_archivo->archivo != NULL) {
-        fclose(dt_archivo->archivo);
-    }
-
-    free(dt_archivo->nombre_archivo);
-    free(dt_archivo);
     // Se eliminó la recursividad ejecutar_query(arg); para evitar Stack Overflow
     return NULL;
 }
@@ -308,18 +313,25 @@ bool recibir_interrupciones(int master_socket, t_worker* w){
 void retener_worker(t_worker* w) {
     log_warning(w->logger, "Retengo al worker antes de crear el interrupt");
 
-    t_list* paquete;
-    paquete = recibir_paquete(w->master_socket_distpach);
+    t_list* paquete = recibir_paquete(w->master_socket_distpach);
+    int* cod_op = (int*) list_get(paquete, 0);
+    if (!cod_op) {
+        log_error(w->logger, "Código de operación inválido");
+        list_destroy_and_destroy_elements(paquete, free);
+        return;
+    }
 
-    int* cod_op = (int*) list_get(paquete, 0);   
+    int cod_op_val = *cod_op;
 
-    if (*cod_op == -1)
+    if(paquete != NULL) list_destroy_and_destroy_elements(paquete, free);
+    
+    if (cod_op_val == -1)
     {
         log_error(w->logger, "Error en la conexion con Master");
         return;   
     }
 
-    if (*cod_op == RETENER_WORKER)
+    if (cod_op_val == RETENER_WORKER)
     {
         log_info(w->logger, "Pude pasar de retener worker");
         return;  

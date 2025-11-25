@@ -22,8 +22,8 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
     int i = 1;
 
     log_warning(w->logger, "El archivo_query que se esta ejecutando es %s. Query ID: %d, PC: %d", pcb->nombre_archivo, pcb->query_id, pcb->pc);
-    char* instruccion;
-    t_decode* instruccion_decf = malloc(sizeof(t_decode));
+    char* instruccion = NULL;
+    t_decode* instruccion_decf = NULL;
 
     for(;;){
 
@@ -32,6 +32,8 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
         log_info(w->logger, "Me estoy por salir del ciclo, Storage fallo en alguna operacion");
             w->flag_error_storage->error_storage = false;
             pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
+            if (instruccion) free(instruccion);
+            if (instruccion_decf) destruir_decode(instruccion_decf);
             break;
         }
         pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
@@ -45,25 +47,35 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
 
         if(instruccion_decf->fin){ //NO lo hago en el fetch porque ahi todavia no se que instruccion es. REcien en decode, despues de parsear se que se trata de un END.
             executeEnd(w, pcb);                  //puse el == true para no debugear otra vez 
+            if (instruccion) free(instruccion);
+            if (instruccion_decf) destruir_decode(instruccion_decf);
             break;
         }
 
         if(instruccion_decf->instruccion_malformada){
-                error_instruccion_malformada(w->logger, pcb->query_id, instruccion);
-                break;
+            error_instruccion_malformada(w->logger, pcb->query_id, instruccion);
+            if (instruccion) free(instruccion);
+            if (instruccion_decf) destruir_decode(instruccion_decf);
+            break;
         }
 
         execute(instruccion_decf->parametros, instruccion_decf->ejecuta_instruccion, w, pcb);
         //free(instruccion_decf); revisar con valgrind
         //free(instruccion_decf->parametros);   revisar con valgrind
+        free(instruccion);
+        instruccion = NULL;
+        destruir_decode(instruccion_decf);
+        instruccion_decf = NULL;
         
         //checkInterrupt
         pthread_mutex_lock(&mutex_interrupt); 
         if(w->interpreter->hay_interrupcion){ //no entra aca porque al crear query_interpreter se le pone false al hay interrupcion y este cambia recien cuando le llega al hilo de interrupciones
             w->interpreter->hay_interrupcion =false; 
             pthread_mutex_unlock(&mutex_interrupt); 
-
             interrupt_envio_a_master(pcb, w); //MAndo el PCB para poder actualizarlo con el PC del w (y mandarlo a master)
+
+            if (instruccion) free(instruccion);
+            if (instruccion_decf) destruir_decode(instruccion_decf);
             
             break;
         }
@@ -72,6 +84,8 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
         }
 
     }
+    if (instruccion) free(instruccion);
+    if (instruccion_decf) destruir_decode(instruccion_decf);
 }
 
 
@@ -234,18 +248,21 @@ char* fetch(Pcb* pcb, t_worker* w){
 // ****************************************************************************
 t_decode* decode(char* instruccion, t_worker* w){
     char** parametros = NULL;
+    char* instruccion_copia = string_duplicate(instruccion);
 
     // Elimina comentarios que comienzan en una linea con codigo
-    char* comentario = strchr(instruccion, '#');
+    char* comentario = strchr(instruccion_copia, '#');
+    
     if (comentario != NULL) {
         *comentario = '\0';  // Truncar la línea en el comentario
-        string_trim(&instruccion);  // Eliminar espacios sobrantes
+        string_trim(&instruccion_copia);  // Eliminar espacios sobrantes
     }
 
-    parametros = string_n_split(instruccion, 2, " "); 
+    parametros = string_n_split(instruccion_copia, 2, " "); 
+    free(instruccion_copia);
     //me devuelve un array: parametros[0] = primer elemento de la cadena instruccion, parametros[1] toda el resto de la tira de parametros. El 2 porque lo divido en 2 partes y el " " porque se separa por un espacio
     t_decode* paquete_decode = malloc(sizeof(t_decode));
-    paquete_decode->parametros = malloc(sizeof(t_instr_param)); 
+    paquete_decode->parametros = calloc(1, sizeof(t_instr_param));
     
     if(string_equals_ignore_case(parametros[0], "CREATE")){ //recordar hacer los frees
 
@@ -699,13 +716,16 @@ void executeEnd(t_worker* w, Pcb* pcb){ //avisar a master de la finalizacion
     // Cerrar archivo de la query
     if(pcb->archivo != NULL) {
         fclose(pcb->archivo);
+        pcb->archivo = NULL;
     }
     
     // Liberar memoria
-    free(pcb->nombre_archivo);
-    free(pcb);
+    //free(pcb->nombre_archivo);
+    //free(pcb);
 }
 
+
+// ****************************************************************************
 void interrupt_envio_a_master(Pcb* pcb_dsp_de_interrupt, t_worker* w){  //Se envia al socket normal
     log_info(w->logger, "Llego una interrupcion, el proceso fue interrumpido. Espero uno nuevo");
     
@@ -725,4 +745,25 @@ void interrupt_envio_a_master(Pcb* pcb_dsp_de_interrupt, t_worker* w){  //Se env
     enviar_paquete(devuelvo_pcb_master, w->master_socket_distpach, w->logger);
     eliminar_paquete(devuelvo_pcb_master);
     
+}
+
+
+// ****************************************************************************
+void destruir_decode(t_decode* dec) {
+    if (dec == NULL) return;
+
+    if (dec->parametros != NULL) {
+        // Como usamos calloc, el free es seguro incluso si son NULL
+        free(dec->parametros->nomb_instr);
+        free(dec->parametros->nombre_file);
+        free(dec->parametros->tag);
+        free(dec->parametros->contenido);
+        free(dec->parametros->nombre_file_org);
+        free(dec->parametros->tag_origen);
+        free(dec->parametros->nombre_file_destino);
+        free(dec->parametros->tag_destino);
+        
+        free(dec->parametros);
+    }
+    free(dec);
 }
