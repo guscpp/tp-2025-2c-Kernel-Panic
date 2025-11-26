@@ -89,13 +89,14 @@ void* atender_conexion(void* arg){
         log_debug(informacion->logger, "Se ha conectado un worker");
         list_destroy_and_destroy_elements(paqueteHandshake, free);
         atender_Worker(informacion);
-
+        free(informacion);
         break;
         case WORKER_ID_INTERRUPT:
         log_debug(informacion->logger, "Se ha conectado un worker interruption");
         int idWorker = *(int*)list_get(paqueteHandshake,1);
         list_destroy_and_destroy_elements(paqueteHandshake, free);
         atender_worker_interrupt(informacion,idWorker);
+        free(informacion);
         break;
         default:
         log_warning(informacion->logger,"Operacion desconocida");
@@ -105,7 +106,7 @@ void* atender_conexion(void* arg){
     }
 
    // close(informacion->socket_conexion);
-    //free(informacion);
+   
    return NULL;
 }
 
@@ -201,12 +202,12 @@ void atender_Query(t_hacerConnect*  informacion){ // RECORDAR CAMBIAR ESTRUCTURA
     t_query* nuevaQuery = malloc(sizeof(t_query));
 
    
-   
+   t_log* logger = informacion->logger;
 
    int* codOperacion = list_get(paqueteQuery, 0);
 
    if (*codOperacion != QUERY_REQUEST){
-        log_warning(informacion->logger,"Operacion desconocida");
+        log_warning(logger,"Operacion desconocida");
    }
 
 
@@ -216,7 +217,7 @@ void atender_Query(t_hacerConnect*  informacion){ // RECORDAR CAMBIAR ESTRUCTURA
    char* pathFromPaquete = list_get(paqueteQuery, 1);
    nuevaQuery->path = string_duplicate(pathFromPaquete);
    nuevaQuery->prioridad = *(int*)list_get(paqueteQuery, 2);
-   nuevaQuery->logger = informacion->logger;
+   nuevaQuery->logger = logger;
    list_destroy_and_destroy_elements(paqueteQuery, free);
    pthread_t hilo_vigilante;
    pthread_create(&hilo_vigilante, NULL, atender_desconexion_query, nuevaQuery);
@@ -226,7 +227,7 @@ void atender_Query(t_hacerConnect*  informacion){ // RECORDAR CAMBIAR ESTRUCTURA
    nuevaQuery->estado= READY;
   
    pthread_mutex_lock(&mutexCantWorkers);
-   log_info(informacion->logger, "## Se conecta un Query Control para ejecutar la Query %s con prioridad %d - Id asignado: %d . Nivel de multiprocesamiento %d" , nuevaQuery->path, nuevaQuery->prioridad, nuevaQuery->id, cantidadWorkers);
+   log_info(logger, "## Se conecta un Query Control para ejecutar la Query %s con prioridad %d - Id asignado: %d . Nivel de multiprocesamiento %d" , nuevaQuery->path, nuevaQuery->prioridad, nuevaQuery->id, cantidadWorkers);
     pthread_mutex_unlock(&mutexCantWorkers);
 
    pthread_mutex_lock(&mutexColaQuery);
@@ -234,11 +235,15 @@ void atender_Query(t_hacerConnect*  informacion){ // RECORDAR CAMBIAR ESTRUCTURA
    pthread_mutex_unlock(&mutexColaQuery);
  if(strcmp(algoritmo_planificacion, "PRIORIDADES") == 0){
     if (sem_init(&nuevaQuery->timer_query, 0, 0) != 0) {
-        log_debug(informacion->logger, "Error al inicializar el semáforo de queries");
+        log_debug(logger, "Error al inicializar el semáforo de queries");
        
     }
     pthread_create(&nuevaQuery->hilo_timer, NULL, atender_timer_query, informacion);
-   
+    log_debug(logger,"Antes de desalojo \n");
+    chequeador_desalojo(nuevaQuery->prioridad,informacion);
+   log_debug(logger,"DEspues de desalojo \n");
+ }else{
+    free(informacion);
  }
  /*
    // SOLO PARA PRUEBASSS
@@ -253,19 +258,16 @@ void atender_Query(t_hacerConnect*  informacion){ // RECORDAR CAMBIAR ESTRUCTURA
     log_info(informacion->logger, "se agrego query a la cola, cola actual:  %s", idsEnCola);
     } printf("///////");
      */
-if(strcmp(algoritmo_planificacion, "PRIORIDADES") == 0){
-   log_debug(informacion->logger,"Antes de desalojo \n");
-    chequeador_desalojo(nuevaQuery->prioridad,informacion);
-   log_debug(informacion->logger,"DEspues de desalojo \n");
-   }
+
     
     
     sem_post(&sem_queries);
-    log_debug(informacion->logger,"\033[35m Hago un sem_signal \033[0m\n");
+    log_debug(logger,"\033[35m Hago un sem_signal \033[0m\n");
 
 }
 void* atender_timer_query(void* arg){
     t_hacerConnect* informacion = (t_hacerConnect*) arg;
+    t_log* logger = informacion->logger;
     pthread_mutex_lock(&mutexColaQuery);
     t_query* query = obtener_por_id(cola_queries, informacion->id);
     pthread_mutex_unlock(&mutexColaQuery);
@@ -280,7 +282,7 @@ void* atender_timer_query(void* arg){
            
             int prioridad_ant= query->prioridad;
             -- query->prioridad;
-            log_info(informacion->logger,"## %d Cambio de prioridad:  %d  -  %d",informacion->id,prioridad_ant,query->prioridad );
+            log_info(logger,"## %d Cambio de prioridad:  %d  -  %d",informacion->id,prioridad_ant,query->prioridad );
             chequeador_desalojo(query->prioridad,informacion);
           
         }
@@ -291,7 +293,8 @@ void* atender_timer_query(void* arg){
         }
 
     }
-    log_debug(informacion->logger, "Finaliza hilo de aging para query %d", informacion->id);
+    log_debug(logger, "Finaliza hilo de aging para query %d", informacion->id);
+    free(informacion);
     return NULL;
 }
 void chequeador_desalojo(int prioridad,t_hacerConnect* info){
@@ -391,7 +394,7 @@ void atender_Worker(t_hacerConnect* informacion){
         t_worker* worker= obtener_por_id_worker(lista_workers, informacion->id );
         pthread_mutex_unlock(&mutexListaWorkers);
         sem_post(&worker->desconexion_worker);
-        free(informacion);
+       // free(informacion);
         return;
         } 
 
@@ -1100,7 +1103,7 @@ void   enviar_read_a_query(t_query* queryRecivida, t_readQuery* readQuery,t_hace
     agregar_a_paquete(paquete,readQuery->contenido,strlen(readQuery->contenido) + 1);
 
     enviar_paquete(paquete, queryRecivida->socket, informacion->logger);
-    log_info(informacion->logger,"cargado paquete; contenido: %s, file:  %s, tag:  %s", readQuery->contenido,readQuery->file, readQuery->tag );
+    log_debug(informacion->logger,"cargado paquete; contenido: %s, file:  %s, tag:  %s", readQuery->contenido,readQuery->file, readQuery->tag );
 
     eliminar_paquete(paquete);
 
@@ -1138,7 +1141,7 @@ void comenzar_a_ejecutar(t_hacerConnect* informacion, int idWorker){
         sem_post(&sem_queries);
         sem_post(&worker->desconexion_worker);
         log_debug(informacion->logger,"hice los signalll");
-        free(informacion);
+        //free(informacion);
         return;
     }
     // MANDAR UN SEND DE COMO VOY A MANDARTE UNA QUERY PARA SABER SI ESTA VIVO
@@ -1193,7 +1196,7 @@ void enviar_query_a_worker(t_query* query,t_hacerConnect* informacion, int idWor
         //free(informacion);
     }
 
-    log_info(informacion->logger, "## Se envía la Query %d (<PRIORIDAD>) al Worker %d", query->id,idWorker);
+    log_info(informacion->logger, "## Se envía la Query %d (%d) al Worker %d", query->id, query->prioridad,idWorker);
 
     eliminar_paquete(paquete);
 
