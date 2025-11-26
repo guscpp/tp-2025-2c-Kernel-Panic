@@ -9,10 +9,12 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
+    char* config = argv[1];
     int id_worker = atoi(argv[2]);
+
     //int id_worker = 2; //te quito el hardcoded, necesito valores reales
 
-    t_worker* w = inicializar_worker(id_worker);
+    t_worker* w = inicializar_worker(id_worker, config);
     
     t_query_interpreter*  query_interpreter =  query_interpreter_crear(w->logger); //tiene pc y un verificador de interrupciones
     w->interpreter = query_interpreter; 
@@ -20,7 +22,7 @@ int main(int argc, char* argv[]) {
     pthread_mutex_init(&mutex_interrupt, NULL); //inicializar mutex
     pthread_t ciclo_instrucciones; 
     pthread_t hilo_interrupciones;
-    log_info(w->logger, "Verificar funcionamiento logger");
+    log_debug(w->logger, "Verificar funcionamiento logger");
 
     //Solo logs de prueba: 
     verificar_worker(w);
@@ -74,7 +76,7 @@ int main(int argc, char* argv[]) {
     //int a = 12;
     //agregar_a_paquete(packetHandshake2, &a, sizeof(int));
     enviar_paquete(packetHandshake2, w->storage_socket, w->logger);
-    log_info(w->logger, "Acabo de enviar WORKER_HANDSHAKE a Storage");
+    log_debug(w->logger, "Acabo de enviar WORKER_HANDSHAKE a Storage");
     eliminar_paquete(packetHandshake2);
 
     //Storage: pedir el tamanio de bloque
@@ -83,12 +85,12 @@ int main(int argc, char* argv[]) {
     ///agregar_a_paquete(paquete_tamanio_bloque, &a, sizeof(int));
     enviar_paquete(paquete_tamanio_bloque, w->storage_socket, w->logger);
     //enviar_paquete(paquete_tamanio_bloque, w->storage_socket, w->logger); // enviarlo 2 veces :|
-    log_info(w->logger, "Acabo de enviar STORAGE_GET_BLOCK_SIZE a Storage");
+    log_debug(w->logger, "Acabo de enviar STORAGE_GET_BLOCK_SIZE a Storage");
     eliminar_paquete(paquete_tamanio_bloque);
 
     //Respuestas de storage
     rtas_storage(w->storage_socket, w, NULL, NULL);
-    log_info(w->logger, "Llegue dsp de recibir a storage");
+    log_debug(w->logger, "Llegue dsp de recibir a storage");
 
     t_memoria_interna* m = crear_memoria(
         w->logger,
@@ -115,7 +117,7 @@ int main(int argc, char* argv[]) {
     log_error(w->logger, "No se creo el hilo del ciclo de instrucciones: %s", strerror(error_h1));
     }
     else {
-    log_info(w->logger, "Hilo creado correctamente");
+    log_debug(w->logger, "Hilo creado correctamente");
     }
 
 
@@ -133,7 +135,7 @@ int main(int argc, char* argv[]) {
     log_error(w->logger, "No se creo el hilo de las interrupciones: %s", strerror(error_h2));
     }
     else {
-    log_info(w->logger, "Hilo de las interrupciones creado correctamente");
+    log_debug(w->logger, "Hilo de las interrupciones creado correctamente");
     }
 
     

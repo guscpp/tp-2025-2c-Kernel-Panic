@@ -10,7 +10,7 @@ t_query_interpreter* query_interpreter_crear(t_log* logger){
     t_query_interpreter* interpreter = malloc(sizeof(t_query_interpreter));
     interpreter->pc = 0;
     interpreter->hay_interrupcion = false;
-    log_info(logger, "Se creo una query_interpreter");
+    log_debug(logger, "Se creo una query_interpreter");
     return interpreter;
 }
 
@@ -21,7 +21,7 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
     w->interpreter->pc = pcb->pc;
     int i = 1;
 
-    log_warning(w->logger, "El archivo_query que se esta ejecutando es %s. Query ID: %d, PC: %d", pcb->nombre_archivo, pcb->query_id, pcb->pc);
+    log_debug(w->logger, "El archivo_query que se esta ejecutando es %s. Query ID: %d, PC: %d", pcb->nombre_archivo, pcb->query_id, pcb->pc);
     char* instruccion = NULL;
     t_decode* instruccion_decf = NULL;
 
@@ -29,7 +29,7 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
 
         pthread_mutex_lock(&w->flag_error_storage->mutex_error_storage);
         if(w->flag_error_storage->error_storage){
-        log_info(w->logger, "Me estoy por salir del ciclo, Storage fallo en alguna operacion");
+        log_debug(w->logger, "Me estoy por salir del ciclo, Storage fallo en alguna operacion");
             w->flag_error_storage->error_storage = false;
             pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
             // if (instruccion) free(instruccion);
@@ -39,11 +39,12 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
         pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
 
         instruccion = fetch(pcb, w); //aca me llega la instruccion completa
-        printf("Numero de linea del archivo query - i = %d \n", i++);
+
+        log_debug(w->logger, "Numero de linea del archivo query - i = %d \n", i++);
 
         w->interpreter->pc++;  //el pc que avanza es el del interpreter
 
-        instruccion_decf = decode(instruccion, w);
+        instruccion_decf = decode(instruccion, w, pcb);
 
         if(instruccion_decf->fin){ //NO lo hago en el fetch porque ahi todavia no se que instruccion es. REcien en decode, despues de parsear se que se trata de un END.
             executeEnd(w, pcb);                  //puse el == true para no debugear otra vez 
@@ -73,7 +74,7 @@ void query_interpreter_ciclo(Pcb* pcb, t_worker* w){
             w->interpreter->hay_interrupcion =false; 
             pthread_mutex_unlock(&mutex_interrupt); 
             interrupt_envio_a_master(pcb, w); //MAndo el PCB para poder actualizarlo con el PC del w (y mandarlo a master)
-
+            log_info(w->logger, "## Query <%d>: Desalojada por medio del Master", pcb->query_id);
             // if (instruccion) free(instruccion);
             // if (instruccion_decf) destruir_decode(instruccion_decf);
             
@@ -94,7 +95,7 @@ char* fetch(Pcb* pcb, t_worker* w){
     ssize_t leido;
 
     // LOG AL INICIO DE FETCH
-    log_debug(w->logger, "Fetch: pc=%d, interpreter_pc=%d", pcb->pc, w->interpreter->pc);
+    log_info(w->logger, "Fetch: pc=%d, interpreter_pc=%d", pcb->pc, w->interpreter->pc); //NO OFICIAL
 
     //por aca va entrar solamente un proceso que fue interrumpido antes (porque el PC del PCB que me pasaron no va cambiar). POr lo tanto, el getline que va tomar al hacer fetch siempre va ser este, no hay forma de que entre por el de abajo(**) porque se va chequear el PC del PCB que siempre va ser != 0 porque ese nunca se va modificar (ese no es el PC que se avanza, es el que te viene de master)
     if(pcb->pc != 0){
@@ -244,7 +245,7 @@ char* fetch(Pcb* pcb, t_worker* w){
 
 
 // ****************************************************************************
-t_decode* decode(char* instruccion, t_worker* w){
+t_decode* decode(char* instruccion, t_worker* w, Pcb* pcb){
     char** parametros = NULL;
     char* instruccion_copia = string_duplicate(instruccion);
 
@@ -263,7 +264,10 @@ t_decode* decode(char* instruccion, t_worker* w){
     paquete_decode->parametros = calloc(1, sizeof(t_instr_param));
     
     if(string_equals_ignore_case(parametros[0], "CREATE")){ //recordar hacer los frees
-
+    
+    int i = w->interpreter->pc;
+    log_info(w->logger, "## Query <%d>: FETCH - Program Counter: <%d> - <%s>", pcb->query_id, i-1 , parametros[0]);
+        
         char** create_param = aux_separar_file_tag(parametros[1]);
 
         paquete_decode->parametros->nombre_file = string_duplicate(create_param[0]);
@@ -285,8 +289,11 @@ t_decode* decode(char* instruccion, t_worker* w){
         char** truncate_file_tam = NULL;
         char** truncate_file_tag = NULL;
 
+    int i2 = w->interpreter->pc;
+    log_info(w->logger, "## Query <%d>: FETCH - Program Counter: <%d> - <%s>", pcb->query_id, i2-1 , parametros[0]);
+        
         if (parametros[1] == NULL) {
-            log_error(w->logger, "Parametros incompletos para TRUNCATE");
+            log_debug(w->logger, "Parametros incompletos para TRUNCATE");
             paquete_decode->instruccion_malformada = true;
             // free(paquete_decode->parametros);
             // free(paquete_decode);
@@ -314,11 +321,15 @@ t_decode* decode(char* instruccion, t_worker* w){
 
     if(string_equals_ignore_case(parametros[0], "WRITE")){
 
+    int i3 = w->interpreter->pc;
+    log_info(w->logger, "## Query <%d>: FETCH - Program Counter: <%d> - <%s>", pcb->query_id, i3-1 , parametros[0]);
+       
+
         char** write_params_princ = NULL;
         char** write_file_tag = NULL;
 
         if (parametros[1] == NULL) {
-            log_error(w->logger, "Parametros incompletos para WRITE");
+            log_debug(w->logger, "Parametros incompletos para WRITE");
             paquete_decode->instruccion_malformada = true;
             // free(paquete_decode->parametros);
             // free(paquete_decode);
@@ -347,12 +358,16 @@ t_decode* decode(char* instruccion, t_worker* w){
     }
     
     if(string_equals_ignore_case(parametros[0], "READ")){
+   
+    int i4 = w->interpreter->pc;
+    log_info(w->logger, "## Query <%d>: FETCH - Program Counter: <%d> - <%s>", pcb->query_id, i4-1 , parametros[0]);
+    
 
         char** read_params_princ = NULL;
         char** read_file_tag = NULL;
 
         if (parametros[1] == NULL) {
-            log_error(w->logger, "Parametros incompletos para READ");
+            log_debug(w->logger, "Parametros incompletos para READ");
             paquete_decode->instruccion_malformada = true;
             // free(paquete_decode->parametros);
             // free(paquete_decode);
@@ -381,12 +396,16 @@ t_decode* decode(char* instruccion, t_worker* w){
 
     if(string_equals_ignore_case(parametros[0], "TAG")){
 
+    int i5 = w->interpreter->pc;
+    log_info(w->logger, "## Query <%d>: FETCH - Program Counter: <%d> - <%s>", pcb->query_id, i5-1 , parametros[0]);
+            
+
         char** tag_params = NULL;
         char** file_tag_org = NULL;
         char** file_tag_dest = NULL;
 
         if (parametros[1] == NULL) {
-            log_error(w->logger, "Parametros incompletos para TAG");
+            log_debug(w->logger, "Parametros incompletos para TAG");
             paquete_decode->instruccion_malformada = true;
             // free(paquete_decode->parametros);
             // free(paquete_decode);
@@ -418,10 +437,14 @@ t_decode* decode(char* instruccion, t_worker* w){
 
     if(string_equals_ignore_case(parametros[0], "COMMIT")){
     
+    int i6 = w->interpreter->pc;
+    log_info(w->logger, "## Query <%d>: FETCH - Program Counter: <%d> - <%s>", pcb->query_id, i6-1 , parametros[0]);
+        
+    
         char** commit_param = NULL;
         
         if (parametros[1] == NULL) {
-            log_error(w->logger, "Parámetros incompletos para COMMIT");
+            log_debug(w->logger, "Parámetros incompletos para COMMIT");
             paquete_decode->instruccion_malformada = true;
             // free(paquete_decode->parametros);
             // free(paquete_decode);
@@ -445,10 +468,14 @@ t_decode* decode(char* instruccion, t_worker* w){
 
     if(string_equals_ignore_case(parametros[0], "FLUSH")){
         
+    int i7 = w->interpreter->pc;
+    log_info(w->logger, "## Query <%d>: FETCH - Program Counter: <%d> - <%s>", pcb->query_id, i7-1 , parametros[0]);
+        
+    
         char** flush_param = NULL;
 
         if (parametros[1] == NULL) {
-            log_error(w->logger, "Parámetros incompletos para FLUSH");
+            log_debug(w->logger, "Parámetros incompletos para FLUSH");
             paquete_decode->instruccion_malformada = true;
             // free(paquete_decode->parametros);
             // free(paquete_decode);
@@ -472,10 +499,13 @@ t_decode* decode(char* instruccion, t_worker* w){
 
     if(string_equals_ignore_case(parametros[0], "DELETE")){
         
+    int i8 = w->interpreter->pc;
+    log_info(w->logger, "## Query <%d>: FETCH - Program Counter: <%d> - <%s>", pcb->query_id, i8-1 , parametros[0]);
+        
         char** delete_param = NULL;
     
         if (parametros[1] == NULL) {
-            log_error(w->logger, "Parámetros incompletos para DELETE");
+            log_debug(w->logger, "Parámetros incompletos para DELETE");
             paquete_decode->instruccion_malformada = true;
             // free(paquete_decode->parametros);
             // free(paquete_decode);
@@ -498,6 +528,10 @@ t_decode* decode(char* instruccion, t_worker* w){
     }
 
     if(string_equals_ignore_case(parametros[0], "END")){
+    
+    int i9 = w->interpreter->pc;
+    log_info(w->logger, "## Query <%d>: FETCH - Program Counter: <%d> - <%s>", pcb->query_id, i9-1 , parametros[0]);
+        
 
         paquete_decode->fin = true;
         paquete_decode->instruccion_malformada = false;
@@ -510,7 +544,7 @@ t_decode* decode(char* instruccion, t_worker* w){
 
     // CASO POR DEFECTO para instrucción desconocida
     // lo agrego mayormente porque no quiero ver el warning del compilador
-    log_warning(w->logger, "Instrucción desconocida: %s", parametros[0]);
+    log_debug(w->logger, "Instrucción desconocida: %s", parametros[0]);
     paquete_decode->fin = false;
     paquete_decode->instruccion_malformada = true;
     free(parametros[0]);
@@ -579,11 +613,10 @@ void executeWrite(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     void* resultado = acceder_memoria(w->mem, pcb->query_id, parametros->nombre_file, parametros->tag,
                             parametros->direccion_base, tam, true, w);
     if (resultado) {
-        log_info(w->logger, "Query<%d>: Instrucción realizada: WRITE %s:%s %d %s", 
-                pcb->query_id, parametros->nombre_file, parametros->tag,
-                parametros->direccion_base, parametros->contenido);
+        log_info(w->logger, "## Query<%d>: Instrucción realizada: WRITE", 
+                pcb->query_id);
     } else {
-        log_error(w->logger, "Query<%d>: Escritura fallida - File:%s - Tag:%s - Offset:%d",
+        log_debug(w->logger, "Query<%d>: Escritura fallida - File:%s - Tag:%s - Offset:%d",
                  pcb->query_id, parametros->nombre_file, parametros->tag, parametros->direccion_base);
     }
     
@@ -596,13 +629,13 @@ void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb) {
     void* dir = acceder_memoria(w->mem, pcb->query_id, parametros->nombre_file, parametros->tag,
                                 parametros->direccion_base, parametros->tamanio, false, w);
     if (!dir) {
-        log_error(w->logger, "Query<%d>: Lectura fallida - File:%s - Tag:%s - Offset:%d",
+        log_debug(w->logger, "Query<%d>: Lectura fallida - File:%s - Tag:%s - Offset:%d",
                   pcb->query_id, parametros->nombre_file, parametros->tag, parametros->direccion_base);
         return;
     }
     
     char* contenido = string_substring(dir, 0, parametros->tamanio);
-    log_info(w->logger, "Contenido leído: %s", contenido);
+    log_debug(w->logger, "Contenido leído: %s", contenido);
     
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_read = crear_paquete(WORKER_READ_RESULT, buffer_generico);
@@ -617,7 +650,8 @@ void executeRead(t_instr_param* parametros, t_worker* w, Pcb* pcb) {
     free(contenido);
     free(dir); // Liberar el buffer total para lecturas
     
-    log_info(w->logger, "Query<%d>: Instrucción realizada: READ", pcb->query_id);
+    log_info(w->logger, "## Query<%d>: Instrucción realizada: READ", 
+                pcb->query_id);
 }
 
 
@@ -649,7 +683,7 @@ void executeTag(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 void executeCommit(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     
     executeFlush(parametros, w, pcb); //executeFLush necesita el nombreDelFIle y el tag, y yo aca en commit tengo esos parametros
-    log_info(w->logger, "Este es el flush antes del commit");
+    log_debug(w->logger, "Este es el flush antes del commit");
 
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* paquete_commit = crear_paquete(STORAGE_COMMIT, buffer_generico);
@@ -701,7 +735,7 @@ void executeDelete(t_instr_param* parametros, t_worker* w, Pcb* pcb){
 // ****************************************************************************
 void executeEnd(t_worker* w, Pcb* pcb){ //avisar a master de la finalizacion
     
-    log_info(w->logger, "Query<%d>: Finalización exitosa de la Query", pcb->query_id);
+    log_debug(w->logger, "Query<%d>: Finalización exitosa de la Query", pcb->query_id);
 
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* aviso_end_query = crear_paquete(WORKER_QUERY_END, buffer_generico);
@@ -725,7 +759,7 @@ void executeEnd(t_worker* w, Pcb* pcb){ //avisar a master de la finalizacion
 
 // ****************************************************************************
 void interrupt_envio_a_master(Pcb* pcb_dsp_de_interrupt, t_worker* w){  //Se envia al socket normal
-    log_info(w->logger, "Llego una interrupcion, el proceso fue interrumpido. Espero uno nuevo");
+    log_debug(w->logger, "Llego una interrupcion, el proceso fue interrumpido. Espero uno nuevo");
     
     t_buffer* buffer_generico = crear_buffer();
     t_paquete* devuelvo_pcb_master;

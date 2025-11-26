@@ -71,8 +71,8 @@ void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* ta
 
 // Funciones para los algoritmos de reemplazo
 int encontrar_marco_libre(t_memoria_interna* mem);
-int aplicar_lru(t_memoria_interna* mem, int query_id);
-int aplicar_clock_m(t_memoria_interna* mem, int query_id);
+int aplicar_lru(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina);
+int aplicar_clock_m(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina);
 void actualizar_referencia_lru(t_memoria_interna* mem, t_entrada_pagina* entrada);
 
 // Funciones auxiliares

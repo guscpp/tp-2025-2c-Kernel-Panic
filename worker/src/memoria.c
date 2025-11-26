@@ -50,15 +50,15 @@ int encontrar_marco_libre(t_memoria_interna* mem) {
 
 // ****************************************************************************
 // --- LRU ---
-int aplicar_lru(t_memoria_interna* mem, int query_id) {
+int aplicar_lru(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina) {
     if (list_is_empty(mem->lru_list)) return 0;
     t_entrada_pagina* victima = list_remove(mem->lru_list, 0);
     int marco_victima = victima->marco;
 
-    log_info(mem->logger, "## Query<%d>: Se reemplaza la pagina %s:%s/%d por una nueva pagina",
-             query_id, victima->file, victima->tag, victima->numero_pagina);
+    log_info(mem->logger, "## Query<%d>: Se reemplaza la pagina <%s:%s>/<%d> por la <%s:%s>/<%d>",
+             query_id, victima->file, victima->tag, victima->numero_pagina, file, tag, num_pagina);
     if (victima->modificada) {
-        log_info(mem->logger, "Query<%d>: Pagina modificada, deberia hacer FLUSH", query_id);
+        log_debug(mem->logger, "Query<%d>: Pagina modificada, deberia hacer FLUSH", query_id);
     }
 
     // Eliminar de tabla
@@ -74,6 +74,16 @@ int aplicar_lru(t_memoria_interna* mem, int query_id) {
     free(clave);
 
     mem->marcos[marco_victima]->libre = true;
+
+
+log_info(mem->logger,
+        "Query <%d>: Se libera el Marco: <%d> perteneciente al - File: <%s> - Tag: <%s>",
+        query_id,
+        marco_victima,
+        victima->file,
+        victima->tag);
+// ---------------------------------------------
+
     mem->marcos[marco_victima]->entrada_pagina = NULL;
     free(victima->file);
     free(victima->tag);
@@ -84,7 +94,7 @@ int aplicar_lru(t_memoria_interna* mem, int query_id) {
 
 // ****************************************************************************
 // --- CLOCK-M ---
-int aplicar_clock_m(t_memoria_interna* mem, int query_id) {
+int aplicar_clock_m(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina) {
     t_clock_m* clock = mem->clock_m;
     int inicio = clock->puntero;
     int victima = -1;
@@ -133,10 +143,13 @@ int aplicar_clock_m(t_memoria_interna* mem, int query_id) {
     t_entrada_pagina* entrada_victima = mem->marcos[victima]->entrada_pagina;
     if (!entrada_victima) return victima;
 
-    log_info(mem->logger, "## Query<%d>: Se reemplaza la pagina %s:%s/%d por una nueva pagina",
+    log_debug(mem->logger, "## Query<%d>: Se reemplaza la pagina %s:%s/%d por una nueva pagina",
              query_id, entrada_victima->file, entrada_victima->tag, entrada_victima->numero_pagina);
+    
+    log_info(mem->logger, "## Query<%d>: Se reemplaza la pagina <%s:%s>/<%d> por la <%s:%s>/<%d>",
+             query_id, entrada_victima->file, entrada_victima->tag, entrada_victima->numero_pagina, file, tag, num_pagina);
     if (entrada_victima->modificada) {
-        log_info(mem->logger, "Query<%d>: Pagina modificada, deberia hacer FLUSH", query_id);
+        log_debug(mem->logger, "Query<%d>: Pagina modificada, deberia hacer FLUSH", query_id);
     }
 
     // Eliminar de tabla
@@ -152,6 +165,15 @@ int aplicar_clock_m(t_memoria_interna* mem, int query_id) {
     free(clave);
 
     mem->marcos[victima]->libre = true;
+
+
+log_info(mem->logger,
+        "Query <%d>: Se libera el Marco: <%d> perteneciente al - File: <%s> - Tag: <%s>",
+        query_id,
+        victima,
+        entrada_victima->file,
+        entrada_victima->tag);
+        
     mem->marcos[victima]->entrada_pagina = NULL;
     free(entrada_victima->file);
     free(entrada_victima->tag);
@@ -168,14 +190,14 @@ int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, i
 
     if (marco == -1) {
         if (mem->algoritmo_reemplazo == LRU)
-            marco = aplicar_lru(mem, query_id);
+            marco = aplicar_lru(mem, query_id, file, tag, num_pagina);
         else
-            marco = aplicar_clock_m(mem, query_id);
+            marco = aplicar_clock_m(mem, query_id, file, tag, num_pagina);
     }
 
     //pedir el bloque ANTES de registrar la página
     if (pedir_bloque_storage(mem, query_id, file, tag, num_pagina) < 0) {
-        log_error(mem->logger, "Error cargando pagina: %d", num_pagina);
+        log_debug(mem->logger, "Error cargando pagina: %d", num_pagina);
         return -1;
     }
     
@@ -216,9 +238,9 @@ int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, i
     }
 
     // Logs correctos
-    log_info(mem->logger, "Query<%d>: - Memoria Add - File:%s - Tag:%s - Pagina:%d - Marco:%d",
+    log_info(mem->logger, "Query<%d>: - Memoria Add - File: <%s> - Tag: <%s> - Pagina:%d - Marco:%d",
              query_id, file, tag, num_pagina, marco);
-    log_info(mem->logger, "Query<%d>: Se asigna el Marco:%d a la Pagina:%d perteneciente al - File:%s - Tag:%s",
+    log_info(mem->logger, "Query<%d>: Se asigna el Marco: <%d> a la Pagina: <%d> perteneciente al - File: <%s> - Tag: <%s>",
              query_id, marco, num_pagina, file, tag);
 
     return marco;
@@ -238,14 +260,14 @@ void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* ta
                                             "/home/utnso/TP_SSOO/tp-2025-2c-Kernel-Panic/storage", // Punto de montaje hardcodeado temporalmente
                                             file, tag);
     if (access(metadata_path, F_OK) != 0) {
-        log_error(mem->logger, "Query<%d>: No se pudo cargar metadata de <%s>:<%s>", query_id, file, tag);
+        log_debug(mem->logger, "Query<%d>: No se pudo cargar metadata de <%s>:<%s>", query_id, file, tag);
         free(metadata_path);
         return NULL;
     }
     
     t_config* metadata = config_create(metadata_path);
     if (!metadata) {
-        log_error(mem->logger, "Query<%d>: No se pudo cargar metadata de <%s>:<%s>", query_id, file, tag);
+        log_debug(mem->logger, "Query<%d>: No se pudo cargar metadata de <%s>:<%s>", query_id, file, tag);
         free(metadata_path);
         return NULL;
     }
@@ -255,7 +277,7 @@ void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* ta
     free(metadata_path);
     
     if (offset + tam > tam_archivo) {
-        log_error(mem->logger, "Query<%d>: Acceso fuera de limite - Offset: %d, Tamanio: %zu, Tamanio archivo: %d",
+        log_debug(mem->logger, "Query<%d>: Acceso fuera de limite - Offset: %d, Tamanio: %zu, Tamanio archivo: %d",
                  query_id, offset, tam, tam_archivo);
         error_tamanio_escrLectura_excedido(mem->logger, 
                                          es_escritura ? WORKER_ERROR_TAMANIO_ESCRITURA_EXCEDIDO : WORKER_ERROR_TAMANIO_LECTURA_EXCEDIDO,
@@ -273,7 +295,7 @@ void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* ta
     if (!es_escritura) {
         buffer_total = malloc(tam);
         if (!buffer_total) {
-            log_error(mem->logger, "Query<%d>: Error al allocar buffer para operacion multi-bloque", query_id);
+            log_debug(mem->logger, "Query<%d>: Error al allocar buffer para operacion multi-bloque", query_id);
             return NULL;
         }
     }
@@ -292,17 +314,17 @@ void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* ta
         // Asegurar que la pagina esta cargada en memoria
         t_entrada_pagina* entrada = buscar_pagina(mem, file, tag, pagina_actual);
         if (!entrada) {
-            log_info(mem->logger, "Query<%d>: - Memoria Miss - File:%s - Tag:%s - Pagina:%d",
+            log_info(mem->logger, "Query<%d>: - Memoria Miss - File: <%s> - Tag: <%s> - Pagina: <%d>",
                     query_id, file, tag, pagina_actual);
             int marco = cargar_pagina(mem, query_id, file, tag, pagina_actual);
             if (marco == -1) {
-                log_error(mem->logger, "Query<%d>: Error al cargar pagina %d", query_id, pagina_actual);
+                log_debug(mem->logger, "Query<%d>: Error al cargar pagina %d", query_id, pagina_actual);
                 if (buffer_total) free(buffer_total);
                 return NULL;
             }
             entrada = buscar_pagina(mem, file, tag, pagina_actual);
             if (!entrada) {
-                log_error(mem->logger, "Query<%d>: Error al obtener entrada de pagina %d despues de cargarla", 
+                log_debug(mem->logger, "Query<%d>: Error al obtener entrada de pagina %d despues de cargarla", 
                          query_id, pagina_actual);
                 if (buffer_total) free(buffer_total);
                 return NULL;
@@ -336,6 +358,7 @@ void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* ta
             char* valor_str = string_substring(dir_fisica, 0, bytes_en_pagina);
             log_debug(mem->logger, "Query<%d>: Accion:ESCRIBIR - Direccion Fisica:%p - Valor:%s (pagina %d, bytes: %zu)",
                     query_id, dir_fisica, valor_str, pagina_actual, bytes_en_pagina);
+            log_info(mem->logger, "Query <%d>: Accion: <ESCRIBIR> - Direccion Fisica <%p> - Valor: <%s>", query_id, dir_fisica, valor_str); 
             free(valor_str);
         } else {
             // Para lectura: copiar los bytes al buffer total
@@ -345,6 +368,8 @@ void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* ta
             char* valor_str = string_substring(dir_fisica, 0, bytes_en_pagina);
             log_debug(mem->logger, "Query<%d>: Accion:LEER - Direccion Fisica:%p - Valor:%s (pagina %d, bytes: %zu)",
                     query_id, dir_fisica, valor_str, pagina_actual, bytes_en_pagina);
+            log_info(mem->logger, "Query<%d>: Accion:LEER - Direccion Fisica: <%p> - Valor: <%s>",
+                    query_id, dir_fisica, valor_str); 
             free(valor_str);
         }
         
@@ -410,7 +435,7 @@ t_memoria_interna* crear_memoria(t_log* logger, int tam_memoria, int retardo_mem
     m->clock_m = (m->algoritmo_reemplazo == CLOCK_M) ? crear_clock_m(m->cantidad_marcos, m->marcos) : NULL;
     m->tablas_paginas = dictionary_create();
 
-    log_info(logger, "Memoria Interna creada: %d bytes, %d marcos, pagina=%d bytes, algoritmo=%s",
+    log_debug(logger, "Memoria Interna creada: %d bytes, %d marcos, pagina=%d bytes, algoritmo=%s",
              m->tamanio_memoria, m->cantidad_marcos, m->tamanio_pagina, algoritmo_str);
     return m;
 }
@@ -478,7 +503,7 @@ int pedir_bloque_storage(t_memoria_interna* mem, int query_id, char* file, char*
     if (!mem) return -2;
     int sock = mem->socket_storage;
     if (sock <= 0) {
-        log_error(mem->logger, "No hay socket de storage en la estructura de memoria");
+        log_debug(mem->logger, "No hay socket de storage en la estructura de memoria");
         return -2;
     }
 
@@ -497,30 +522,30 @@ int pedir_bloque_storage(t_memoria_interna* mem, int query_id, char* file, char*
     // 2) esperar respuesta
     t_list* resp = recibir_paquete(sock);
     if (!resp || list_size(resp) < 1) {
-        log_error(mem->logger, "Query<%d>: Error recibiendo respuesta de Storage para %s:%s/%d",
+        log_debug(mem->logger, "Query<%d>: Error recibiendo respuesta de Storage para %s:%s/%d",
                   query_id, file, tag, num_pagina);
         return -2; // poner -2
     }
 
     int codigo = *(int*)list_get(resp, 0);
-    log_info(mem->logger, "ESte es el codigo que llega %d", codigo);
+    log_debug(mem->logger, "ESte es el codigo que llega %d", codigo);
 
     if (codigo == STORAGE_SEND_OK_READ_BLOCK) {
         // según tu servidor, el payload 1 es el contenido binario del bloque
         if (list_size(resp) < 2) {
-            log_error(mem->logger, "Query<%d>: STORAGE_SEND_OK sin contenido para %s:%s/%d",
+            log_debug(mem->logger, "Query<%d>: STORAGE_SEND_OK sin contenido para %s:%s/%d",
                       query_id, file, tag, num_pagina);
         }
         void* contenido_remoto = list_get(resp, 1);
         if (!contenido_remoto) {
-            log_error(mem->logger, "Query<%d>: STORAGE_SEND_OK sin payload", query_id);
+            log_debug(mem->logger, "Query<%d>: STORAGE_SEND_OK sin payload", query_id);
             list_destroy_and_destroy_elements(resp, free);
             return -2;
         }
         // Copiamos el contenido remoto a un buffer propio
         void* bloque = malloc(mem->tamanio_pagina);
         if (!bloque) {
-            log_error(mem->logger, "Query<%d>: no se pudo allocar buffer para bloque", query_id);
+            log_debug(mem->logger, "Query<%d>: no se pudo allocar buffer para bloque", query_id);
             list_destroy_and_destroy_elements(resp, free);
             return -2;
         }
@@ -542,7 +567,7 @@ int pedir_bloque_storage(t_memoria_interna* mem, int query_id, char* file, char*
         return 0;
     } else {
         // Storage reportó error. PODRIA SER ESTE EL ERROR DE ENTRAR A UNA PAGINA QUE NO LE CORRESPONDE
-        log_error(mem->logger, "Query<%d>: Storage respondió con error al pedir bloque %s:%s/%d",
+        log_debug(mem->logger, "Query<%d>: Storage respondió con error al pedir bloque %s:%s/%d",
                   query_id, file, tag, num_pagina);
         list_destroy_and_destroy_elements(resp, free);
         return -2; //poner -2
@@ -581,7 +606,7 @@ void flush_paginas_modificadas( t_memoria_interna* mem, int query_id, char* file
             void* contenido = mem->memory_arena + e->marco * mem->tamanio_pagina;
 
             // LOG DE DEPURACIÓN: datos de la página que se mandará
-            log_info(mem->logger,
+            log_debug(mem->logger,
                 "Query<%d>: FLUSH -> Pagina:%d | Marco:%d | DirFisica:%p | Tam:%d bytes",
                 query_id,
                 e->numero_pagina,
@@ -592,7 +617,7 @@ void flush_paginas_modificadas( t_memoria_interna* mem, int query_id, char* file
 
             // Mostrar una vista del contenido (solo si es imprimible)
             char* vista = string_substring(contenido, 0, mem->tamanio_pagina);
-            log_info(mem->logger,
+            log_debug(mem->logger,
                 "Query<%d>: Contenido enviado Página:%d --> \"%s\"",
                 query_id,
                 e->numero_pagina,
@@ -617,7 +642,7 @@ void flush_paginas_modificadas( t_memoria_interna* mem, int query_id, char* file
     enviar_paquete(p, socket_storage, mem->logger);
     eliminar_paquete(p);
 
-    log_info(mem->logger,
+    log_debug(mem->logger,
         "Query<%d>: FLUSH completado - %d páginas enviadas - File:%s Tag:%s",
         query_id,
         cantidad_paginas_modificadas,

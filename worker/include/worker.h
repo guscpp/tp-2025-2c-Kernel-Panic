@@ -6,7 +6,7 @@
 #include <semaphore.h>
 #include "memoria.h"
 
-t_worker* inicializar_worker(int id_worker);
+t_worker* inicializar_worker(int id_worker, char* config);
 void      verificar_worker(t_worker* worker);
 void      liberar_worker(t_worker* w);
 

@@ -9,7 +9,7 @@ extern bool query_desconectado;
 t_query_interpreter*    query_interpreter_crear(t_log* logger);
 void      query_interpreter_ciclo(Pcb* pcb, t_worker* w);
 char*     fetch(Pcb* pcb, t_worker* w);
-t_decode* decode(char* instruccion, t_worker* w);
+t_decode* decode(char* instruccion, t_worker* w, Pcb* pcb);
 void      execute(t_instr_param* parametros, void (*ejecuta_instruccion)(t_instr_param*, t_worker*, Pcb*), t_worker* w, Pcb* pcb);
 char**    aux_separar_file_tag(char* cadena);
 
