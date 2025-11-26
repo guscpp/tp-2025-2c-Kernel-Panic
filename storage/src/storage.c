@@ -8,7 +8,7 @@ char* PATH_BASE = NULL;
 
 // ****************************************************************************
 t_storage* iniciar_storage(){
-    t_storage* storage = malloc(sizeof(t_storage));
+    t_storage* storage = calloc(1, sizeof(t_storage));
 
     // ********* hack para poder cargar log_level del archivo config **********
     t_config* temp_config = config_create("storage.config");
@@ -31,6 +31,7 @@ t_storage* iniciar_storage(){
     storage->tamanio_filesystem = config_get_int_value(storage->superblock, "FS_SIZE");
     storage->bitmap = NULL;
     storage->path_bitmap = string_from_format("%s/bitmap.bin", storage->punto_montaje);
+    storage->cantidad_workers = 0;
 
     pthread_mutex_init(&storage->mutex_bitmap, NULL);
     pthread_mutex_init(&storage->mutex_hash_index, NULL); 
@@ -58,23 +59,32 @@ void verificar_storage(t_storage* s)
 
 // ****************************************************************************
 void destruir_storage(t_storage* storage){
-    if(storage != NULL){
-        if(storage->bitmap != NULL){
-            bitarray_destroy(storage->bitmap);
-        }
-        pthread_mutex_destroy(&storage->mutex_bitmap);
+    if (!storage) return;
+    
+    if (storage->logger) log_destroy(storage->logger);
+    if (storage->config) config_destroy(storage->config);
+    if (storage->superblock) config_destroy(storage->superblock);
+    if (storage->puerto_escucha) free(storage->puerto_escucha);
+    if (storage->punto_montaje) free(storage->punto_montaje);
+    if (storage->log_level) free(storage->log_level);
+    if (storage->bitmap) bitarray_destroy(storage->bitmap);
+    if (storage->path_bitmap) free(storage->path_bitmap);
+
+    if (storage->dict_locks_files) {
         dictionary_iterator(storage->dict_locks_files, destruir_mutex);
         dictionary_destroy(storage->dict_locks_files);
-        pthread_mutex_destroy(&storage->mutex_workers);
-        
-        pthread_mutex_destroy(&storage->mutex_dict_locks);
-        log_destroy(storage->logger);
-        config_destroy(storage->config);
-        free(storage->path_bitmap);
-        free(storage);
     }
+
+    pthread_mutex_destroy(&storage->mutex_bitmap);
+    pthread_mutex_destroy(&storage->mutex_workers);
+    pthread_mutex_destroy(&storage->mutex_dict_locks);
+    
+    free(storage);
+
 }
 
+
+// ****************************************************************************
 int rm_rf (const char* path){
     char* comando = string_from_format("rm -rf %s", path);
     int aux = system(comando);
