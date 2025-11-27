@@ -243,7 +243,7 @@ void atender_Query(t_hacerConnect*  informacion){ // RECORDAR CAMBIAR ESTRUCTURA
     }
 
     log_debug(logger,"Antes de desalojo \n");
-    chequeador_desalojo(nuevaQuery->prioridad,informacion);
+    chequeador_desalojo(nuevaQuery->prioridad,logger);
    log_debug(logger,"DEspues de desalojo \n");
  }else{
     free(informacion);
@@ -291,13 +291,13 @@ void* atender_timer_query(void* arg){
         if (query->estado == READY && query->prioridad > 0) {
             int prioridad_ant = query->prioridad;
             --query->prioridad;
-            log_info(logger,"## %d Cambio de prioridad: %d -> %d", query->id, prioridad_ant, query->prioridad);
+            log_info(logger,"## %d Cambio de prioridad: %d - %d", query->id, prioridad_ant, query->prioridad);
             // chequeador_desalojo necesita un t_hacerConnect* (info). Tenés que adaptar llamada:
             // actualmente chequeador_desalojo(query->prioridad, informacion);
             // como no tenemos 'informacion' aquí, podemos pasar un respaldo o refactorizar chequeador_desalojo
             // para que reciba solo prioridad y el id de la query. Para mantenerlo simple, llamamos con NULL y
             // ajustamos chequeador_desalojo para tolerar NULL logger.
-            chequeador_desalojo(query->prioridad, NULL);
+            chequeador_desalojo(query->prioridad, logger);
         }
         pthread_mutex_unlock(&mutexColaQuery);
 
@@ -316,43 +316,27 @@ void* atender_timer_query(void* arg){
 }
 
 
-void chequeador_desalojo(int prioridad, t_hacerConnect* info)
+void chequeador_desalojo(int prioridad, t_log* logger)
 {
-    // si info es NULL (viene del timer), usamos logger_master
-    t_log* logger = info->logger;
-
+   
     pthread_mutex_lock(&mutexColaQuery);
-    
-    // si no hay suficientes queries no se hace nada
-    if (list_size(cola_queries) < 1) {
-        pthread_mutex_unlock(&mutexColaQuery);
-        return;
-    }
-
-    // si la prioridad ya gatilla desalojo
-    if (prioridad <= 0) {
-        pthread_mutex_unlock(&mutexColaQuery);
-        return;
-    }
-
-    // Busca una query READY con menor prioridad para desalojar
-    for (int i = 0; i < list_size(cola_queries); i++) {
-        t_query* q = list_get(cola_queries, i);
-
-        if (q->estado == READY && q->prioridad > prioridad) {
-
-            log_info(logger, 
-                "## Desalojo activado: Query %d (prioridad %d) vence a Query %d (prioridad %d)",
-                info ? info->id : -1, prioridad, q->id, q->prioridad);
-
-            // Desalojo real...
-            // (tu código original acá, NO lo cambio)
-
-            break;
-        }
-    }
-
+    pthread_mutex_lock(&mutexQueryEnWorker);
+    if(list_is_empty(query_en_worker)){
+        log_debug(logger,"lista vacia \n");
+    pthread_mutex_unlock(&mutexQueryEnWorker);
     pthread_mutex_unlock(&mutexColaQuery);
+        return;
+    }
+
+    t_query* queryMayor =  list_get_maximum(query_en_worker, _max_prioridad);
+    pthread_mutex_lock(&mutexCantWorkers);
+    if(list_size(query_en_worker) == cantidadWorkers && prioridad< queryMayor->prioridad){
+       realizar_desalojo( queryMayor->id,queryMayor->prioridad,queryMayor->idWorker,logger,WORKER_DESALOJO);
+    }
+    pthread_mutex_unlock(&mutexCantWorkers);
+    pthread_mutex_unlock(&mutexQueryEnWorker);
+    pthread_mutex_unlock(&mutexColaQuery);
+
 }
 
 
