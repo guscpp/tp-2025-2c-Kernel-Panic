@@ -217,35 +217,40 @@ void* ejecutar_query(void* arg){
     while(1){ 
         dt_archivo = recibir_path_de_query(datos_ejecucion->master_socket, datos_ejecucion->w);
         
-        // Retorna el pcb con los datos del proceso a ejecutar
         if(dt_archivo == NULL){
-            continue; // Si hubo error, vuelvo a esperar
+            continue;
         }
 
         log_debug(datos_ejecucion->w->logger, "Llego el path_query: %s", dt_archivo->nombre_archivo);
         log_info(datos_ejecucion->w->logger, "## Query <%d>: Se recibe la Query. El path de operaciones es: <%s>", dt_archivo->query_id, dt_archivo->nombre_archivo);
+
         query_interpreter_ciclo(dt_archivo, datos_ejecucion->w);
     
-        if (dt_archivo->archivo != NULL) {
-            fclose(dt_archivo->archivo); // Por si executeEnd no se llamó (interrupción/error)
-        }
-        if (dt_archivo->nombre_archivo) free(dt_archivo->nombre_archivo);
-        if (dt_archivo) free(dt_archivo);
-        dt_archivo = NULL;
-
+        // Si la query terminó por desconexión, no liberar cosas acá
         if(query_desconectado){
+            // Cerrar archivo si sigue abierto
             if (dt_archivo->archivo != NULL) {
                 fclose(dt_archivo->archivo);
                 dt_archivo->archivo = NULL;
             }
+            // Liberar memoria del PCB completo
+            free(dt_archivo->nombre_archivo);
+            free(dt_archivo);
 
-            //if (dt_archivo->nombre_archivo) free(dt_archivo->nombre_archivo);
-            //if (dt_archivo->archivo != NULL) free(dt_archivo);
-            continue;
+            // Reset flag
+            query_desconectado = false;
+
+            continue;  // Volver a esperar otro path
         }
-    }
 
-    // Se eliminó la recursividad ejecutar_query(arg); para evitar Stack Overflow
+        // Caso normal: liberar memoria
+        if (dt_archivo->archivo != NULL) {
+            fclose(dt_archivo->archivo);
+        }
+        free(dt_archivo->nombre_archivo);
+        free(dt_archivo);
+        dt_archivo = NULL;
+    }
     return NULL;
 }
 
