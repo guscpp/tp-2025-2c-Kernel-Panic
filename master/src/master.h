@@ -69,7 +69,7 @@ void query_completado_con_exito(t_query* , t_hacerConnect* );
 
 t_query* obtener_menor_prioridad(t_list*);
 
-void chequeador_desalojo(int,t_hacerConnect* );
+void chequeador_desalojo(int prioridad, t_hacerConnect* info);
 void* _max_prioridad(void* , void* );
 
 void atender_worker_interrupt(t_hacerConnect*  ,int );
