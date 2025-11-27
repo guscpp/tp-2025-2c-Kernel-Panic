@@ -14,23 +14,18 @@ t_worker* inicializar_worker(int id_worker, char* config)
     t_worker *w = malloc(sizeof(t_worker));
 
     t_log* logger_temp = iniciar_logger("worker.log", "[WORKER_INIT]", true, LOG_LEVEL_INFO);
-
-    w->config = iniciar_config(logger_temp, config);  //cuidado que esta hardcodeado
-    
+    w->config = iniciar_config(logger_temp, config);
     // Obtener nivel real del config
     w->log_level = strdup(config_get_string_value(w->config, "LOG_LEVEL"));  
-
     t_log_level nivel = obtener_log_level(w->log_level);
-
     w->logger = iniciar_logger("worker.log", "[WORKER]", true, nivel);
-
      // Ya puedo destruir el logger temporal
     log_destroy(logger_temp);
 
     // TODO leer log_level del config
 //    w->logger = iniciar_logger("worker.log", "[WORKER_PRUEBA]", true, LOG_LEVEL_INFO);
 
-    w->config = iniciar_config(w->logger, "worker.config");  //cuidado que esta hardcodeado
+    w->config = iniciar_config(w->logger, config);  //cuidado que esta hardcodeado
     w->ip_master = config_get_string_value(w->config, "IP_MASTER");
     w->puerto_master = config_get_int_value(w->config, "PUERTO_MASTER");
     w->ip_storage = config_get_string_value(w->config, "IP_STORAGE");
@@ -158,10 +153,10 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
             // Intentar abrir el archivo
             dt_archivo->archivo = retornar_archivo(path_query, w->path_scripts, w->logger);
             if (dt_archivo->archivo == NULL) {
+                error_path_not_found(w->logger, WORKER_ERROR_QUERY_NO_ENCONTRADA, query_id, path_query);
                 free(path_query);
                 free(dt_archivo);
                 list_destroy_and_destroy_elements(paquete_path, free);
-                error_path_not_found(w->logger, WORKER_ERROR_QUERY_NO_ENCONTRADA, query_id, path_query);
                 return NULL;
             }
 
@@ -195,17 +190,18 @@ FILE* retornar_archivo(char* nombre_archivo, char* path_general, t_log* logger){
 
     char* path_final = string_new();
     string_append(&path_final, path_general);
+    string_append(&path_final, "/");
     string_append(&path_final, nombre_archivo);
     
     FILE* archivo_query = fopen(path_final, "r"); 
-
-    free(path_final);
 
     if (archivo_query == NULL) {
         log_debug(logger, "No se pudo abrir el archivo de query: %s", path_final); 
         free(path_final);
         return NULL;
     }
+
+    if (path_final) free(path_final);
 
     return archivo_query;
 }   

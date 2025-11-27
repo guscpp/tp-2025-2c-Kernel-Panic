@@ -22,6 +22,9 @@
     },
     {
       "path": "queries"
+    },
+    {
+      "path": "logs_de_tests"
     }
   ],
   "settings": {
