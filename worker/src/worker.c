@@ -218,7 +218,9 @@ void* ejecutar_query(void* arg){
         dt_archivo = recibir_path_de_query(datos_ejecucion->master_socket, datos_ejecucion->w);
         
         if(dt_archivo == NULL){
-            continue;
+            // Si el master se desconecto
+            log_warning(datos_ejecucion->w->logger, "Master desconectado. Terminando hilo de ejecución.");
+            pthread_exit(NULL);
         }
 
         log_debug(datos_ejecucion->w->logger, "Llego el path_query: %s", dt_archivo->nombre_archivo);
