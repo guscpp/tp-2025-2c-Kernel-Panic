@@ -1,0 +1,197 @@
+#!/bin/bash
+# Script: test_2a-prueba_memoria_worker-clock-m.sh
+# Descripción: Primera mitad de Prueba Memoria Worker - Algoritmo CLOCK-M
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+print_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
+print_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
+wait_with_message() {
+    local seconds=$1
+    local message=$2
+    print_info "$message - Esperando $seconds segundos..."
+    sleep $seconds
+}
+
+is_process_running() {
+    pgrep -f "$1" > /dev/null 2>&1
+}
+
+kill_tp_processes() {
+    print_info "Finalizando procesos del TP..."
+    pkill -f "./bin/storage" 2>/dev/null
+    pkill -f "./bin/master" 2>/dev/null
+    pkill -f "./bin/worker" 2>/dev/null
+    pkill -f "./bin/query_control" 2>/dev/null
+    sleep 2
+}
+
+safe_cleanup() {
+    echo
+    print_info "Ctrl+C recibido. Limpiando..."
+    kill_tp_processes
+    print_info "Limpieza completada. Saliendo..."
+    exit 0
+}
+
+trap safe_cleanup INT TERM
+
+BASE_DIR="$(pwd)"
+QUERIES_DIR="$BASE_DIR/queries"
+TEST_NAME="test_2a-prueba_memoria_worker-clock-m"
+LOG_DIR="$BASE_DIR/logs_de_tests/$TEST_NAME"
+
+mkdir -p "$LOG_DIR"
+
+# Agregar separador en logs
+SEPARATOR="==============================================================================="
+TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+LOG_HEADER="
+$SEPARATOR
+===  NUEVA EJECUCION: $TIMESTAMP                                   ===
+$SEPARATOR"
+
+for log in storage.log master.log worker.log query1.log; do
+    echo -e "$LOG_HEADER" >> "$LOG_DIR/$log"
+done
+
+print_info "Iniciando Test Memoria Worker - Primera Mitad (CLOCK-M)"
+print_info "Directorio base: $BASE_DIR"
+
+# Verificar binarios
+bins=(
+    "$BASE_DIR/storage/bin/storage"
+    "$BASE_DIR/master/bin/master"
+    "$BASE_DIR/worker/bin/worker"
+    "$BASE_DIR/query_control/bin/query_control"
+)
+for bin in "${bins[@]}"; do
+    [ -f "$bin" ] || { print_error "Binario no encontrado: $bin"; exit 1; }
+done
+print_info "Todos los binarios encontrados"
+
+# === CONFIGURAR .config LOCALES ===
+print_info "Configurando master/master.config para FIFO..."
+cat > "$BASE_DIR/master/master.config" << EOF
+PUERTO_ESCUCHA=9001
+ALGORITMO_PLANIFICACION=FIFO
+TIEMPO_AGING=0
+LOG_LEVEL=DEBUG
+EOF
+
+print_info "Configurando storage/storage.config (FRESH_START=FALSE)..."
+cat > "$BASE_DIR/storage/storage.config" << EOF
+PUERTO_ESCUCHA=9002
+FRESH_START=FALSE
+PUNTO_MONTAJE=$BASE_DIR/storage
+RETARDO_OPERACION=500
+RETARDO_ACCESO_BLOQUE=500
+LOG_LEVEL=DEBUG
+EOF
+
+# Configurar superblock.config según especificaciones
+print_info "Configurando superblock.config (FS_SIZE=4096, BLOCK_SIZE=16)..."
+cat > "$BASE_DIR/storage/superblock.config" << EOF
+BLOCK_SIZE=16
+FS_SIZE=4096
+EOF
+
+print_info "Configurando worker/worker.config para CLOCK-M..."
+cat > "$BASE_DIR/worker/worker.config" << EOF
+IP_MASTER=127.0.0.1
+PUERTO_MASTER=9001
+IP_STORAGE=127.0.0.1
+PUERTO_STORAGE=9002
+TAM_MEMORIA=48
+RETARDO_MEMORIA=250
+ALGORITMO_REEMPLAZO=CLOCK-M
+PATH_QUERIES=$QUERIES_DIR
+LOG_LEVEL=DEBUG
+EOF
+
+# Configurar query_control.config
+cat > "$BASE_DIR/query_control/query_control.config" << EOF
+IP_MASTER=127.0.0.1
+PUERTO_MASTER=9001
+LOG_LEVEL=DEBUG
+EOF
+print_info "query_control.config configurado"
+
+# === INICIAR MÓDULOS ===
+declare -a PIDS=()
+add_pid() { PIDS+=($1); }
+
+# Storage
+print_info "Iniciando Storage desde su carpeta..."
+cd "$BASE_DIR/storage"
+./bin/storage storage.config >> "$LOG_DIR/storage.log" 2>&1 &
+STORAGE_PID=$!
+add_pid $STORAGE_PID
+wait_with_message 5 "Esperando que Storage esté listo"
+if is_process_running "storage"; then
+    print_info "Storage iniciado (PID: $STORAGE_PID)"
+else
+    print_error "Error al iniciar Storage. Revisar $LOG_DIR/storage.log"
+    exit 1
+fi
+
+# Master
+print_info "Iniciando Master desde su carpeta..."
+cd "$BASE_DIR/master"
+./bin/master master.config >> "$LOG_DIR/master.log" 2>&1 &
+MASTER_PID=$!
+add_pid $MASTER_PID
+wait_with_message 5 "Esperando que Master esté listo"
+if is_process_running "master"; then
+    print_info "Master iniciado (PID: $MASTER_PID)"
+else
+    print_error "Error al iniciar Master. Revisar $LOG_DIR/master.log"
+    exit 1
+fi
+
+# Worker
+print_info "Iniciando Worker desde su carpeta..."
+cd "$BASE_DIR/worker"
+./bin/worker worker.config 1 >> "$LOG_DIR/worker.log" 2>&1 &
+WORKER_PID=$!
+add_pid $WORKER_PID
+wait_with_message 5 "Esperando que Worker esté listo"
+if is_process_running "worker"; then
+    print_info "Worker iniciado (PID: $WORKER_PID)"
+else
+    print_error "Error al iniciar Worker. Revisar $LOG_DIR/worker.log"
+    exit 1
+fi
+
+# === EJECUTAR QUERY MEMORIA_WORKER ===
+print_info "Ejecutando Query MEMORIA_WORKER con prioridad 0..."
+cd "$BASE_DIR/query_control"
+
+./bin/query_control query_control.config "$QUERIES_DIR/MEMORIA_WORKER" 0 >> "$LOG_DIR/query1.log" 2>&1 &
+QUERY1_PID=$!
+add_pid $QUERY1_PID
+
+print_info "Query MEMORIA_WORKER enviada (Prioridad: 0)"
+
+# === MONITOREO ===
+print_info "Monitoreando ejecución... Logs en: $LOG_DIR/"
+for i in {1..20}; do
+    sleep 5
+    q=$(pgrep -f "query_control" | wc -l)
+    print_info "Queries en ejecución: $q"
+    [ $q -eq 0 ] && { print_info "Query MEMORIA_WORKER finalizó"; break; }
+    if [ $i -eq 10 ]; then
+        print_warning "La query está tomando más tiempo del esperado..."
+    fi
+done
+
+print_info "=== PRIMERA MITAD TEST MEMORIA WORKER COMPLETADA ==="
+print_info "Se utilizó algoritmo CLOCK-M para reemplazo de páginas."
+print_info "Para la segunda mitad, cambiar algoritmo a LRU en worker.config"
+print_info "y ejecutar el script MEMORIA_WORKER_2."
+print_info "Presiona Ctrl+C para finalizar los módulos."
+while true; do sleep 10; done
