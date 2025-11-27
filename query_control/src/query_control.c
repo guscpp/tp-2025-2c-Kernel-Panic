@@ -118,19 +118,19 @@ void enviar_path_y_prioridad(t_query_control *qc)
 void procesar_respuestas_master(t_query_control* qc)
 {    
     while (1) {
-        log_warning(qc->logger, "** Esperando respuesta del Master...");
+        log_debug(qc->logger, "** Esperando respuesta del Master...");
         
         t_list* paqueteMaster = recibir_paquete(qc->master_socket);
         
         // Verificar si el paquete es NULL (conexión cerrada)
         if (paqueteMaster == NULL) {
-            log_error(qc->logger,"## Query Finalizada - Query Desconectada de Master");
+            log_info(qc->logger,"## Query Finalizada - Query Desconectada de Master");
             break;
         }
         
         int* codigo_operacion_ptr = list_get(paqueteMaster, 0);
         if (codigo_operacion_ptr == NULL) {
-            log_error(qc->logger, "** Error: código de operación nulo");
+            log_info(qc->logger, "** Error: código de operación nulo");
             list_destroy(paqueteMaster);
             continue;
         }
