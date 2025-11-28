@@ -268,50 +268,91 @@ void atender_Query(t_hacerConnect*  informacion){ // RECORDAR CAMBIAR ESTRUCTURA
     log_debug(logger,"\033[35m Hago un sem_signal \033[0m\n");
 
 }
-void* atender_timer_query(void* arg){
-    // Ahora arg es un t_query*
-    t_query* query = (t_query*) arg;
-    if (query == NULL) {
-        // proteccion defensiva
-        return NULL;
-    }
+// void* atender_timer_query(void* arg){
+//     // Ahora arg es un t_query*
+//     t_query* query = (t_query*) arg;
+//     if (query == NULL) {
+//         // proteccion defensiva
+//         return NULL;
+//     }
 
+//     t_log* logger = query->logger;
+
+//     // No hace falta buscar la query por id en la cola si ya tenemos el puntero.
+//     while (1) {
+//         // Si la query ya no está viva salimos
+//         if (!query->alive) break;
+
+//         sleep(tiempo_aging);
+
+//         // Protegemos el acceso con mutex de cola
+//         pthread_mutex_lock(&mutexColaQuery);
+//         // Rechequeamos que la query siga en estado READY antes de modificar prioridad
+//         if (query->estado == READY && query->prioridad > 0) {
+//             int prioridad_ant = query->prioridad;
+//             --query->prioridad;
+//             log_info(logger,"## %d Cambio de prioridad: %d - %d", query->id, prioridad_ant, query->prioridad);
+//             // chequeador_desalojo necesita un t_hacerConnect* (info). Tenés que adaptar llamada:
+//             // actualmente chequeador_desalojo(query->prioridad, informacion);
+//             // como no tenemos 'informacion' aquí, podemos pasar un respaldo o refactorizar chequeador_desalojo
+//             // para que reciba solo prioridad y el id de la query. Para mantenerlo simple, llamamos con NULL y
+//             // ajustamos chequeador_desalojo para tolerar NULL logger.
+//             chequeador_desalojo(query->prioridad, logger);
+//         }
+//         pthread_mutex_unlock(&mutexColaQuery);
+
+//         // Si la query está en otro estado esperamos a que la despierten (desalojo o desconexión)
+//         if (query->estado != READY) {
+//             // espera hasta que sem_post(&query->timer_query) ocurra (por desconexion o PC update)
+//             sem_wait(&query->timer_query);
+//         }
+
+//         // loop continúa hasta que query->alive == false
+//     }
+
+//     log_debug(logger, "Finaliza hilo de aging para query %d", query->id);
+//     // NO liberamos 'query' aquí — la liberación la maneja atender_desconexion_query
+//     return NULL;
+// }
+
+void* atender_timer_query(void* arg){
+    t_query* query = (t_query*) arg;
+    if (query == NULL) return NULL;
     t_log* logger = query->logger;
 
-    // No hace falta buscar la query por id en la cola si ya tenemos el puntero.
-    while (1) {
-        // Si la query ya no está viva salimos
+    while (query->alive) {
+        // CORRECCIÓN: Multiplicar por 1000 para pasar de ms a microsegundos
+        usleep(tiempo_aging * 1000); 
+
         if (!query->alive) break;
 
-        sleep(tiempo_aging);
+        bool hubo_cambio = false;
+        int prioridad_actualizada = 0;
 
-        // Protegemos el acceso con mutex de cola
         pthread_mutex_lock(&mutexColaQuery);
-        // Rechequeamos que la query siga en estado READY antes de modificar prioridad
+        // Verificar estado READY para aplicar aging
         if (query->estado == READY && query->prioridad > 0) {
             int prioridad_ant = query->prioridad;
-            --query->prioridad;
+            query->prioridad--;
+            prioridad_actualizada = query->prioridad;
+            hubo_cambio = true;
             log_info(logger,"## %d Cambio de prioridad: %d - %d", query->id, prioridad_ant, query->prioridad);
-            // chequeador_desalojo necesita un t_hacerConnect* (info). Tenés que adaptar llamada:
-            // actualmente chequeador_desalojo(query->prioridad, informacion);
-            // como no tenemos 'informacion' aquí, podemos pasar un respaldo o refactorizar chequeador_desalojo
-            // para que reciba solo prioridad y el id de la query. Para mantenerlo simple, llamamos con NULL y
-            // ajustamos chequeador_desalojo para tolerar NULL logger.
-            chequeador_desalojo(query->prioridad, logger);
         }
+        
+        // Importante: Guardar el estado antes de soltar mutex
+        int estado_actual = query->estado;
         pthread_mutex_unlock(&mutexColaQuery);
 
-        // Si la query está en otro estado esperamos a que la despierten (desalojo o desconexión)
-        if (query->estado != READY) {
-            // espera hasta que sem_post(&query->timer_query) ocurra (por desconexion o PC update)
-            sem_wait(&query->timer_query);
+        // Llamar al chequeador SIN el mutex bloqueado para evitar el deadlock del punto 1
+        if(hubo_cambio){
+            chequeador_desalojo(prioridad_actualizada, logger);
         }
 
-        // loop continúa hasta que query->alive == false
+        // Si no está en READY, esperamos señal para dormir el hilo de aging
+        if (estado_actual != READY && query->alive) {
+            sem_wait(&query->timer_query);
+        }
     }
-
-    log_debug(logger, "Finaliza hilo de aging para query %d", query->id);
-    // NO liberamos 'query' aquí — la liberación la maneja atender_desconexion_query
     return NULL;
 }
 
@@ -667,32 +708,67 @@ void atender_Worker(t_hacerConnect* informacion){
         }
     
 
-        case WORKER_PC_UPDATE:{
-            // tengo funcion obtener y eliminar por id... 
-            t_query* queryRecivida;
-            int idQuery = *(int*)list_get(paqueteWorker, 2);
+        // case WORKER_PC_UPDATE:{
+        //     // tengo funcion obtener y eliminar por id... 
+        //     t_query* queryRecivida;
+        //     int idQuery = *(int*)list_get(paqueteWorker, 2);
            
-            pthread_mutex_lock(&mutexQueryEnWorker);
-            queryRecivida = eliminar_por_id(query_en_worker,idQuery );
-            queryRecivida->estado= READY;
-            pthread_mutex_unlock(&mutexQueryEnWorker);
-            if(queryRecivida != NULL){
+        //     pthread_mutex_lock(&mutexQueryEnWorker);
+        //     queryRecivida = eliminar_por_id(query_en_worker,idQuery );
+        //     queryRecivida->estado= READY;
+        //     pthread_mutex_unlock(&mutexQueryEnWorker);
+        //     if(queryRecivida != NULL){
                 
             
-          //  int idWorker = queryRecivida -> idWorker;
-            queryRecivida->programCounter = *(int*)list_get(paqueteWorker, 3);
-            pthread_mutex_lock(&mutexColaQuery);
-            list_add(cola_queries, queryRecivida);
-            pthread_mutex_unlock(&mutexColaQuery);
-            sem_post(&queryRecivida->timer_query);
-            sem_post(&sem_queries);
-            log_debug(informacion->logger,"\033[35m Hago un sem_signal \033[0m\n");
-            log_debug(informacion->logger,"se recivbio la query desalojada");
-            }
-            comenzar_a_ejecutar(informacion,informacion->id);
-            break;
+        //   //  int idWorker = queryRecivida -> idWorker;
+        //     queryRecivida->programCounter = *(int*)list_get(paqueteWorker, 3);
+        //     pthread_mutex_lock(&mutexColaQuery);
+        //     list_add(cola_queries, queryRecivida);
+        //     pthread_mutex_unlock(&mutexColaQuery);
+        //     sem_post(&queryRecivida->timer_query);
+        //     sem_post(&sem_queries);
+        //     log_debug(informacion->logger,"\033[35m Hago un sem_signal \033[0m\n");
+        //     log_debug(informacion->logger,"se recivbio la query desalojada");
+        //     }
+        //     comenzar_a_ejecutar(informacion,informacion->id);
+        //     break;
 
+        // }
+
+        case WORKER_PC_UPDATE: {
+            t_query* queryRecibida;
+            int idQuery = *(int*)list_get(paqueteWorker, 2);
+
+            // 1. Bloqueamos solo para sacar la query de la lista de ejecución
+            pthread_mutex_lock(&mutexQueryEnWorker);
+            queryRecibida = eliminar_por_id(query_en_worker, idQuery);
+            pthread_mutex_unlock(&mutexQueryEnWorker); // <--- LIBERAMOS EL MUTEX AQUÍ (Clave para evitar Deadlock)
+
+            if (queryRecibida != NULL) {
+                queryRecibida->estado = READY;
+                // Actualizamos el PC que viene del worker
+                queryRecibida->programCounter = *(int*)list_get(paqueteWorker, 3);
+
+                // 2. Ahora bloqueamos la cola para reinsertarla
+                pthread_mutex_lock(&mutexColaQuery);
+                list_add(cola_queries, queryRecibida);
+                pthread_mutex_unlock(&mutexColaQuery);
+
+                // Avisamos al semáforo de aging (si corresponde) y al general
+                if (strcmp(algoritmo_planificacion, "PRIORIDADES") == 0) {
+                     sem_post(&queryRecibida->timer_query);
+                }
+                sem_post(&sem_queries);
+                
+                log_debug(informacion->logger, "Se recibió la query desalojada y se encoló nuevamente");
+            }
+            
+            list_destroy_and_destroy_elements(paqueteWorker, free);
+            comenzar_a_ejecutar(informacion, informacion->id);
+            break;
         }
+
+
          case WORKER_QUERY_DESCONECTADO:{
             // tengo funcion obtener y eliminar por id... 
             t_query* queryRecivida;

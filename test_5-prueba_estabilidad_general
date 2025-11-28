@@ -80,7 +80,7 @@ cat > "$BASE_DIR/master/master.config" << EOF
 PUERTO_ESCUCHA=9001
 ALGORITMO_PLANIFICACION=PRIORIDADES
 TIEMPO_AGING=250
-LOG_LEVEL=DEBUG
+LOG_LEVEL=INFO
 EOF
 
 print_info "Configurando storage/storage.config (FRESH_START=FALSE)..."
