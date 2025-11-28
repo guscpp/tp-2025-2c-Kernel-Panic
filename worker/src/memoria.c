@@ -57,8 +57,24 @@ int aplicar_lru(t_memoria_interna* mem, int query_id, char* file, char* tag, int
 
     log_info(mem->logger, "## Query<%d>: Se reemplaza la pagina <%s:%s>/<%d> por la <%s:%s>/<%d>",
              query_id, victima->file, victima->tag, victima->numero_pagina, file, tag, num_pagina);
+    
+    // CORRECCIÓN APLICADA AQUÍ
     if (victima->modificada) {
-        log_debug(mem->logger, "Query<%d>: Pagina modificada, deberia hacer FLUSH", query_id);
+        log_debug(mem->logger, "Query<%d>: Pagina modificada, realizando FLUSH por Swap", query_id);
+        
+        // 1. Enviar el Flush a Storage
+        flush_paginas_modificadas(mem, query_id, victima->file, victima->tag, mem->socket_storage);
+        
+        // 2. IMPORTANTE: Consumir la respuesta del Storage.
+        // Si no hacemos esto, el próximo 'recibir_paquete' (en pedir_bloque_storage) leerá 
+        // el OK del Flush en lugar del bloque de datos, causando error.
+        t_list* resp_flush = recibir_paquete(mem->socket_storage);
+        if (resp_flush) {
+             // Podríamos verificar que sea STORAGE_SEND_OK_FLUSH, pero lo importante es limpiar el socket
+             list_destroy_and_destroy_elements(resp_flush, free);
+        } else {
+             log_error(mem->logger, "Error al recibir respuesta de FLUSH en Swap LRU");
+        }
     }
 
     // Eliminar de tabla
@@ -148,8 +164,21 @@ int aplicar_clock_m(t_memoria_interna* mem, int query_id, char* file, char* tag,
     
     log_info(mem->logger, "## Query<%d>: Se reemplaza la pagina <%s:%s>/<%d> por la <%s:%s>/<%d>",
              query_id, entrada_victima->file, entrada_victima->tag, entrada_victima->numero_pagina, file, tag, num_pagina);
+    
+    // CORRECCIÓN APLICADA AQUÍ
     if (entrada_victima->modificada) {
-        log_debug(mem->logger, "Query<%d>: Pagina modificada, deberia hacer FLUSH", query_id);
+        log_debug(mem->logger, "Query<%d>: Pagina modificada, realizando FLUSH por Swap", query_id);
+        
+        // 1. Enviar Flush
+        flush_paginas_modificadas(mem, query_id, entrada_victima->file, entrada_victima->tag, mem->socket_storage);
+
+        // 2. Consumir respuesta (ACK)
+        t_list* resp_flush = recibir_paquete(mem->socket_storage);
+        if (resp_flush) {
+             list_destroy_and_destroy_elements(resp_flush, free);
+        } else {
+             log_error(mem->logger, "Error al recibir respuesta de FLUSH en Swap Clock-M");
+        }
     }
 
     // Eliminar de tabla
