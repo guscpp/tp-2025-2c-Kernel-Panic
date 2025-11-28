@@ -62,6 +62,23 @@ done
 print_info "Iniciando Prueba Estabilidad General - Workers dinámicos y múltiples queries"
 print_info "Directorio base: $BASE_DIR"
 
+# === SOLICITAR DEMORA ENTRE QUERIES ===
+echo
+print_info "CONFIGURACIÓN DE DEMORA ENTRE QUERIES"
+print_warning "Se lanzarán 100 queries en total (25 de cada tipo Aging)"
+echo
+read -p "Ingrese la demora en segundos entre cada query (recomendado: 0.5-2): " DELAY_BETWEEN_QUERIES
+
+# Validar que sea un número válido
+if ! [[ "$DELAY_BETWEEN_QUERIES" =~ ^[0-9]+(\.[0-9]+)?$ ]] || (( $(echo "$DELAY_BETWEEN_QUERIES < 0" | bc -l) )); then
+    print_error "Demora inválida. Usando valor por defecto: 1 segundo"
+    DELAY_BETWEEN_QUERIES=1
+else
+    print_info "Demora configurada: $DELAY_BETWEEN_QUERIES segundos entre cada query"
+fi
+
+echo
+
 # Verificar binarios
 bins=(
     "$BASE_DIR/storage/bin/storage"
@@ -237,23 +254,49 @@ add_pid $WORKER2_PID
 
 wait_with_message 5 "Esperando que Workers 1 y 2 estén listos"
 
-# === EJECUTAR 25 INSTANCIAS DE CADA QUERY AGING ===
-print_info "=== Ejecutando 25 instancias de cada Query Aging en segundo plano ==="
+# === EJECUTAR 25 INSTANCIAS DE CADA QUERY AGING CON DEMORA ===
+print_info "=== Ejecutando 25 instancias de cada Query Aging con demora de ${DELAY_BETWEEN_QUERIES}s ==="
 cd "$BASE_DIR/query_control"
+
+QUERY_COUNT=0
+TOTAL_QUERIES=100
 
 print_info "Lanzando 25 instancias de cada query Aging con prioridad 20..."
 for i in {1..25}; do
+    # AGING_1
     ./bin/query_control query_control.config "$QUERIES_DIR/AGING_1" 20 >> "$LOG_DIR/query_batch.log" 2>&1 &
     add_pid $!
+    QUERY_COUNT=$((QUERY_COUNT + 1))
+    print_info "Query $QUERY_COUNT/$TOTAL_QUERIES lanzada (AGING_1) - Demora: ${DELAY_BETWEEN_QUERIES}s"
+    sleep $DELAY_BETWEEN_QUERIES
+    
+    # AGING_2
     ./bin/query_control query_control.config "$QUERIES_DIR/AGING_2" 20 >> "$LOG_DIR/query_batch.log" 2>&1 &
     add_pid $!
+    QUERY_COUNT=$((QUERY_COUNT + 1))
+    print_info "Query $QUERY_COUNT/$TOTAL_QUERIES lanzada (AGING_2) - Demora: ${DELAY_BETWEEN_QUERIES}s"
+    sleep $DELAY_BETWEEN_QUERIES
+    
+    # AGING_3
     ./bin/query_control query_control.config "$QUERIES_DIR/AGING_3" 20 >> "$LOG_DIR/query_batch.log" 2>&1 &
     add_pid $!
+    QUERY_COUNT=$((QUERY_COUNT + 1))
+    print_info "Query $QUERY_COUNT/$TOTAL_QUERIES lanzada (AGING_3) - Demora: ${DELAY_BETWEEN_QUERIES}s"
+    sleep $DELAY_BETWEEN_QUERIES
+    
+    # AGING_4
     ./bin/query_control query_control.config "$QUERIES_DIR/AGING_4" 20 >> "$LOG_DIR/query_batch.log" 2>&1 &
     add_pid $!
+    QUERY_COUNT=$((QUERY_COUNT + 1))
+    print_info "Query $QUERY_COUNT/$TOTAL_QUERIES lanzada (AGING_4) - Demora: ${DELAY_BETWEEN_QUERIES}s"
+    
+    # Solo esperar si no es la última iteración
+    if [ $i -lt 25 ]; then
+        sleep $DELAY_BETWEEN_QUERIES
+    fi
 done
 
-print_info "Todas las queries lanzadas (100 total) - Esperando 30-60 segundos..."
+print_info "Todas las $TOTAL_QUERIES queries lanzadas - Esperando 30-60 segundos..."
 wait_with_message 40 "Espera inicial con Workers 1 y 2"
 
 # === FASE 2: INICIAR WORKERS 3 Y 4 ===
@@ -304,7 +347,6 @@ print_info "Workers 5 y 6 iniciados - Todos los workers 3-6 activos"
 print_info "=== MONITOREO FINAL: Esperando finalización de todas las queries ==="
 print_info "Monitoreando ejecución... Logs en: $LOG_DIR/"
 
-TOTAL_QUERIES=100
 for i in {1..60}; do
     sleep 10
     q=$(pgrep -f "query_control" | wc -l)
@@ -325,12 +367,6 @@ for i in {1..60}; do
 done
 
 print_info "=== PRUEBA ESTABILIDAD GENERAL COMPLETADA ==="
-print_info "Resultados esperados:"
-print_info "✓ No se observan esperas activas"
-print_info "✓ No hay memory leaks" 
-print_info "✓ Sistema no finalizó de manera abrupta"
-print_info "✓ Manejo correcto de conexiones/desconexiones dinámicas de workers"
-print_info "✓ Las queries completaron exitosamente a pesar de los cambios"
 print_info ""
 print_info "Logs disponibles en: $LOG_DIR/"
 print_info "Presiona Ctrl+C para finalizar todos los módulos."
