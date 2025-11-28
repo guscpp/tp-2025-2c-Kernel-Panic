@@ -255,10 +255,23 @@ void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* ta
     int despl_inicial = offset % mem->tamanio_pagina;
     int num_pagina_final = (offset + tam - 1) / mem->tamanio_pagina;
     
-    // 1. Verificar limites del archivo (consultando metadata)
-    char* metadata_path = string_from_format("%s/files/%s/%s/metadata.config",
-                                            "/home/utnso/TP_SSOO/tp-2025-2c-Kernel-Panic/storage", // Punto de montaje hardcodeado temporalmente
+    //construir ruta de storage a partir de la ruta de queries (que vienen del .config)
+    char* base_path = string_duplicate(w->path_scripts);
+    // Remover "/queries" del final
+    int len = strlen(base_path);
+    if (len >= 8 && strcmp(base_path + len - 8, "/queries") == 0) {
+        base_path[len - 8] = '\0'; // Truncar en "/queries"
+    } else {
+        log_error(mem->logger, "Formato inesperado de PATH_QUERIES: %s", w->path_scripts);
+        free(base_path);
+        return NULL;
+    }
+
+    char* metadata_path = string_from_format("%s/storage/files/%s/%s/metadata.config",
+                                            base_path,
                                             file, tag);
+    free(base_path);
+
     if (access(metadata_path, F_OK) != 0) {
         log_debug(mem->logger, "Query<%d>: No se pudo cargar metadata de <%s>:<%s>", query_id, file, tag);
         free(metadata_path);

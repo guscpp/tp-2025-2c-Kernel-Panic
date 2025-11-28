@@ -51,15 +51,15 @@ void verificar_storage(t_storage* storage);
 void destruir_storage(t_storage* storage);
 
 // === Funciones de servidor ===
-void rutina_recepcion(t_storage* storage, int storage_fd);
+void  rutina_recepcion(t_storage* storage, int storage_fd);
 void* rutina_operaciones(void* args);
-void enviar_tamanio_paquete_aworker(t_storage* storage, int worker_fd);
+void  enviar_tamanio_paquete_aworker(t_storage* storage, int worker_fd);
 
 // === Utilidades FS ===
 char* obtener_ruta_absoluta(char* ruta_rel);
-void crear_directorios(char* ruta_rel);
-void mkdir_recursivo(const char* ruta_abs);
-int rm_rf(const char* path);
+void  crear_directorios(char* ruta_rel);
+void  mkdir_recursivo(const char* ruta_abs);
+int   rm_rf(const char* path);
 
 // === Inicialización interna (usadas en storage.c) ===
 void formatear_fs(t_storage* storage);
@@ -71,7 +71,6 @@ void recrear_hash(char* path_hash);
 void destruir_mutex(char* key, void* value);
 void destruir_mutex_lock(void* data);
 void destruir_dict_locks(t_dictionary* dict);
-
 
 // === Pruebas ===
 void rutina_recepcion(t_storage* storage, int storage_fd);
