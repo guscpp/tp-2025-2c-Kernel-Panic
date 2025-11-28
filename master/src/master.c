@@ -218,13 +218,16 @@ void atender_Query(t_hacerConnect*  informacion){ // RECORDAR CAMBIAR ESTRUCTURA
    nuevaQuery->path = string_duplicate(pathFromPaquete);
    nuevaQuery->prioridad = *(int*)list_get(paqueteQuery, 2);
    nuevaQuery->logger = logger;
+   nuevaQuery->idWorker = -1;
+   nuevaQuery->timer_query = NULL;
+   nuevaQuery->hilo_timer = NULL;
    list_destroy_and_destroy_elements(paqueteQuery, free);
    pthread_t hilo_vigilante;
-   pthread_create(&hilo_vigilante, NULL, atender_desconexion_query, nuevaQuery);
-   pthread_detach(hilo_vigilante);
    nuevaQuery->socket = informacion->socket_conexion;
    nuevaQuery->programCounter = 0 ;
    nuevaQuery->estado= READY;
+   pthread_create(&hilo_vigilante, NULL, atender_desconexion_query, nuevaQuery);
+   pthread_detach(hilo_vigilante);
   
    pthread_mutex_lock(&mutexCantWorkers);
    log_info(logger, "## Se conecta un Query Control para ejecutar la Query %s con prioridad %d - Id asignado: %d . Nivel de multiprocesamiento %d" , nuevaQuery->path, nuevaQuery->prioridad, nuevaQuery->id, cantidadWorkers);
@@ -246,6 +249,8 @@ void atender_Query(t_hacerConnect*  informacion){ // RECORDAR CAMBIAR ESTRUCTURA
     chequeador_desalojo(nuevaQuery->prioridad,logger);
    log_debug(logger,"DEspues de desalojo \n");
  }else{
+    //Para fifo 
+    sem_init(&(nuevaQuery->timer_query), 0, 0);
     free(informacion);
  }
  /*
