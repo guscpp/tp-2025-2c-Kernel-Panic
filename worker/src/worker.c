@@ -155,9 +155,9 @@ Pcb* recibir_path_de_query(int master_socket, t_worker* w)
             if (dt_archivo->archivo == NULL) {
                 error_path_not_found(w->logger, WORKER_ERROR_QUERY_NO_ENCONTRADA, query_id, path_query);
                 free(path_query);
-                free(dt_archivo);
+                //free(dt_archivo);
                 list_destroy_and_destroy_elements(paquete_path, free);
-                return NULL;
+                return dt_archivo;
             }
 
             dt_archivo->nombre_archivo = path_query;
@@ -223,32 +223,21 @@ void* ejecutar_query(void* arg){
             pthread_exit(NULL);
         }
 
+        // Si el archivo no se pudo abrir, ya fue reportado, pero dt_archivo existe
+        if (dt_archivo->archivo == NULL) {
+            // Ya se envió el error a Master, solo liberamos
+            free(dt_archivo->nombre_archivo);
+            free(dt_archivo);
+            continue;  // espera próxima query
+        }
+
         log_debug(datos_ejecucion->w->logger, "Llego el path_query: %s", dt_archivo->nombre_archivo);
         log_info(datos_ejecucion->w->logger, "## Query <%d>: Se recibe la Query. El path de operaciones es: <%s>", dt_archivo->query_id, dt_archivo->nombre_archivo);
 
         query_interpreter_ciclo(dt_archivo, datos_ejecucion->w);
     
-        // Si la query terminó por desconexión, no liberar cosas acá
-        if(query_desconectado){
-            // Cerrar archivo si sigue abierto
-            if (dt_archivo->archivo != NULL) {
-                fclose(dt_archivo->archivo);
-                dt_archivo->archivo = NULL;
-            }
-            // Liberar memoria del PCB completo
-            free(dt_archivo->nombre_archivo);
-            free(dt_archivo);
-
-            // Reset flag
-            query_desconectado = false;
-
-            continue;  // Volver a esperar otro path
-        }
-
         // Caso normal: liberar memoria
-        if (dt_archivo->archivo != NULL) {
-            fclose(dt_archivo->archivo);
-        }
+        if (dt_archivo->archivo) fclose(dt_archivo->archivo);
         free(dt_archivo->nombre_archivo);
         free(dt_archivo);
         dt_archivo = NULL;
