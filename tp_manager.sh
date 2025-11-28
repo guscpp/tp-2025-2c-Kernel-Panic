@@ -12,9 +12,40 @@ print_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 print_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
+wait_with_message() {
+    local seconds=$1
+    local message=$2
+    print_info "$message - Esperando $seconds segundos..."
+    sleep $seconds
+}
+
+is_process_running() {
+    pgrep -f "$1" > /dev/null 2>&1
+}
+
+kill_tp_processes() {
+    print_info "Finalizando procesos del TP..."
+    pkill -f "./bin/storage" 2>/dev/null
+    pkill -f "./bin/master" 2>/dev/null
+    pkill -f "./bin/worker" 2>/dev/null
+    pkill -f "./bin/query_control" 2>/dev/null
+    sleep 2
+}
+
+safe_cleanup() {
+    echo
+    print_info "Ctrl+C recibido. Limpiando..."
+    kill_tp_processes
+    print_info "Limpieza completada. Saliendo..."
+    exit 0
+}
+
+trap safe_cleanup INT TERM
+
 BASE_DIR="$(pwd)"
 IP_FILE="$BASE_DIR/dirs_ip.tmp"
 LOGS_BASE_DIR="$BASE_DIR/logs_de_tests"
+QUERIES_DIR="$BASE_DIR/queries"
 
 # Función para crear directorio de logs
 setup_logs_dir() {
@@ -202,6 +233,23 @@ if [[ ! $confirm =~ ^[Ss]$ ]]; then
     exit 0
 fi
 
+# Verificar binarios
+print_info "Verificando binarios..."
+bins=(
+    "$BASE_DIR/storage/bin/storage"
+    "$BASE_DIR/master/bin/master"
+    "$BASE_DIR/worker/bin/worker"
+    "$BASE_DIR/query_control/bin/query_control"
+)
+for bin in "${bins[@]}"; do
+    [ -f "$bin" ] || { print_error "Binario no encontrado: $bin"; exit 1; }
+done
+print_info "Todos los binarios encontrados"
+
+# Array para guardar PIDs
+declare -a PIDS=()
+add_pid() { PIDS+=($1); }
+
 # Función para configurar y ejecutar módulos
 run_module() {
     local module=$1
@@ -280,10 +328,17 @@ EOF
             ;;
     esac
     
-    print_info "Ejecutando Master..."
+    print_info "Iniciando Master desde su carpeta..."
     ./bin/master master.config >> "$LOG_DIR/master.log" 2>&1 &
     MASTER_PID=$!
-    print_info "Master iniciado (PID: $MASTER_PID)"
+    add_pid $MASTER_PID
+    wait_with_message 5 "Esperando que Master esté listo"
+    if is_process_running "master"; then
+        print_info "Master iniciado (PID: $MASTER_PID)"
+    else
+        print_error "Error al iniciar Master. Revisar $LOG_DIR/master.log"
+        exit 1
+    fi
 }
 
 # Configuración y ejecución del Storage
@@ -326,10 +381,17 @@ RETARDO_ACCESO_BLOQUE=$RETARDO
 LOG_LEVEL=INFO
 EOF
     
-    print_info "Ejecutando Storage..."
+    print_info "Iniciando Storage desde su carpeta..."
     ./bin/storage storage.config >> "$LOG_DIR/storage.log" 2>&1 &
     STORAGE_PID=$!
-    print_info "Storage iniciado (PID: $STORAGE_PID)"
+    add_pid $STORAGE_PID
+    wait_with_message 5 "Esperando que Storage esté listo"
+    if is_process_running "storage"; then
+        print_info "Storage iniciado (PID: $STORAGE_PID)"
+    else
+        print_error "Error al iniciar Storage. Revisar $LOG_DIR/storage.log"
+        exit 1
+    fi
 }
 
 # Configuración y ejecución de Workers
@@ -340,7 +402,7 @@ config_and_run_worker() {
     
     case $test_num in
         1) # Test 1A - 2 Workers
-            print_info "Iniciando 2 Workers para Test 1A..."
+            print_info "Iniciando Workers desde su carpeta..."
             
             # Worker 1
             cat > worker1.config << EOF
@@ -351,12 +413,16 @@ PUERTO_STORAGE=$STORAGE_PORT
 TAM_MEMORIA=1024
 RETARDO_MEMORIA=500
 ALGORITMO_REEMPLAZO=LRU
-PATH_QUERIES=$BASE_DIR/queries
+PATH_QUERIES=$QUERIES_DIR
 LOG_LEVEL=INFO
 EOF
+            print_info "Iniciando Worker 1 con worker1.config..."
             ./bin/worker worker1.config 1 >> "$LOG_DIR/worker1.log" 2>&1 &
             WORKER1_PID=$!
-            print_info "Worker 1 iniciado (PID: $WORKER1_PID)"
+            add_pid $WORKER1_PID
+            
+            # Espera breve para evitar race condition
+            sleep 1
             
             # Worker 2
             cat > worker2.config << EOF
@@ -367,12 +433,21 @@ PUERTO_STORAGE=$STORAGE_PORT
 TAM_MEMORIA=1024
 RETARDO_MEMORIA=500
 ALGORITMO_REEMPLAZO=CLOCK-M
-PATH_QUERIES=$BASE_DIR/queries
+PATH_QUERIES=$QUERIES_DIR
 LOG_LEVEL=INFO
 EOF
+            print_info "Iniciando Worker 2 con worker2.config..."
             ./bin/worker worker2.config 2 >> "$LOG_DIR/worker2.log" 2>&1 &
             WORKER2_PID=$!
-            print_info "Worker 2 iniciado (PID: $WORKER2_PID)"
+            add_pid $WORKER2_PID
+            
+            wait_with_message 5 "Esperando que Workers estén listos"
+            if [ $(pgrep -f "worker" | wc -l) -ge 2 ]; then
+                print_info "Workers iniciados (PIDs: $WORKER1_PID, $WORKER2_PID)"
+            else
+                print_error "Error al iniciar Workers. Revisar logs."
+                exit 1
+            fi
             ;;
             
         2) # Test 1B - 2 Workers (misma config que 1A)
@@ -380,7 +455,7 @@ EOF
             ;;
             
         3) # Test 2A - 1 Worker CLOCK-M
-            print_info "Iniciando Worker CLOCK-M para Test 2A..."
+            print_info "Iniciando Worker desde su carpeta..."
             cat > worker.config << EOF
 IP_MASTER=$MASTER_IP
 PUERTO_MASTER=$MASTER_PORT
@@ -389,16 +464,23 @@ PUERTO_STORAGE=$STORAGE_PORT
 TAM_MEMORIA=48
 RETARDO_MEMORIA=250
 ALGORITMO_REEMPLAZO=CLOCK-M
-PATH_QUERIES=$BASE_DIR/queries
+PATH_QUERIES=$QUERIES_DIR
 LOG_LEVEL=INFO
 EOF
             ./bin/worker worker.config 1 >> "$LOG_DIR/worker.log" 2>&1 &
             WORKER_PID=$!
-            print_info "Worker CLOCK-M iniciado (PID: $WORKER_PID)"
+            add_pid $WORKER_PID
+            wait_with_message 5 "Esperando que Worker esté listo"
+            if is_process_running "worker"; then
+                print_info "Worker iniciado (PID: $WORKER_PID)"
+            else
+                print_error "Error al iniciar Worker. Revisar $LOG_DIR/worker.log"
+                exit 1
+            fi
             ;;
             
         4) # Test 2B - 1 Worker LRU
-            print_info "Iniciando Worker LRU para Test 2B..."
+            print_info "Iniciando Worker desde su carpeta..."
             cat > worker.config << EOF
 IP_MASTER=$MASTER_IP
 PUERTO_MASTER=$MASTER_PORT
@@ -407,16 +489,23 @@ PUERTO_STORAGE=$STORAGE_PORT
 TAM_MEMORIA=48
 RETARDO_MEMORIA=250
 ALGORITMO_REEMPLAZO=LRU
-PATH_QUERIES=$BASE_DIR/queries
+PATH_QUERIES=$QUERIES_DIR
 LOG_LEVEL=INFO
 EOF
             ./bin/worker worker.config 1 >> "$LOG_DIR/worker.log" 2>&1 &
             WORKER_PID=$!
-            print_info "Worker LRU iniciado (PID: $WORKER_PID)"
+            add_pid $WORKER_PID
+            wait_with_message 5 "Esperando que Worker esté listo"
+            if is_process_running "worker"; then
+                print_info "Worker iniciado (PID: $WORKER_PID)"
+            else
+                print_error "Error al iniciar Worker. Revisar $LOG_DIR/worker.log"
+                exit 1
+            fi
             ;;
             
         5) # Test 3 - 1 Worker
-            print_info "Iniciando Worker para Test 3..."
+            print_info "Iniciando Worker desde su carpeta..."
             cat > worker.config << EOF
 IP_MASTER=$MASTER_IP
 PUERTO_MASTER=$MASTER_PORT
@@ -425,16 +514,23 @@ PUERTO_STORAGE=$STORAGE_PORT
 TAM_MEMORIA=256
 RETARDO_MEMORIA=250
 ALGORITMO_REEMPLAZO=LRU
-PATH_QUERIES=$BASE_DIR/queries
+PATH_QUERIES=$QUERIES_DIR
 LOG_LEVEL=INFO
 EOF
             ./bin/worker worker.config 1 >> "$LOG_DIR/worker.log" 2>&1 &
             WORKER_PID=$!
-            print_info "Worker iniciado (PID: $WORKER_PID)"
+            add_pid $WORKER_PID
+            wait_with_message 5 "Esperando que Worker esté listo"
+            if is_process_running "worker"; then
+                print_info "Worker iniciado (PID: $WORKER_PID)"
+            else
+                print_error "Error al iniciar Worker. Revisar $LOG_DIR/worker.log"
+                exit 1
+            fi
             ;;
             
         6|7) # Tests 4A, 4B - 1 Worker
-            print_info "Iniciando Worker para Test 4..."
+            print_info "Iniciando Worker desde su carpeta..."
             cat > worker.config << EOF
 IP_MASTER=$MASTER_IP
 PUERTO_MASTER=$MASTER_PORT
@@ -443,16 +539,23 @@ PUERTO_STORAGE=$STORAGE_PORT
 TAM_MEMORIA=128
 RETARDO_MEMORIA=250
 ALGORITMO_REEMPLAZO=LRU
-PATH_QUERIES=$BASE_DIR/queries
+PATH_QUERIES=$QUERIES_DIR
 LOG_LEVEL=INFO
 EOF
             ./bin/worker worker.config 1 >> "$LOG_DIR/worker.log" 2>&1 &
             WORKER_PID=$!
-            print_info "Worker iniciado (PID: $WORKER_PID)"
+            add_pid $WORKER_PID
+            wait_with_message 5 "Esperando que Worker esté listo"
+            if is_process_running "worker"; then
+                print_info "Worker iniciado (PID: $WORKER_PID)"
+            else
+                print_error "Error al iniciar Worker. Revisar $LOG_DIR/worker.log"
+                exit 1
+            fi
             ;;
             
         8) # Test 5 - Múltiples Workers
-            print_info "Iniciando 6 Workers para Test 5..."
+            print_info "Iniciando Workers desde su carpeta..."
             
             # Worker 1
             cat > worker1.config << EOF
@@ -463,11 +566,12 @@ PUERTO_STORAGE=$STORAGE_PORT
 TAM_MEMORIA=128
 RETARDO_MEMORIA=100
 ALGORITMO_REEMPLAZO=LRU
-PATH_QUERIES=$BASE_DIR/queries
+PATH_QUERIES=$QUERIES_DIR
 LOG_LEVEL=INFO
 EOF
             ./bin/worker worker1.config 1 >> "$LOG_DIR/worker1.log" 2>&1 &
-            print_info "Worker 1 iniciado (PID: $!)"
+            add_pid $!
+            print_info "Worker 1 iniciado"
             
             # Worker 2
             cat > worker2.config << EOF
@@ -478,11 +582,12 @@ PUERTO_STORAGE=$STORAGE_PORT
 TAM_MEMORIA=256
 RETARDO_MEMORIA=50
 ALGORITMO_REEMPLAZO=CLOCK-M
-PATH_QUERIES=$BASE_DIR/queries
+PATH_QUERIES=$QUERIES_DIR
 LOG_LEVEL=INFO
 EOF
             ./bin/worker worker2.config 2 >> "$LOG_DIR/worker2.log" 2>&1 &
-            print_info "Worker 2 iniciado (PID: $!)"
+            add_pid $!
+            print_info "Worker 2 iniciado"
             
             # Worker 3
             cat > worker3.config << EOF
@@ -493,11 +598,12 @@ PUERTO_STORAGE=$STORAGE_PORT
 TAM_MEMORIA=64
 RETARDO_MEMORIA=150
 ALGORITMO_REEMPLAZO=CLOCK-M
-PATH_QUERIES=$BASE_DIR/queries
+PATH_QUERIES=$QUERIES_DIR
 LOG_LEVEL=INFO
 EOF
             ./bin/worker worker3.config 3 >> "$LOG_DIR/worker3.log" 2>&1 &
-            print_info "Worker 3 iniciado (PID: $!)"
+            add_pid $!
+            print_info "Worker 3 iniciado"
             
             # Worker 4
             cat > worker4.config << EOF
@@ -508,11 +614,12 @@ PUERTO_STORAGE=$STORAGE_PORT
 TAM_MEMORIA=96
 RETARDO_MEMORIA=125
 ALGORITMO_REEMPLAZO=LRU
-PATH_QUERIES=$BASE_DIR/queries
+PATH_QUERIES=$QUERIES_DIR
 LOG_LEVEL=INFO
 EOF
             ./bin/worker worker4.config 4 >> "$LOG_DIR/worker4.log" 2>&1 &
-            print_info "Worker 4 iniciado (PID: $!)"
+            add_pid $!
+            print_info "Worker 4 iniciado"
             
             # Worker 5
             cat > worker5.config << EOF
@@ -523,11 +630,12 @@ PUERTO_STORAGE=$STORAGE_PORT
 TAM_MEMORIA=160
 RETARDO_MEMORIA=75
 ALGORITMO_REEMPLAZO=LRU
-PATH_QUERIES=$BASE_DIR/queries
+PATH_QUERIES=$QUERIES_DIR
 LOG_LEVEL=INFO
 EOF
             ./bin/worker worker5.config 5 >> "$LOG_DIR/worker5.log" 2>&1 &
-            print_info "Worker 5 iniciado (PID: $!)"
+            add_pid $!
+            print_info "Worker 5 iniciado"
             
             # Worker 6
             cat > worker6.config << EOF
@@ -538,11 +646,15 @@ PUERTO_STORAGE=$STORAGE_PORT
 TAM_MEMORIA=192
 RETARDO_MEMORIA=175
 ALGORITMO_REEMPLAZO=CLOCK-M
-PATH_QUERIES=$BASE_DIR/queries
+PATH_QUERIES=$QUERIES_DIR
 LOG_LEVEL=INFO
 EOF
             ./bin/worker worker6.config 6 >> "$LOG_DIR/worker6.log" 2>&1 &
-            print_info "Worker 6 iniciado (PID: $!)"
+            add_pid $!
+            print_info "Worker 6 iniciado"
+            
+            wait_with_message 5 "Esperando que Workers estén listos"
+            print_info "Todos los Workers iniciados"
             ;;
     esac
 }
@@ -561,68 +673,137 @@ EOF
     
     case $test_num in
         1) # Test 1A - FIFO
-            print_info "Ejecutando queries FIFO..."
-            ./bin/query_control query_control.config "$BASE_DIR/queries/FIFO_1" 4 >> "$LOG_DIR/query1.log" 2>&1
-            sleep 2
-            ./bin/query_control query_control.config "$BASE_DIR/queries/FIFO_2" 3 >> "$LOG_DIR/query2.log" 2>&1
-            sleep 2
-            ./bin/query_control query_control.config "$BASE_DIR/queries/FIFO_3" 5 >> "$LOG_DIR/query3.log" 2>&1
-            sleep 2
-            ./bin/query_control query_control.config "$BASE_DIR/queries/FIFO_4" 1 >> "$LOG_DIR/query4.log" 2>&1
+            print_info "Ejecutando Queries FIFO..."
+            
+            ./bin/query_control query_control.config "$QUERIES_DIR/FIFO_1" 4 >> "$LOG_DIR/query1.log" 2>&1 &
+            QUERY1_PID=$!
+            add_pid $QUERY1_PID
+            wait_with_message 2 "Entre queries"
+            
+            ./bin/query_control query_control.config "$QUERIES_DIR/FIFO_2" 3 >> "$LOG_DIR/query2.log" 2>&1 &
+            QUERY2_PID=$!
+            add_pid $QUERY2_PID
+            wait_with_message 2 "Entre queries"
+            
+            ./bin/query_control query_control.config "$QUERIES_DIR/FIFO_3" 5 >> "$LOG_DIR/query3.log" 2>&1 &
+            QUERY3_PID=$!
+            add_pid $QUERY3_PID
+            wait_with_message 2 "Entre queries"
+            
+            ./bin/query_control query_control.config "$QUERIES_DIR/FIFO_4" 1 >> "$LOG_DIR/query4.log" 2>&1 &
+            QUERY4_PID=$!
+            add_pid $QUERY4_PID
+            
+            print_info "Todas las queries FIFO enviadas"
             ;;
         2) # Test 1B - PRIORIDADES
-            print_info "Ejecutando queries AGING..."
-            ./bin/query_control query_control.config "$BASE_DIR/queries/AGING_1" 4 >> "$LOG_DIR/query1.log" 2>&1
-            sleep 2
-            ./bin/query_control query_control.config "$BASE_DIR/queries/AGING_2" 3 >> "$LOG_DIR/query2.log" 2>&1
-            sleep 2
-            ./bin/query_control query_control.config "$BASE_DIR/queries/AGING_3" 5 >> "$LOG_DIR/query3.log" 2>&1
-            sleep 2
-            ./bin/query_control query_control.config "$BASE_DIR/queries/AGING_4" 1 >> "$LOG_DIR/query4.log" 2>&1
+            print_info "Ejecutando Queries AGING..."
+            
+            ./bin/query_control query_control.config "$QUERIES_DIR/AGING_1" 4 >> "$LOG_DIR/query1.log" 2>&1 &
+            QUERY1_PID=$!
+            add_pid $QUERY1_PID
+            wait_with_message 2 "Entre queries"
+            
+            ./bin/query_control query_control.config "$QUERIES_DIR/AGING_2" 3 >> "$LOG_DIR/query2.log" 2>&1 &
+            QUERY2_PID=$!
+            add_pid $QUERY2_PID
+            wait_with_message 2 "Entre queries"
+            
+            ./bin/query_control query_control.config "$QUERIES_DIR/AGING_3" 5 >> "$LOG_DIR/query3.log" 2>&1 &
+            QUERY3_PID=$!
+            add_pid $QUERY3_PID
+            wait_with_message 2 "Entre queries"
+            
+            ./bin/query_control query_control.config "$QUERIES_DIR/AGING_4" 1 >> "$LOG_DIR/query4.log" 2>&1 &
+            QUERY4_PID=$!
+            add_pid $QUERY4_PID
+            
+            print_info "Todas las queries AGING enviadas"
             ;;
         3) # Test 2A - CLOCK-M
-            print_info "Ejecutando MEMORIA_WORKER..."
-            ./bin/query_control query_control.config "$BASE_DIR/queries/MEMORIA_WORKER" 0 >> "$LOG_DIR/query1.log" 2>&1
+            print_info "Ejecutando Query MEMORIA_WORKER..."
+            ./bin/query_control query_control.config "$QUERIES_DIR/MEMORIA_WORKER" 0 >> "$LOG_DIR/query1.log" 2>&1 &
+            QUERY1_PID=$!
+            add_pid $QUERY1_PID
+            print_info "Query MEMORIA_WORKER enviada"
             ;;
         4) # Test 2B - LRU
-            print_info "Ejecutando MEMORIA_WORKER_2..."
-            ./bin/query_control query_control.config "$BASE_DIR/queries/MEMORIA_WORKER_2" 0 >> "$LOG_DIR/query1.log" 2>&1
+            print_info "Ejecutando Query MEMORIA_WORKER_2..."
+            ./bin/query_control query_control.config "$QUERIES_DIR/MEMORIA_WORKER_2" 0 >> "$LOG_DIR/query1.log" 2>&1 &
+            QUERY1_PID=$!
+            add_pid $QUERY1_PID
+            print_info "Query MEMORIA_WORKER_2 enviada"
             ;;
         5) # Test 3 - Errores
-            print_info "Ejecutando queries de error..."
-            ./bin/query_control query_control.config "$BASE_DIR/queries/ESCRITURA_ARCHIVO_COMMITED" 1 >> "$LOG_DIR/query1.log" 2>&1
-            sleep 2
-            ./bin/query_control query_control.config "$BASE_DIR/queries/FILE_EXISTENTE" 1 >> "$LOG_DIR/query2.log" 2>&1
-            sleep 2
-            ./bin/query_control query_control.config "$BASE_DIR/queries/LECTURA_FUERA_DEL_LIMITE" 1 >> "$LOG_DIR/query3.log" 2>&1
-            sleep 2
-            ./bin/query_control query_control.config "$BASE_DIR/queries/TAG_EXISTENTE" 1 >> "$LOG_DIR/query4.log" 2>&1
+            print_info "Ejecutando Queries de Errores..."
+            
+            ./bin/query_control query_control.config "$QUERIES_DIR/ESCRITURA_ARCHIVO_COMMITED" 1 >> "$LOG_DIR/query1.log" 2>&1 &
+            QUERY1_PID=$!
+            add_pid $QUERY1_PID
+            wait_with_message 2 "Entre queries"
+            
+            ./bin/query_control query_control.config "$QUERIES_DIR/FILE_EXISTENTE" 1 >> "$LOG_DIR/query2.log" 2>&1 &
+            QUERY2_PID=$!
+            add_pid $QUERY2_PID
+            wait_with_message 2 "Entre queries"
+            
+            ./bin/query_control query_control.config "$QUERIES_DIR/LECTURA_FUERA_DEL_LIMITE" 1 >> "$LOG_DIR/query3.log" 2>&1 &
+            QUERY3_PID=$!
+            add_pid $QUERY3_PID
+            wait_with_message 2 "Entre queries"
+            
+            ./bin/query_control query_control.config "$QUERIES_DIR/TAG_EXISTENTE" 1 >> "$LOG_DIR/query4.log" 2>&1 &
+            QUERY4_PID=$!
+            add_pid $QUERY4_PID
+            
+            print_info "Todas las queries de errores enviadas"
             ;;
         6) # Test 4A - Storage primera mitad
-            print_info "Ejecutando STORAGE 1-4..."
-            ./bin/query_control query_control.config "$BASE_DIR/queries/STORAGE_1" 0 >> "$LOG_DIR/query1.log" 2>&1
-            sleep 2
-            ./bin/query_control query_control.config "$BASE_DIR/queries/STORAGE_2" 2 >> "$LOG_DIR/query2.log" 2>&1
-            sleep 2
-            ./bin/query_control query_control.config "$BASE_DIR/queries/STORAGE_3" 4 >> "$LOG_DIR/query3.log" 2>&1
-            sleep 2
-            ./bin/query_control query_control.config "$BASE_DIR/queries/STORAGE_4" 6 >> "$LOG_DIR/query4.log" 2>&1
+            print_info "Ejecutando Queries STORAGE 1-4..."
+            
+            ./bin/query_control query_control.config "$QUERIES_DIR/STORAGE_1" 0 >> "$LOG_DIR/query1.log" 2>&1 &
+            QUERY1_PID=$!
+            add_pid $QUERY1_PID
+            wait_with_message 2 "Entre queries"
+            
+            ./bin/query_control query_control.config "$QUERIES_DIR/STORAGE_2" 2 >> "$LOG_DIR/query2.log" 2>&1 &
+            QUERY2_PID=$!
+            add_pid $QUERY2_PID
+            wait_with_message 2 "Entre queries"
+            
+            ./bin/query_control query_control.config "$QUERIES_DIR/STORAGE_3" 4 >> "$LOG_DIR/query3.log" 2>&1 &
+            QUERY3_PID=$!
+            add_pid $QUERY3_PID
+            wait_with_message 2 "Entre queries"
+            
+            ./bin/query_control query_control.config "$QUERIES_DIR/STORAGE_4" 6 >> "$LOG_DIR/query4.log" 2>&1 &
+            QUERY4_PID=$!
+            add_pid $QUERY4_PID
+            
+            print_info "Todas las queries STORAGE 1-4 enviadas"
             ;;
         7) # Test 4B - Storage segunda mitad
-            print_info "Ejecutando STORAGE_5..."
-            ./bin/query_control query_control.config "$BASE_DIR/queries/STORAGE_5" 0 >> "$LOG_DIR/query1.log" 2>&1
+            print_info "Ejecutando Query STORAGE_5..."
+            ./bin/query_control query_control.config "$QUERIES_DIR/STORAGE_5" 0 >> "$LOG_DIR/query1.log" 2>&1 &
+            QUERY1_PID=$!
+            add_pid $QUERY1_PID
+            print_info "Query STORAGE_5 enviada"
             ;;
         8) # Test 5 - Estabilidad
             print_info "Ejecutando 100 queries AGING con demora de $QUERY_DELAY segundos..."
             for i in {1..25}; do
                 print_info "Lote $i/25 - Ejecutando 4 queries..."
-                ./bin/query_control query_control.config "$BASE_DIR/queries/AGING_1" 20 >> "$LOG_DIR/query_batch.log" 2>&1 &
+                ./bin/query_control query_control.config "$QUERIES_DIR/AGING_1" 20 >> "$LOG_DIR/query_batch.log" 2>&1 &
+                add_pid $!
                 sleep $QUERY_DELAY
-                ./bin/query_control query_control.config "$BASE_DIR/queries/AGING_2" 20 >> "$LOG_DIR/query_batch.log" 2>&1 &
+                ./bin/query_control query_control.config "$QUERIES_DIR/AGING_2" 20 >> "$LOG_DIR/query_batch.log" 2>&1 &
+                add_pid $!
                 sleep $QUERY_DELAY
-                ./bin/query_control query_control.config "$BASE_DIR/queries/AGING_3" 20 >> "$LOG_DIR/query_batch.log" 2>&1 &
+                ./bin/query_control query_control.config "$QUERIES_DIR/AGING_3" 20 >> "$LOG_DIR/query_batch.log" 2>&1 &
+                add_pid $!
                 sleep $QUERY_DELAY
-                ./bin/query_control query_control.config "$BASE_DIR/queries/AGING_4" 20 >> "$LOG_DIR/query_batch.log" 2>&1 &
+                ./bin/query_control query_control.config "$QUERIES_DIR/AGING_4" 20 >> "$LOG_DIR/query_batch.log" 2>&1 &
+                add_pid $!
                 sleep $QUERY_DELAY
             done
             print_info "Todas las queries lanzadas. Ejecutándose en segundo plano..."
@@ -642,6 +823,16 @@ case $MODULE_CHOICE in
     4) run_module "query" $TEST_CHOICE ;;
 esac
 
-print_info "Configuración completada para Test $TEST_CHOICE"
+print_info "=== CONFIGURACIÓN COMPLETADA ==="
+print_info "Test: $TEST_CHOICE"
+print_info "Módulo: $MODULE_CHOICE" 
 print_info "IPs guardadas en: $IP_FILE"
 print_info "Logs disponibles en: $LOG_DIR"
+print_info ""
+print_info "Módulos ejecutándose en segundo plano."
+print_info "Presiona Ctrl+C para finalizar todos los procesos."
+
+# Mantener script vivo para que los procesos sigan ejecutándose
+while true; do
+    sleep 10
+done
