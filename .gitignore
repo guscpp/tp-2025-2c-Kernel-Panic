@@ -61,3 +61,9 @@ Mkfile.old
 dkms.conf
 worker/worker_pids.txt
 worker/debug_/
+
+# Storage: filesystem
+/storage/files/
+/storage/physical_files
+/storage/bitmap.bin
+/storage/superblock.config
