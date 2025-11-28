@@ -97,7 +97,7 @@ EOF
 print_info "Configurando superblock.config (FS_SIZE=4096, BLOCK_SIZE=16)..."
 cat > "$BASE_DIR/storage/superblock.config" << EOF
 BLOCK_SIZE=16
-FS_SIZE=4096
+FS_SIZE=65536
 EOF
 
 print_info "Configurando worker/worker.config para CLOCK-M..."
