@@ -278,29 +278,27 @@ int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, i
 
 // ****************************************************************************
 // ****************************************************************************
-// Nueva firma de la función: Eliminado t_worker* w
-void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* tag, int offset, size_t tam, bool es_escritura, void* contenido_escritura) {
+// ****************************************************************************
+// EL PROTOTIPO SE MANTIENE COMO SOLICITASTE:
+void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* tag, int offset, size_t tam, bool es_escritura, t_worker* w) {
     if (!mem || !file || !tag || tam == 0) return NULL;
     
     int num_pagina_inicial = offset / mem->tamanio_pagina;
     int despl_inicial = offset % mem->tamanio_pagina;
     int num_pagina_final = (offset + tam - 1) / mem->tamanio_pagina;
     
-    // [⚠️ NOTA IMPORTANTE]: 
-    // La validación de que (offset + tam) no exceda el tamaño del archivo 
-    // debe ser gestionada por el **Storage** o por una consulta explícita
-    // al Storage por el tamaño del archivo antes de la operación.
-    // **El proceso de Memoria NO debería acceder a archivos locales de metadata.**
-    
-    // **Si se necesita validar el tamaño total, el proceso de Memoria
-    // DEBE consultarlo a Storage antes de intentar leer/escribir.**
-    // Dado que el código original no incluye esa consulta, y que el error
-    // en el código original es la lectura local del metadata.config:
-    // SIMPLEMENTE ELIMINAMOS LA LÓGICA DE VALIDACIÓN DE TAMAÑO EN MEMORIA.
-    // Si el Storage indica un error (por ejemplo, en pedir_bloque_storage),
-    // el flujo de error será capturado.
-    
-    // --- Lógica de validación de límites removida ---
+    // [CORRECCIÓN]: Se elimina la lógica que construye la ruta al 
+    // archivo local "metadata.config" usando el path del worker (w->path_scripts)
+    // y la lectura local del tamaño del archivo.
+    // 
+    // La validación de que el acceso esté dentro de los límites del archivo 
+    // DEBE ser responsabilidad del proceso de Storage, o debe ser el Worker
+    // quien consulte el tamaño del archivo a Storage antes de intentar la 
+    // operación. Aquí confiamos en que 'cargar_pagina' (que llama a 
+    // 'pedir_bloque_storage') fallará si la página solicitada es inválida.
+
+    // [BLOQUE ELIMINADO: Validación de tamaño y manejo de error del worker]
+    // Se eliminó el código que leía metadata local y manipulaba w->flag_error_storage.
     
     // Buffer temporal para almacenar el contenido si es lectura
     void* buffer_total = NULL;
@@ -329,12 +327,13 @@ void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* ta
             log_info(mem->logger, "Query<%d>: - Memoria Miss - File: <%s> - Tag: <%s> - Pagina: <%d>",
                     query_id, file, tag, pagina_actual);
             
-            // La función cargar_pagina llama a pedir_bloque_storage, donde Storage
-            // debe hacer la validación de límites si es que no se hizo antes.
+            // La llamada a cargar_pagina activa la comunicación con Storage.
             int marco = cargar_pagina(mem, query_id, file, tag, pagina_actual);
             
+            // Si Storage devuelve error (por bloque no existente o fuera de límites), 
+            // cargar_pagina retorna -1 y se gestiona el error aquí.
             if (marco == -1) {
-                log_debug(mem->logger, "Query<%d>: Error al cargar pagina %d (posiblemente error de Storage)", query_id, pagina_actual);
+                log_debug(mem->logger, "Query<%d>: Error al cargar pagina %d (posible error de Storage/red o acceso fuera de limite)", query_id, pagina_actual);
                 if (buffer_total) free(buffer_total);
                 return NULL;
             }
@@ -366,8 +365,10 @@ void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* ta
         usleep(mem->retardo_memoria * 1000);
         
         if (es_escritura) {
-            // Para escritura: copiar los bytes correspondientes desde el nuevo argumento
-            char* contenido_parcial = ((char*)contenido_escritura) + bytes_procesados;
+            // Para escritura: copiar los bytes correspondientes
+            // Se mantiene el acceso a mem->memoria_contexto ya que es el mecanismo 
+            // que usa el código para pasar el payload de la instrucción.
+            char* contenido_parcial = ((char*)(((t_instr_param*)mem->memoria_contexto)->contenido)) + bytes_procesados;
             memcpy(dir_fisica, contenido_parcial, bytes_en_pagina);
             
             // Log de escritura parcial
@@ -403,7 +404,6 @@ void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* ta
     
     return (void*)1; // Indicador de exito para escrituras
 }
-
 
 // ****************************************************************************
 t_clock_m* crear_clock_m(int cantidad_marcos, t_marco** marcos) {
