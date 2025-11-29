@@ -1172,7 +1172,8 @@ void atender_Worker(t_hacerConnect* informacion){
 
             // Datos del paquete recibido desde el Worker
             int idQuery = *(int*)list_get(paqueteWorker, 1);
-            char* instruccion = (char*)list_get(paqueteWorker, 2);
+            //char* instruccion = (char*)list_get(paqueteWorker, 2);
+            char* instruccion = "Error flush";
 
             // Buscar la query en la lista de queries en ejecución
             pthread_mutex_lock(&mutexQueryEnWorker);
@@ -1404,3 +1405,4 @@ t_query* obtener_menor_prioridad(t_list* lista_queries) {
     // Lo saca de la lista y lo devuelve (sin liberar)
     return list_remove(lista_queries, min_index);
 }
+
