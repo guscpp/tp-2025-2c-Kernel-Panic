@@ -636,6 +636,7 @@ void informar_error_flush(t_instr_param* parametros, t_worker* w, Pcb* pcb){
     t_buffer* buffer1 = crear_buffer();
     t_paquete* paqueteError1 = crear_paquete(WORKER_ERROR_FLUSH, buffer1);
     agregar_a_paquete(paqueteError1, &pcb->query_id, sizeof(int));
+    enviar_paquete(paqueteError1, socket_distpach, w->logger);
     eliminar_paquete(paqueteError1);
 }
 
