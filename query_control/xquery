@@ -9,13 +9,14 @@ fi
 QUERY=$1
 CANTIDAD=$2
 PRIORIDAD=$3
+DEMORA=0.75
 
 # 1. Compilación silenciosa
-make --no-print-directory > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-    echo "Error crítico al compilar."
-    exit 1
-fi
+#make --no-print-directory > /dev/null 2>&1
+#if [ $? -ne 0 ]; then
+#    echo "Error crítico al compilar."
+#    exit 1
+#fi
 
 # 2. Aviso inicial
 echo "Lanzando $CANTIDAD instancias de $QUERY con Prioridad $PRIORIDAD..."
@@ -29,6 +30,7 @@ for ((i=0; i<CANTIDAD; i++)); do
     # Salida directa a consola
     # Usamos la variable $PRIORIDAD fija para todos
     ./bin/query_control ./query_control.config "$QUERY" "$PRIORIDAD" &
+    sleep $DEMORA
 done
 
 # 4. Esperar en silencio
