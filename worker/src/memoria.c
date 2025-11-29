@@ -296,7 +296,7 @@ void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* ta
         return NULL;
     }
 
-    char* metadata_path = string_from_format("%s/storage/files/%s/%s/metadata.config",
+    char* metadata_path = string_from_format("%s/../storage/files/%s/%s/metadata.config",
                                             base_path,
                                             file, tag);
     free(base_path);
