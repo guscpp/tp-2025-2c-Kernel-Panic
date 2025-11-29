@@ -279,132 +279,98 @@ int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, i
 // ****************************************************************************
 // ****************************************************************************
 // ****************************************************************************
-// EL PROTOTIPO SE MANTIENE COMO SOLICITASTE:
 void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* tag, int offset, size_t tam, bool es_escritura, t_worker* w) {
-    if (!mem || !file || !tag || tam == 0) return NULL;
-    
-    int num_pagina_inicial = offset / mem->tamanio_pagina;
-    int despl_inicial = offset % mem->tamanio_pagina;
-    int num_pagina_final = (offset + tam - 1) / mem->tamanio_pagina;
-    
-    // [CORRECCIÓN]: Se elimina la lógica que construye la ruta al 
-    // archivo local "metadata.config" usando el path del worker (w->path_scripts)
-    // y la lectura local del tamaño del archivo.
-    // 
-    // La validación de que el acceso esté dentro de los límites del archivo 
-    // DEBE ser responsabilidad del proceso de Storage, o debe ser el Worker
-    // quien consulte el tamaño del archivo a Storage antes de intentar la 
-    // operación. Aquí confiamos en que 'cargar_pagina' (que llama a 
-    // 'pedir_bloque_storage') fallará si la página solicitada es inválida.
+    if (!mem || !file || !tag || tam == 0) return NULL;
 
-    // [BLOQUE ELIMINADO: Validación de tamaño y manejo de error del worker]
-    // Se eliminó el código que leía metadata local y manipulaba w->flag_error_storage.
-    
-    // Buffer temporal para almacenar el contenido si es lectura
-    void* buffer_total = NULL;
-    if (!es_escritura) {
-        buffer_total = malloc(tam);
-        if (!buffer_total) {
-            log_debug(mem->logger, "Query<%d>: Error al allocar buffer para operacion multi-bloque", query_id);
-            return NULL;
-        }
-    }
-    
-    // Procesar cada pagina necesaria
-    size_t bytes_restantes = tam;
-    size_t bytes_procesados = 0;
-    int pagina_actual = num_pagina_inicial;
-    int despl_actual = despl_inicial;
-    
-    while (bytes_restantes > 0 && pagina_actual <= num_pagina_final) {
-        // Calcular cuantos bytes procesar en esta pagina
-        size_t bytes_en_pagina = (despl_actual + bytes_restantes > mem->tamanio_pagina) ?
-                                (mem->tamanio_pagina - despl_actual) : bytes_restantes;
-        
-        // Asegurar que la pagina esta cargada en memoria
-        t_entrada_pagina* entrada = buscar_pagina(mem, file, tag, pagina_actual);
-        if (!entrada) {
-            log_info(mem->logger, "Query<%d>: - Memoria Miss - File: <%s> - Tag: <%s> - Pagina: <%d>",
-                    query_id, file, tag, pagina_actual);
-            
-            // La llamada a cargar_pagina activa la comunicación con Storage.
-            int marco = cargar_pagina(mem, query_id, file, tag, pagina_actual);
-            
-            // Si Storage devuelve error (por bloque no existente o fuera de límites), 
-            // cargar_pagina retorna -1 y se gestiona el error aquí.
-            if (marco == -1) {
-                log_debug(mem->logger, "Query<%d>: Error al cargar pagina %d (posible error de Storage/red o acceso fuera de limite)", query_id, pagina_actual);
-                if (buffer_total) free(buffer_total);
-                return NULL;
-            }
-            entrada = buscar_pagina(mem, file, tag, pagina_actual);
-            if (!entrada) {
-                log_debug(mem->logger, "Query<%d>: Error al obtener entrada de pagina %d despues de cargarla", 
-                         query_id, pagina_actual);
-                if (buffer_total) free(buffer_total);
-                return NULL;
-            }
-        }
-        
-        // Actualizar estado de la pagina segun la operacion
-        if (mem->algoritmo_reemplazo == CLOCK_M) {
-            int m = entrada->marco;
-            mem->clock_m->bits_referencia[m] = true;
-            if (es_escritura) {
-                mem->clock_m->bits_modificados[m] = true;
-                entrada->modificada = true;
-            }
-        } else if (es_escritura) {
-            entrada->modificada = true;
-        }
-        
-        // Calcular direccion fisica
-        void* dir_fisica = mem->memory_arena + entrada->marco * mem->tamanio_pagina + despl_actual;
-        
-        // Aplicar retardo
-        usleep(mem->retardo_memoria * 1000);
-        
-        if (es_escritura) {
-            // Para escritura: copiar los bytes correspondientes
-            // Se mantiene el acceso a mem->memoria_contexto ya que es el mecanismo 
-            // que usa el código para pasar el payload de la instrucción.
-            char* contenido_parcial = ((char*)(((t_instr_param*)mem->memoria_contexto)->contenido)) + bytes_procesados;
-            memcpy(dir_fisica, contenido_parcial, bytes_en_pagina);
-            
-            // Log de escritura parcial
-            char* valor_str = string_substring(dir_fisica, 0, bytes_en_pagina);
-            log_debug(mem->logger, "Query<%d>: Accion:ESCRIBIR - Direccion Fisica:%p - Valor:%s (pagina %d, bytes: %zu)",
-                    query_id, dir_fisica, valor_str, pagina_actual, bytes_en_pagina);
-            log_info(mem->logger, "Query <%d>: Accion: <ESCRIBIR> - Direccion Fisica <%p> - Valor: <%s>", query_id, dir_fisica, valor_str); 
-            free(valor_str);
-        } else {
-            // Para lectura: copiar los bytes al buffer total
-            memcpy((char*)buffer_total + bytes_procesados, dir_fisica, bytes_en_pagina);
-            
-            // Log de lectura parcial
-            char* valor_str = string_substring(dir_fisica, 0, bytes_en_pagina);
-            log_debug(mem->logger, "Query<%d>: Accion:LEER - Direccion Fisica:%p - Valor:%s (pagina %d, bytes: %zu)",
-                    query_id, dir_fisica, valor_str, pagina_actual, bytes_en_pagina);
-            log_info(mem->logger, "Query<%d>: Accion:LEER - Direccion Fisica: <%p> - Valor: <%s>",
-                    query_id, dir_fisica, valor_str); 
-            free(valor_str);
-        }
-        
-        // Actualizar contadores
-        bytes_restantes -= bytes_en_pagina;
-        bytes_procesados += bytes_en_pagina;
-        pagina_actual++;
-        despl_actual = 0; // En las paginas siguientes, empezamos desde el byte 0
-    }
-    
-    // Retornar el buffer total para lecturas
-    if (!es_escritura) {
-        return buffer_total;
-    }
-    
-    return (void*)1; // Indicador de exito para escrituras
+    int num_pagina_inicial = offset / mem->tamanio_pagina;
+    int despl_inicial = offset % mem->tamanio_pagina;
+    int num_pagina_final = (offset + tam - 1) / mem->tamanio_pagina;
+
+    void* buffer_total = NULL;
+    if (!es_escritura) {
+        buffer_total = malloc(tam);
+        if (!buffer_total) {
+            log_debug(mem->logger, "Query<%d>: Error al allocar buffer para operacion multi-bloque", query_id);
+            return NULL;
+        }
+    }
+
+    size_t bytes_restantes = tam;
+    size_t bytes_procesados = 0;
+    int pagina_actual = num_pagina_inicial;
+    int despl_actual = despl_inicial;
+
+    while (bytes_restantes > 0 && pagina_actual <= num_pagina_final) {
+        size_t bytes_en_pagina = (despl_actual + bytes_restantes > mem->tamanio_pagina) ?
+                                 (mem->tamanio_pagina - despl_actual) : bytes_restantes;
+
+        t_entrada_pagina* entrada = buscar_pagina(mem, file, tag, pagina_actual);
+        if (!entrada) {
+            log_info(mem->logger, "Query<%d>: - Memoria Miss - File: <%s> - Tag: <%s> - Pagina: <%d>",
+                     query_id, file, tag, pagina_actual);
+
+            int marco = cargar_pagina(mem, query_id, file, tag, pagina_actual);
+            if (marco == -1) {
+                log_debug(mem->logger, "Query<%d>: Error al cargar pagina %d (posible error de Storage/red o acceso fuera de limite)", query_id, pagina_actual);
+                if (buffer_total) free(buffer_total);
+                return NULL;
+            }
+            entrada = buscar_pagina(mem, file, tag, pagina_actual);
+            if (!entrada) {
+                log_debug(mem->logger, "Query<%d>: Error al obtener entrada de pagina %d despues de cargarla",
+                          query_id, pagina_actual);
+                if (buffer_total) free(buffer_total);
+                return NULL;
+            }
+        }
+
+        if (mem->algoritmo_reemplazo == CLOCK_M) {
+            int m = entrada->marco;
+            mem->clock_m->bits_referencia[m] = true;
+            if (es_escritura) {
+                mem->clock_m->bits_modificados[m] = true;
+                entrada->modificada = true;
+            }
+        } else if (es_escritura) {
+            entrada->modificada = true;
+        }
+
+        void* dir_fisica = mem->memory_arena + entrada->marco * mem->tamanio_pagina + despl_actual;
+
+        usleep(mem->retardo_memoria * 1000);
+
+        if (es_escritura) {
+            char* contenido_parcial = ((char*)(((t_instr_param*)mem->memoria_contexto)->contenido)) + bytes_procesados;
+            memcpy(dir_fisica, contenido_parcial, bytes_en_pagina);
+
+            char* valor_str = string_substring(dir_fisica, 0, bytes_en_pagina);
+            log_debug(mem->logger, "Query<%d>: Accion:ESCRIBIR - Direccion Fisica:%p - Valor:%s (pagina %d, bytes: %zu)",
+                      query_id, dir_fisica, valor_str, pagina_actual, bytes_en_pagina);
+            log_info(mem->logger, "Query <%d>: Accion: <ESCRIBIR> - Direccion Fisica <%p> - Valor: <%s>", query_id, dir_fisica, valor_str);
+            free(valor_str);
+        } else {
+            memcpy((char*)buffer_total + bytes_procesados, dir_fisica, bytes_en_pagina);
+
+            char* valor_str = string_substring(dir_fisica, 0, bytes_en_pagina);
+            log_debug(mem->logger, "Query<%d>: Accion:LEER - Direccion Fisica:%p - Valor:%s (pagina %d, bytes: %zu)",
+                      query_id, dir_fisica, valor_str, pagina_actual, bytes_en_pagina);
+            log_info(mem->logger, "Query<%d>: Accion:LEER - Direccion Fisica: <%p> - Valor: <%s>",
+                     query_id, dir_fisica, valor_str);
+            free(valor_str);
+        }
+
+        bytes_restantes -= bytes_en_pagina;
+        bytes_procesados += bytes_en_pagina;
+        pagina_actual++;
+        despl_actual = 0;
+    }
+
+    if (!es_escritura) {
+        return buffer_total;
+    }
+
+    return (void*)1;
 }
-
 // ****************************************************************************
 t_clock_m* crear_clock_m(int cantidad_marcos, t_marco** marcos) {
     t_clock_m* c = malloc(sizeof(t_clock_m));
