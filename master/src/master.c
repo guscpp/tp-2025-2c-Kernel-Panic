@@ -340,36 +340,40 @@ void* atender_timer_query(void* arg){
 
     while (query->alive) {
         // CORRECCIÓN: Multiplicar por 1000 para pasar de ms a microsegundos
-        usleep(tiempo_aging * 1000); 
+        if(tiempo_aging != 0){
+            usleep(tiempo_aging * 1000); 
 
-        if (!query->alive) break;
+            if (!query->alive) break;
 
-        bool hubo_cambio = false;
-        int prioridad_actualizada = 0;
+            bool hubo_cambio = false;
+            int prioridad_actualizada = 0;
 
-        pthread_mutex_lock(&mutexColaQuery);
-        // Verificar estado READY para aplicar aging
-        if (query->estado == READY && query->prioridad > 0) {
-            int prioridad_ant = query->prioridad;
-            query->prioridad--;
-            prioridad_actualizada = query->prioridad;
-            hubo_cambio = true;
-            log_info(logger,"## %d Cambio de prioridad: %d - %d", query->id, prioridad_ant, query->prioridad);
-        }
-        
-        // Importante: Guardar el estado antes de soltar mutex
-        int estado_actual = query->estado;
-        pthread_mutex_unlock(&mutexColaQuery);
+            pthread_mutex_lock(&mutexColaQuery);
+            // Verificar estado READY para aplicar aging
+            if (query->estado == READY && query->prioridad > 0) {
+                int prioridad_ant = query->prioridad;
+                query->prioridad--;
+                prioridad_actualizada = query->prioridad;
+                hubo_cambio = true;
+                log_info(logger,"## %d Cambio de prioridad: %d - %d", query->id, prioridad_ant, query->prioridad);
+            }
+            
+            // Importante: Guardar el estado antes de soltar mutex
+            int estado_actual = query->estado;
+            pthread_mutex_unlock(&mutexColaQuery);
 
-        // Llamar al chequeador SIN el mutex bloqueado para evitar el deadlock del punto 1
-        if(hubo_cambio){
-            chequeador_desalojo(prioridad_actualizada, logger);
-        }
-
-        // Si no está en READY, esperamos señal para dormir el hilo de aging
-        if (estado_actual != READY && query->alive) {
+            // Llamar al chequeador SIN el mutex bloqueado para evitar el deadlock del punto 1
+            if(hubo_cambio){
+                chequeador_desalojo(prioridad_actualizada, logger);
+            }
+             if (estado_actual != READY && query->alive) {
+            sem_wait(&query->timer_query);
+            }
+        }else{
             sem_wait(&query->timer_query);
         }
+        // Si no está en READY, esperamos señal para dormir el hilo de aging
+       
     }
     return NULL;
 }
