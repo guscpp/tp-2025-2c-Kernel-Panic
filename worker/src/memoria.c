@@ -312,6 +312,14 @@ void* acceder_memoria(t_memoria_interna* mem, int query_id, char* file, char* ta
             int marco = cargar_pagina(mem, query_id, file, tag, pagina_actual);
             if (marco == -1) {
                 log_debug(mem->logger, "Query<%d>: Error al cargar pagina %d (posible error de Storage/red o acceso fuera de limite)", query_id, pagina_actual);
+                
+                error_tamanio_escrLectura_excedido(mem->logger, 
+                                         es_escritura ? WORKER_ERROR_TAMANIO_ESCRITURA_EXCEDIDO : WORKER_ERROR_TAMANIO_LECTURA_EXCEDIDO,
+                                         query_id, file, tag);
+                                                
+                pthread_mutex_lock(&w->flag_error_storage->mutex_error_storage);
+                w->flag_error_storage->error_storage = true;
+                pthread_mutex_unlock(&w->flag_error_storage->mutex_error_storage);
                 if (buffer_total) free(buffer_total);
                 return NULL;
             }
