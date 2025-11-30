@@ -64,6 +64,11 @@ worker/debug_/
 
 # Storage: filesystem
 storage/files/
-storage/physical_files
+storage/physical_blocks
 storage/bitmap.bin
 storage/superblock.config
+storage/blocks_hash_index.config
+
+# Tests: logs
+
+tests_locales/logs

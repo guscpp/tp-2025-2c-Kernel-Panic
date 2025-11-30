@@ -24,7 +24,7 @@
       "path": "queries"
     },
     {
-      "path": "logs_de_tests"
+      "path": "tests_locales"
     }
   ],
   "settings": {
