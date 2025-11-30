@@ -109,64 +109,76 @@ log_info(mem->logger,
 
 
 // ****************************************************************************
+// ****************************************************************************
 // --- CLOCK-M ---
 int aplicar_clock_m(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina) {
     t_clock_m* clock = mem->clock_m;
-    int inicio = clock->puntero;
-    int victima = -1;
+    int cantidad = clock->cantidad_marcos;
+     int victima = -1;
+    // El puntero global 'clock->puntero' indica el inicio de la búsqueda.
+    int inicio_busqueda = clock->puntero;
 
-    // 1. Marco libre
-    for (int i = 0; i < clock->cantidad_marcos; i++) {
-        int idx = (inicio + i) % clock->cantidad_marcos;
+    // 0) Si algún marco está libre, usarlo.
+    // Esta búsqueda debe comenzar desde el puntero, pero por simplicidad de un marco libre
+    // se recorre circularmente.
+    for (int i = 0; i < cantidad; i++) {
+        int idx = (inicio_busqueda + i) % cantidad;
         if (mem->marcos[idx]->libre) {
-            clock->puntero = (idx + 1) % clock->cantidad_marcos;
+            // El puntero debe avanzar al siguiente marco libre + 1 para la próxima búsqueda.
+            clock->puntero = (idx + 1) % cantidad;
             return idx;
         }
     }
-
-    // 2. Buscar (R=0, M=0)
-    for (int i = 0; i < clock->cantidad_marcos; i++) {
-        int idx = (inicio + i) % clock->cantidad_marcos;
-        if (!clock->bits_referencia[idx] && !clock->bits_modificados[idx]) {
-            victima = idx; break;
+  
+     for (int i = 0; i < cantidad; i++) {
+        int idx = (inicio_busqueda + i) % cantidad;
+         if (!clock->bits_referencia[idx] && !clock->bits_modificados[idx]) {
+            victima = idx; 
+            clock->puntero = (idx + 1) % cantidad;
+            break;
         }
     }
-
-    // 3. Buscar (R=0, M=1)
     if (victima == -1) {
         for (int i = 0; i < clock->cantidad_marcos; i++) {
-            int idx = (inicio + i) % clock->cantidad_marcos;
+            int idx = (inicio_busqueda + i) % clock->cantidad_marcos;
             if (!clock->bits_referencia[idx] && clock->bits_modificados[idx]) {
-                victima = idx; break;
+                victima = idx; 
+                clock->puntero = (idx + 1) % cantidad;
+                break;
+            } else {
+                clock->bits_referencia[idx] = false;
             }
         }
-    }
-
-    // 4. Limpiar R y buscar (R=0, M=X)
-    if (victima == -1) {
-        for (int i = 0; i < clock->cantidad_marcos; i++) clock->bits_referencia[i] = false;
-        for (int i = 0; i < clock->cantidad_marcos; i++) {
-            int idx = (inicio + i) % clock->cantidad_marcos;
-            if (!clock->bits_referencia[idx]) {
-                victima = idx; break;
-            }
-        }
-    }
-
-    if (victima == -1) victima = clock->puntero;
-    clock->puntero = (victima + 1) % clock->cantidad_marcos;
-
-    t_entrada_pagina* entrada_victima = mem->marcos[victima]->entrada_pagina;
-    if (!entrada_victima) return victima;
-
-    log_debug(mem->logger, "## Query<%d>: Se reemplaza la pagina %s:%s/%d por una nueva pagina",
-             query_id, entrada_victima->file, entrada_victima->tag, entrada_victima->numero_pagina);
     
-    log_info(mem->logger, "## Query<%d>: Se reemplaza la pagina <%s:%s>/<%d> por la <%s:%s>/<%d>",
+}
+    if(victima == -1){
+        for (int i = 0; i < cantidad; i++) {
+        int idx = (inicio_busqueda + i) % cantidad;
+         if (!clock->bits_referencia[idx] && !clock->bits_modificados[idx]) {
+            victima = idx; 
+            clock->puntero = (idx + 1) % cantidad;
+            break;
+        }
+
+    }
+ }
+    if(victima ==-1){
+        for (int i = 0; i < cantidad; i++) {
+        int idx = (inicio_busqueda + i) % cantidad;
+         if (!clock->bits_referencia[idx] ) {
+            victima = idx;
+            clock->puntero = (idx + 1) % cantidad;
+            break;
+        }
+    }
+
+    }
+     t_entrada_pagina* entrada_victima = mem->marcos[victima]->entrada_pagina;
+
+     log_info(mem->logger, "## Query<%d>: Se reemplaza la pagina <%s:%s>/<%d> por la <%s:%s>/<%d>",
              query_id, entrada_victima->file, entrada_victima->tag, entrada_victima->numero_pagina, file, tag, num_pagina);
-    
-    // CORRECCIÓN APLICADA AQUÍ
-    if (entrada_victima->modificada) {
+        
+                if (entrada_victima->modificada) {
         log_debug(mem->logger, "Query<%d>: Pagina modificada, realizando FLUSH por Swap", query_id);
         
         // 1. Enviar Flush
@@ -180,9 +192,7 @@ int aplicar_clock_m(t_memoria_interna* mem, int query_id, char* file, char* tag,
              log_error(mem->logger, "Error al recibir respuesta de FLUSH en Swap Clock-M");
         }
     }
-
-    // Eliminar de tabla
-    char* clave = clave_file_tag(entrada_victima->file, entrada_victima->tag);
+        char* clave = clave_file_tag(entrada_victima->file, entrada_victima->tag);
     t_list* tabla = dictionary_get(mem->tablas_paginas, clave);
     if (tabla) {
         bool misma_entrada(void* e) { return e == entrada_victima; }
@@ -203,15 +213,14 @@ log_info(mem->logger,
         entrada_victima->file,
         entrada_victima->tag);
         
-    mem->marcos[victima]->entrada_pagina = NULL;
+     mem->marcos[victima]->entrada_pagina = NULL;
     free(entrada_victima->file);
     free(entrada_victima->tag);
     free(entrada_victima);
     clock->bits_referencia[victima] = false;
     clock->bits_modificados[victima] = false;
     return victima;
-}
-
+}      
 
 // ****************************************************************************
 int cargar_pagina(t_memoria_interna* mem, int query_id, char* file, char* tag, int num_pagina) { 
