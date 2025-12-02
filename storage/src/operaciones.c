@@ -1972,17 +1972,17 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
     }
 
     // impedir si estado COMMITED
-    const char* estado_actual = config_get_string_value(metadata, "ESTADO");
-    if (estado_actual && string_equals_ignore_case((char*)estado_actual, "COMMITED")) {
-        log_error(storage->logger, "ERROR: Intento de eliminar File:Tag COMMITED: <%s>:<%s>", file, tag);
-        config_destroy(metadata);
-        free(path_tag);
-        free(path_metadata);
-        free(path_bitmap);
-        free(path_logical_dir);
-        pthread_mutex_unlock(file_mutex);
-        return false;
-    }
+    // const char* estado_actual = config_get_string_value(metadata, "ESTADO");
+    // if (estado_actual && string_equals_ignore_case((char*)estado_actual, "COMMITED")) {
+    //     log_error(storage->logger, "ERROR: Intento de eliminar File:Tag COMMITED: <%s>:<%s>", file, tag);
+    //     config_destroy(metadata);
+    //     free(path_tag);
+    //     free(path_metadata);
+    //     free(path_bitmap);
+    //     free(path_logical_dir);
+    //     pthread_mutex_unlock(file_mutex);
+    //     return false;
+    // }
 
     // 5. Obtener bloques
     char** bloques = config_get_array_value(metadata, "BLOCKS"); // <-- Esto devuelve un array de strings dinámicos
@@ -2008,11 +2008,9 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
         if (!bloques[i] || strlen(bloques[i]) == 0) continue;
         int bloque_fisico_id = atoi(bloques[i]);
         char* path_fisico = string_from_format("%s/physical_blocks/block%04d.dat", storage->punto_montaje, bloque_fisico_id);
-
         struct stat st;
         if (stat(path_fisico, &st) == 0) {
-             // nlink == 1 significa que solo queda la referencia del directorio 'physical_blocks'
-            if (st.st_nlink == 1) { 
+            if (st.st_nlink <= 1) {
                 unlink(path_fisico);
                 pthread_mutex_lock(&storage->mutex_bitmap);
                 bitarray_clean_bit(storage->bitmap, bloque_fisico_id);
@@ -2020,18 +2018,26 @@ bool eliminar_file_tag(t_storage* storage, t_list* parametros)
                 // Log obligatorio de liberación
                 log_info(storage->logger, "##<%d> - Bloque Físico Liberado - Número de Bloque: <%d>", query_id, bloque_fisico_id);
             }
+            else {
+                log_debug(storage->logger, "Bloque %d no liberado - Tiene %lu referencias restantes", 
+                        bloque_fisico_id, st.st_nlink);
+            }
+        } else {
+            log_warning(storage->logger, "Bloque físico %d no encontrado para liberación", bloque_fisico_id);
+            
+            pthread_mutex_lock(&storage->mutex_bitmap);
+            if (bloque_fisico_id < storage->bitmap->size && bitarray_test_bit(storage->bitmap, bloque_fisico_id)) {
+                bitarray_clean_bit(storage->bitmap, bloque_fisico_id);
+                log_info(storage->logger, "##<%d> - Bloque Físico Liberado (no existente) - Número de Bloque: <%d>", 
+                        query_id, bloque_fisico_id);
+            }
+            pthread_mutex_unlock(&storage->mutex_bitmap);
         }
         free(path_fisico);
     }
 
     // 7. Guardar bitmap actualizado en disco
-    FILE* f_bitmap = fopen(path_bitmap, "wb");
-    if (f_bitmap) {
-        fwrite(storage->bitmap->bitarray, storage->bitmap->size, 1, f_bitmap);
-        fclose(f_bitmap);
-    } else {
-        log_error(storage->logger, "No se pudo abrir %s para persistir bitmap", path_bitmap);
-    }
+    persistir_bitmap(storage);
 
     // 8. Destruir metadata
     config_destroy(metadata);
