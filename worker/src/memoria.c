@@ -439,9 +439,20 @@ t_memoria_interna* crear_memoria(t_log* logger, int tam_memoria, int retardo_mem
     return m;
 }
 
+
+// ****************************************************************************
+static void _destruir_entrada_pagina(void* elem) {
+    t_entrada_pagina* e = (t_entrada_pagina*) elem;
+    free(e->file);
+    free(e->tag);
+    free(e);
+}
+
+
+// ****************************************************************************
 static void _destruir_tabla(char* key, void* value) {
     t_list* tabla = (t_list*) value;
-    list_destroy(tabla);
+    list_destroy_and_destroy_elements(tabla, _destruir_entrada_pagina);
 }
 
 
@@ -575,77 +586,75 @@ int pedir_bloque_storage(t_memoria_interna* mem, int query_id, char* file, char*
 
 
 // ****************************************************************************
-void flush_paginas_modificadas( t_memoria_interna* mem, int query_id, char* file, char* tag, int socket_storage) {
+void flush_paginas_modificadas(t_memoria_interna* mem, int query_id, char* file, char* tag, int socket_storage) {
     char* clave = clave_file_tag(file, tag);
     t_list* tabla = dictionary_get(mem->tablas_paginas, clave);
     free(clave);
-
-    if (!tabla) {
-        log_warning(mem->logger,
-            "Query<%d>: FLUSH - No hay páginas cargadas de %s:%s",
-            query_id, file, tag
-        );
-        return;
-    }
 
     t_buffer* buffer = crear_buffer();
     t_paquete* p = crear_paquete(STORAGE_FLUSH, buffer);
 
     agregar_a_paquete(p, &query_id, sizeof(int));
-    agregar_a_paquete(p, file, strlen(file)+1);
-    agregar_a_paquete(p, tag, strlen(tag)+1);
+    agregar_a_paquete(p, file, strlen(file) + 1);
+    agregar_a_paquete(p, tag, strlen(tag) + 1);
 
     int cantidad_paginas_modificadas = 0;
 
-    for (int i = 0; i < tabla->elements_count; i++) {
-        t_entrada_pagina* e = list_get(tabla, i);
-        if (e->modificada) {
-            cantidad_paginas_modificadas++;
+    if (tabla) {
+        for (int i = 0; i < tabla->elements_count; i++) {
+            t_entrada_pagina* e = list_get(tabla, i);
+            if (e->modificada) {
+                cantidad_paginas_modificadas++;
 
-            void* contenido = mem->memory_arena + e->marco * mem->tamanio_pagina;
+                void* contenido = mem->memory_arena + e->marco * mem->tamanio_pagina;
 
-            // LOG DE DEPURACIÓN: datos de la página que se mandará
-            log_debug(mem->logger,
-                "Query<%d>: FLUSH -> Pagina:%d | Marco:%d | DirFisica:%p | Tam:%d bytes",
-                query_id,
-                e->numero_pagina,
-                e->marco,
-                contenido,
-                mem->tamanio_pagina
-            );
+                // LOG DE DEPURACIÓN: datos de la página que se mandará
+                log_debug(mem->logger,
+                    "Query<%d>: FLUSH -> Pagina:%d | Marco:%d | DirFisica:%p | Tam:%d bytes",
+                    query_id,
+                    e->numero_pagina,
+                    e->marco,
+                    contenido,
+                    mem->tamanio_pagina
+                );
 
-            // Mostrar una vista del contenido (solo si es imprimible)
-            char* vista = string_substring(contenido, 0, mem->tamanio_pagina);
-            log_debug(mem->logger,
-                "Query<%d>: Contenido enviado Página:%d --> \"%s\"",
-                query_id,
-                e->numero_pagina,
-                vista
-            );
-            free(vista);
+                // Mostrar una vista del contenido (solo si es imprimible)
+                char* vista = string_substring(contenido, 0, mem->tamanio_pagina);
+                log_debug(mem->logger,
+                    "Query<%d>: Contenido enviado Página:%d --> \"%s\"",
+                    query_id,
+                    e->numero_pagina,
+                    vista
+                );
+                free(vista);
 
-            // Agregar al paquete
-            agregar_a_paquete(p, &e->numero_pagina, sizeof(int));
-            agregar_a_paquete(p, contenido, mem->tamanio_pagina);
+                // Agregar al paquete
+                agregar_a_paquete(p, &e->numero_pagina, sizeof(int));
+                agregar_a_paquete(p, contenido, mem->tamanio_pagina);
 
-            // Reset modificado
-            e->modificada = false;
-            if (mem->algoritmo_reemplazo == CLOCK_M)
-                mem->clock_m->bits_modificados[e->marco] = false;
+                // Reset modificado
+                e->modificada = false;
+                if (mem->algoritmo_reemplazo == CLOCK_M)
+                    mem->clock_m->bits_modificados[e->marco] = false;
+            }
         }
     }
 
     agregar_a_paquete(p, &cantidad_paginas_modificadas, sizeof(int));
 
-    // enviar a Storage
+    // Enviar SIEMPRE el paquete, incluso si cantidad_paginas_modificadas == 0
     enviar_paquete(p, socket_storage, mem->logger);
     eliminar_paquete(p);
 
-    log_debug(mem->logger,
-        "Query<%d>: FLUSH completado - %d páginas enviadas - File:%s Tag:%s",
-        query_id,
-        cantidad_paginas_modificadas,
-        file,
-        tag
-    );
+    if (cantidad_paginas_modificadas == 0) {
+        log_debug(mem->logger,
+            "Query<%d>: FLUSH completado - 0 páginas enviadas (sin cambios o sin páginas cargadas) - File:%s Tag:%s",
+            query_id, file, tag
+        );
+    } else {
+        log_debug(mem->logger,
+            "Query<%d>: FLUSH completado - %d páginas enviadas - File:%s Tag:%s",
+            query_id, cantidad_paginas_modificadas, file, tag
+        );
+    }
 }

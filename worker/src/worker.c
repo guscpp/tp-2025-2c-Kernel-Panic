@@ -87,11 +87,11 @@ void liberar_worker(t_worker* w)
     if (w->config) config_destroy(w->config);
     
     // Liberar strings
-    free(w->ip_master);
-    free(w->ip_storage);
-    free(w->puerto_storage);
-    free(w->path_scripts);
-    free(w->log_level);
+    //free(w->ip_master);
+    //free(w->ip_storage);
+    //free(w->puerto_storage);
+    //free(w->path_scripts);
+    //free(w->log_level);
     
     free(w);
 }

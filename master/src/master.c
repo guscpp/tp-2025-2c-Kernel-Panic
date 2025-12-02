@@ -471,6 +471,7 @@ void* atender_desconexion_query(void* arg){
             pthread_join(informacion->hilo_timer, NULL);
         }
 
+        if (informacion->path) free(informacion->path);
         free(informacion);   // ← SOLO se libera aquí
         return NULL;
     }
