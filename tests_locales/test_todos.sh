@@ -31,7 +31,6 @@ kill_tp_processes() {
 wait_for_ports_free() {
     print_info "Esperando liberación de puertos 9001 y 9002..."
     while true; do
-        # Detectar PID usando netstat (compatible con enunciado)
         pid_9001=""
         pid_9002=""
         if command -v netstat &> /dev/null; then
@@ -56,7 +55,7 @@ wait_for_ports_free() {
 # Función para esperar inactividad en storage.log por 60 segundos
 wait_for_storage_inactivity() {
     local storage_log="$1"
-    local test_name="$2"  # <-- nuevo parámetro
+    local test_name="$2"
     local inactivity_threshold=60
     local last_size
     local current_size
@@ -92,8 +91,32 @@ wait_for_storage_inactivity() {
         fi
 
         current_time_str=$(date '+%Y-%m-%d %H:%M:%S')
-        print_info "[$test_name] [$current_time_str] Esperando... Última escritura hace ${elapsed}s"
+        print_info "[$test_name] [$current_time_str] Esperando... Última escritura hace ${elapsed}s de ${inactivity_threshold}s"
     done
+}
+
+# Función para copiar archivos de estado del storage
+copy_storage_state() {
+    local test_log_dir="$1"
+    local test_name="$2"
+    
+    print_info "Copiando archivos de estado del storage para $test_name..."
+    
+    sleep 2
+    
+    if [[ -f "$BASE_DIR/storage/bitmap.bin" ]]; then
+        cp "$BASE_DIR/storage/bitmap.bin" "$test_log_dir/"
+        print_info "✅ bitmap.bin copiado"
+    else
+        print_warning "bitmap.bin no encontrado"
+    fi
+    
+    if [[ -f "$BASE_DIR/storage/blocks_hash_index.config" ]]; then
+        cp "$BASE_DIR/storage/blocks_hash_index.config" "$test_log_dir/"
+        print_info "✅ blocks_hash_index.config copiado"
+    else
+        print_warning "blocks_hash_index.config no encontrado"
+    fi
 }
 
 # Lista ordenada de tests
@@ -125,21 +148,27 @@ for test in "${tests[@]}"; do
     kill_tp_processes
     wait_for_ports_free
 
+    # Asegurar que el directorio de logs exista
+    test_log_dir="./logs/$test_name"
+    mkdir -p "$test_log_dir"
+
     # Ejecutar test en background
     ./"$test" &
     test_pid=$!
 
-    # Determinar ruta del storage.log esperado
-    # Suponemos que cada test crea logs en ./logs/<test_name>/storage.log
-    storage_log_path="./logs/$test_name/storage.log"
+    # Ruta esperada del storage.log
+    storage_log_path="$test_log_dir/storage.log"
 
-    # Esperar inactividad en el storage.log correspondiente
+    # Esperar inactividad en el log
     wait_for_storage_inactivity "$storage_log_path" "$test_name"
 
-    # Finalizar el test (en caso de que no haya terminado solo)
+    # ✅ Llamada CORRECTA: pasar ambos argumentos
+    copy_storage_state "$test_log_dir" "$test_name"
+
+    # Finalizar procesos del TP
     kill_tp_processes
 
-    # Esperar que los puertos se liberen antes del siguiente test
+    # Asegurar que los puertos estén libres antes del siguiente test
     wait_for_ports_free
 
     print_info "✅ Finalizado $test_name. Preparando siguiente prueba...\n"
