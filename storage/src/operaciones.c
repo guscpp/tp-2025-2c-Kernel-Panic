@@ -1166,7 +1166,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag, int query_id) 
         config_destroy(metadata);
         if (bloques_str) string_array_destroy(bloques_str);
         free(metadata_path);
-        pthread_mutex_unlock(&storage->mutex_hash_index); // Importante desbloquear antes de salir
+        pthread_mutex_unlock(&storage->mutex_hash_index);
         return;
     }
 
@@ -1222,7 +1222,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag, int query_id) 
             if (bloques_str[i]) {
                 nuevos_bloques_str[i] = string_duplicate(bloques_str[i]);
             } else {
-                 nuevos_bloques_str[i] = string_duplicate(""); // Evitar NULL
+                nuevos_bloques_str[i] = string_duplicate(""); // Evitar NULL
             }
             continue;
         }
@@ -1290,8 +1290,9 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag, int query_id) 
                         log_error(storage->logger, "Error al crear nuevo enlace para el bloque logico %d en <%s>:<%s>", 
                                  i, file, tag);
                         // Intentar restaurar el enlace original
-                        link(path_bloque_fisico, ruta_logico);
-
+                        if (link(path_bloque_fisico, ruta_logico) != 0) {
+                            log_error(storage->logger, "Error al restaurar enlace original para el bloque logico %d", i);
+                        }
                         free(path_bloque_existente);
                         nuevos_bloques_str[i] = string_itoa(bloque_fisico_actual); // Mantener el bloque original ante error
                         se_modifico_metadata = false; 
@@ -1302,8 +1303,9 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag, int query_id) 
                         
                         // c. Liberar el bloque fisico original en el bitmap
                         pthread_mutex_lock(&storage->mutex_bitmap);
-                        // Verificar que aún esté ocupado, aunque con el link deshecho, debería tener nlink=0 o 1
-                        if (bloque_fisico_actual < storage->tamanio_filesystem / storage->tamanio_bloque &&
+                        // Verificar que aún esté ocupado
+                        int cantidad_bloques_fs = storage->tamanio_filesystem / storage->tamanio_bloque;
+                        if (bloque_fisico_actual < cantidad_bloques_fs &&
                             bitarray_test_bit(storage->bitmap, bloque_fisico_actual)) {
                             
                             bitarray_clean_bit(storage->bitmap, bloque_fisico_actual);
@@ -1380,6 +1382,7 @@ void evitar_duplicidad(t_storage* storage, char* file, char* tag, int query_id) 
     //unlock
     pthread_mutex_unlock(&storage->mutex_hash_index);
 }
+
 
 //*****************************************************************************
 /**
@@ -2130,4 +2133,14 @@ void remove_file_mutex(t_storage* storage, const char* file, const char* tag) {
     
     pthread_mutex_unlock(&storage->mutex_dict_locks);
     free(file_tag_id);
+}
+
+
+// ----------------------------------------------------------------------------
+int extraer_numero_bloque(const char* str_bloque) {
+    if (str_bloque == NULL || strlen(str_bloque) < 5) {
+        return -1;
+    }
+    // Extraer número de "blockXXXX"
+    return atoi(str_bloque + 5);
 }
