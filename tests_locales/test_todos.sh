@@ -86,7 +86,7 @@ wait_for_storage_inactivity() {
         if [[ "$current_size" != "$last_size" ]]; then
             last_size="$current_size"
             last_change=$(date +%s)
-            print_info "[$test_name] 📝 Actividad detectada en storage.log (tamaño: $current_size)"
+            print_info "[$test_name] Actividad detectada en storage.log (tamaño: $current_size)"
         fi
 
         now=$(date +%s)
