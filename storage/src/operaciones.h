@@ -15,7 +15,7 @@ bool  flush_archivo(t_storage* storage, t_list* paquete);
 void  marcar_bloque_libre(t_storage* storage, int query_id, int numero_bloque);
 int   get_array_length(char** array);
 char* path_logico_para_truncate(const char* punto_montaje, const char* nombre_file,
-                                const char* tag, int i);
+                const char* tag, int i);
 char* path_fisico_para_truncate(const char* punto_montaje, int bloque_fisico_id);
 int*  leer_bloques_actuales(t_config* metadata_config, int* cantidad_bloques_fisico);
 char* calcular_md5_por_bloque(const char* path_bloque, int tamanio_bloque);
@@ -23,10 +23,13 @@ void  evitar_duplicidad(t_storage* storage, char* file, char* tag, int query_id)
 int   extraer_numero_bloque(const char* str_bloque);
 void  persistir_bitmap(t_storage* storage);
 bool  verificar_si_commited(t_storage* storage, const char* file, const char* tag);
+bool  guardar_hash_index(t_config* hash_index, const char* path);
 char* serializar_bloques(const int* bloques, int cantidad_bloques);
 char* serializar_bloques_array(char** bloques);
 pthread_mutex_t* get_or_create_file_mutex(t_storage* storage, const char* file,
-                                          const char* tag);
+                const char* tag);
 void  remove_file_mutex(t_storage* storage, const char* file, const char* tag);
+void  liberar_bloque_si_sin_referencias(t_storage* storage, int query_id,
+                int bloque_fisico_id);
 
 #endif 
