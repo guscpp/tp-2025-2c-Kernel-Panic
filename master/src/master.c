@@ -346,7 +346,7 @@ void* atender_timer_query(void* arg) {
         pthread_mutex_lock(&mutexColaQuery);
         alive = query->alive;
         es_ready = (query->estado == READY);
-        if (alive && es_ready && query->prioridad > 0) {
+        if (alive && es_ready && query->prioridad > 0 && tiempo_aging != 0 ) {
             int prioridad_ant = query->prioridad;
             query->prioridad--;
             prioridad_actual = query->prioridad;
@@ -364,7 +364,7 @@ void* atender_timer_query(void* arg) {
         pthread_mutex_unlock(&mutexColaQuery);
 
         if (!alive) break;
-        if (!es_ready) {
+        if (!es_ready || tiempo_aging == 0) {
             sem_wait(&query->timer_query);
         }
     }
@@ -396,7 +396,7 @@ void chequeador_desalojo(int prioridad, t_log* logger) {
     pthread_mutex_unlock(&mutexQueryEnWorker);
 
     if (debe_desalojar) {
-        log_info(logger, "## Se desaloja la Query <%d> (%d) del Worker %d - Motivo: PRIORIDAD", idQuery, prioridadMayor, idWorker);
+        log_debug(logger, "## Se desaloja la Query <%d> (%d) del Worker %d - Motivo: PRIORIDAD", idQuery, prioridadMayor, idWorker);
         realizar_desalojo(idQuery, prioridadMayor, idWorker, logger, WORKER_DESALOJO);
     }
 }
