@@ -1,3 +1,8 @@
+## PDFs
+
+- [Enunciado](https://github.com/guscpp/tp-2025-2c-Kernel-Panic/blob/main/enunciado/Master%20of%20Files%20v11.pdf)
+- [Tests](https://github.com/guscpp/tp-2025-2c-Kernel-Panic/blob/main/enunciado/Master%20of%20Files%20tests%20v10.pdf)
+
 # tp-scaffold
 
 Esta es una plantilla de proyecto diseñada para generar un TP de Sistemas
